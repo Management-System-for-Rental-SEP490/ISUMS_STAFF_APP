@@ -1,0 +1,135 @@
+import { StyleSheet } from "react-native";
+
+export const assignNfcModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  container: {
+    width: "90%",
+    maxHeight: "80%",
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
+    position: "relative",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  title: {
+    color: "#111827",
+    fontSize: 18,
+    fontWeight: "700",
+    flex: 1,
+    marginRight: 12,
+  },
+  nfcIdText: {
+    color: "#2563eb",
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  subtitle: {
+    color: "#6b7280",
+    fontSize: 13,
+    marginBottom: 12,
+  },
+  sectionLabel: {
+    color: "#6b7280",
+    fontSize: 12,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: 12,
+  },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    marginRight: 6,
+    marginBottom: 6,
+    backgroundColor: "#f9fafb",
+  },
+  chipSelected: {
+    backgroundColor: "#2563eb",
+    borderColor: "#2563eb",
+  },
+  chipText: {
+    color: "#111827",
+    fontSize: 12,
+  },
+  chipTextSelected: {
+    color: "#ffffff",
+    fontWeight: "600",
+  },
+  listContainer: {
+    marginTop: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    backgroundColor: "#f9fafb",
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    // Giới hạn chiều cao list, phần còn lại sẽ cuộn bên trong
+    maxHeight: 260,
+  },
+  deviceItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    marginBottom: 6,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  deviceName: {
+    color: "#111827",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  deviceMeta: {
+    color: "#6b7280",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  footerRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 12,
+  },
+  closeBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#4b5563",
+  },
+  closeBtnText: {
+    color: "#111827",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  emptyText: {
+    color: "#9ca3af",
+    fontSize: 13,
+    textAlign: "center",
+    paddingVertical: 10,
+  },
+});
+

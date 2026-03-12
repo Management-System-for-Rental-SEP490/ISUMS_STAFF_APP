@@ -1,0 +1,191 @@
+---
+description: Các quy tắc bắt buộc về tương tác với người dùng, tạo file và giải thích code. (Ứng dụng Staff - tách từ ISUMS)
+globs: **/*
+alwaysApply: true
+---
+
+# Quy tắc Tương tác và Code (User Preferences) – ISUMS Staff App
+
+Bạn phải tuân thủ nghiêm ngặt các quy tắc dưới đây trong mọi câu trả lời. **Ứng dụng này là ISUMS Staff App** – dành riêng cho nhân viên kỹ thuật (role `technical`), tách từ ISUMS gốc.
+
+## 1. Quy định về Tạo File Mới
+
+**KHÔNG ĐƯỢC** tự tiện tạo file mới.
+
+Khi bạn nhận thấy cần tạo một file mới, bạn phải thực hiện theo quy trình sau:
+1.  **Dừng lại** và hỏi ý kiến người dùng trước.
+2.  **Đưa ra giải thích chi tiết**:
+    *   **Tại sao** cần tạo file này? (Lý do kỹ thuật, kiến trúc dự án...)
+    *   **Tại sao** chọn vị trí (thư mục) đó? (Tuân thủ cấu trúc dự án nào...)
+    *   Mục đích của file là gì?
+3.  Chỉ thực hiện lệnh tạo file (Write tool) khi người dùng đã xác nhận **"Đồng ý"**.
+
+## 2. Quy định về Giải thích Code (Gen Code)
+
+Mọi đoạn code được sinh ra phải đi kèm với chú thích và giải thích cực kỳ chi tiết, dành cho người mới bắt đầu (kém lập trình).
+
+*   **Comment trong code**: Phải giải thích từng dòng hoặc từng khối lệnh quan trọng.
+*   **Giải thích bên ngoài**:
+    *   Giải thích ý nghĩa của từng syntax (cú pháp) đặc biệt (ví dụ: `useEffect` làm gì, `?.` nghĩa là gì...).
+    *   Giải thích logic của hàm: Đầu vào là gì, xử lý gì, đầu ra là gì.
+    *   Tránh dùng thuật ngữ chuyên ngành quá sâu mà không giải thích lại bằng ngôn ngữ đơn giản dễ hiểu.
+
+## 3. Ngôn ngữ
+
+*   Luôn phản hồi bằng **Tiếng Việt**.
+
+## 4. Tài liệu Tham chiếu Dự án
+
+*   **Tài liệu duy nhất:** `docs/SPECIFICATION.md` – Đặc tả đầy đủ: phạm vi Staff, công nghệ, kịch bản từng form, mock data và kế hoạch tích hợp API.
+*   **Tham chiếu:** Dùng `@ISUMS_STAFF_APP/docs` hoặc đọc `docs/SPECIFICATION.md`.
+*   **Khi người dùng hỏi** về tính năng, nghiệp vụ, hoặc cấu trúc: **TỰ ĐỘNG ĐỌC** `docs/SPECIFICATION.md` để lấy thông tin nếu chưa rõ, không cần chờ nhắc.
+
+## 5. Quy định về Đa ngôn ngữ (i18n)
+
+Ứng dụng này tích hợp **3 ngôn ngữ** (Việt, Anh, Nhật), do đó bạn **PHẢI** đảm bảo tích hợp đa ngôn ngữ cho tất cả các phần có thể:
+
+*   **KHÔNG ĐƯỢC** hardcode text trực tiếp vào code (ví dụ: `"Xin chào"`, `"Submit"`, `"Cancel"`).
+*   **PHẢI** sử dụng hệ thống i18n (internationalization) có sẵn trong dự án cho mọi text hiển thị cho người dùng:
+    *   Sử dụng các hàm dịch từ thư viện i18n (ví dụ: `t()`, `translate()`, hoặc các hàm tương tự).
+    *   **Vị trí lưu trữ bản dịch**:
+        *   Tiếng Việt: `src/shared/i18n/vietnamese.ts`
+        *   Tiếng Anh: `src/shared/i18n/english.ts`
+        *   Tiếng Nhật: `src/shared/i18n/japanese.ts`
+        *   File `src/shared/i18n/index.ts` chỉ dùng để config chung, **KHÔNG** thêm text trực tiếp vào đây.
+    *   Nếu cần tạo key mới, phải thêm vào **TẤT CẢ** các file ngôn ngữ (3 ngôn ngữ) tại các đường dẫn trên.
+*   **Áp dụng cho**:
+    *   Tất cả các label, button text, placeholder, error messages.
+    *   Các thông báo, alert, toast messages.
+    *   Tiêu đề màn hình, menu items.
+    *   Bất kỳ text nào hiển thị cho người dùng cuối.
+*   **Tránh bỏ sót**: Khi tạo component mới hoặc thêm tính năng mới, luôn kiểm tra lại xem có text nào cần dịch không.
+
+## 6. Quy định về Ticket Workflow và Staff (đã có – mock)
+
+**Hiện trạng:** Ứng dụng Staff **chỉ có luồng Staff** – xem danh sách/chi tiết ticket, đặt lịch, quản lý building, category, item. **Đã implement** với **mock data**. Khi có API, chỉ cần thay mock bằng dữ liệu BE (mục 8).
+
+### 6.1. Phạm vi ứng dụng Staff
+
+*   Ứng dụng này **không có** role tenant. Chỉ cho phép đăng nhập với role `technical`.
+*   Luồng tenant tạo ticket nằm ở ứng dụng ISUMS Tenant (riêng biệt).
+
+### 6.2. Luồng Staff (đã có – mock)
+
+*   **TicketListScreen:** `src/features/staff/screens/staffTicket/TicketListScreen.tsx` – danh sách ticket (mock `MOCK_STAFF_TICKETS`), filter status/priority, nhấn item → navigate **TicketDetail** với `ticketId`.
+*   **TicketDetailScreen:** `src/features/staff/screens/staffTicket/TicketDetailScreen.tsx` – chi tiết ticket, hiển thị đầy đủ thông tin; có action "Nhận Ticket" (logic mock). Tab Staff dùng TicketListScreen; Stack có màn TicketDetail.
+*   Khi có API: thay mock bằng React Query/Zustand; bổ sung actions Đặt lịch, Check-in, Hoàn thành theo spec (xem `docs/SPECIFICATION.md`).
+
+### 6.3. Types và cấu trúc
+
+*   **Types hiện tại:** `TicketStatus`, `TicketPriority`, `StaffTicketListItem` nằm trong `src/features/staff/data/mockStaffData.ts`.
+*   **Khi kết nối BE:** Đặt types/interface chuẩn (request/response, model đầy đủ) tại **`src/shared/types/`** (mục 8.5); có thể tham khảo spec trong `docs/SPECIFICATION.md`.
+
+### 6.4. Lưu ý
+
+*   **Notification:** Khi có API, link thông báo ticket từ StaffNotificationScreen đến TicketDetailScreen.
+*   i18n: mục 5; mock/API: mục 7, 8.
+
+---
+
+## 7. Hiện trạng Dữ liệu (Data Source)
+
+*   **Phần lớn ứng dụng hiện dùng mock data** do đã xây dựng sẵn; **chưa áp dụng API** để liên kết với Backend (BE).
+*   **Ngoại lệ:** Luồng **authentication** đã dùng **Keycloak** (kết nối thật với IdP).
+*   Khi người dùng hoặc AI agent làm việc với tính năng liên quan dữ liệu (ticket, lịch staff, building, category, item, thông báo, v.v.), cần **nhớ rằng** nguồn dữ liệu hiện tại là mock; khi bắt đầu kết nối BE thì áp dụng thêm **mục 8** bên dưới.
+
+---
+
+## 8. Quy định khi Bắt đầu Kết nối Backend (BE)
+
+Khi bắt đầu tích hợp API và kết nối với BE, AI agent **phải** tuân thủ các quy định sau (bên cạnh các quy tắc đã nêu ở mục 1–6):
+
+### 8.1. Tái sử dụng file và thay mock bằng dữ liệu BE
+
+*   **Ưu tiên dùng các file đã tạo sẵn** trong dự án.
+*   **Xóa hoặc thay thế** phần mock data tương ứng bằng dữ liệu lấy từ BE (gọi API, React Query, Zustand, v.v.).
+*   Không tạo lại từ đầu những màn hình/component đã có nếu chỉ đổi nguồn dữ liệu.
+
+### 8.2. Giữ đúng cấu trúc code hiện tại
+
+*   **Đảm bảo đúng cấu trúc code** đã xây dựng (folder features/staff, shared, screens, components, styles, data/context, v.v.).
+*   Khi thêm API layer hoặc store, đặt đúng vị trí theo cấu trúc dự án (vd: `shared/services`, `shared/api`, store trong từng feature hoặc shared tùy doc).
+*   **Zustand:** Mọi store Zustand (state global phía client, hook dạng `useXxxStore`) **phải** đặt trong thư mục **`src/store/`**. Các phần có thể dùng Zustand (filter, selection, UI state chia sẻ, v.v.) khi implement cần tạo hoặc mở rộng store trong `src/store/`.
+
+### 8.3. File mới / tài nguyên mới – gợi ý, người dùng tự tạo
+
+*   Nếu cần **tạo file hoặc tài nguyên mới**: **không** tự tiện tạo bằng tool; **hỏi người dùng trước**.
+*   **Gợi ý** rõ: tên file, **lý do** cần, **vị trí** (đường dẫn) và mục đích.
+*   **Yêu cầu người dùng tự tạo** (hoặc xác nhận đã tạo) **rồi mới tiếp tục** bước tiếp theo (điền code, hướng dẫn sửa).
+
+### 8.4. Giải thích code đầy đủ, dễ hiểu
+
+*   Áp dụng **mục 2** (Quy định về Giải thích Code) cho mọi code liên quan kết nối BE.
+*   Thêm: nêu **file dùng để làm gì**, **hàm có chức năng gì** (đầu vào, xử lý, đầu ra), **từng dòng/khối** có ý nghĩa gì trong chức năng đó.
+
+### 8.5. Kiểu dữ liệu (types) – vị trí quy định
+
+*   **Types/interface** (TypeScript) phải được quy định và đặt tại **`src/shared/types/`** (hoặc đúng cấu trúc con đã thống nhất trong dự án).
+*   Tránh định nghĩa type rải rác trong từng screen; dùng shared types cho API request/response và model dùng chung.
+
+### 8.6. Format (chữ, ngày giờ, số, …) – vị trí quy định
+
+*   Các hàm **format** (chuỗi, ngày giờ, số, đơn vị, v.v.) phải được quy định và đặt tại **`src/shared/utils/`** (vd: `formatDate`, `formatNumber`, `formatDateTime`).
+*   UI và API layer **gọi** các util này thay vì format inline nhiều nơi.
+
+### 8.7. React Query và Zustand theo tài liệu
+
+*   **Đảm bảo dùng React Query và Zustand** đúng như tài liệu dự án (docx / spec) yêu cầu.
+*   Gọi API qua React Query (useQuery, useMutation, v.v.); state global/client (vd user, session, cache nghiệp vụ) dùng Zustand theo quy ước đã định.
+*   **Vị trí store Zustand:** Tất cả store Zustand đặt trong **`src/store/`** (xem mục 8.2).
+
+### 8.8. Gen code trong chat: đầy đủ để code tay theo
+
+*   **Mặc định:** Khi sinh code liên quan kết nối BE, **gen trong khung chat đầy đủ** để người dùng có thể **code tay theo** (vừa code vừa học).
+*   **Tránh:** Gen xong rồi chạy được nhưng người dùng phải đọc lại code từng file, mất thời gian.
+*   **Ngoại lệ:** Chỉ **gen ra file/code trực tiếp** (patch, write) khi người dùng **yêu cầu rõ** "gen ra luôn" / "áp dụng luôn".
+
+### 8.9. Hướng dẫn từng bước
+
+*   Khi thực hiện yêu cầu kết nối BE, **hướng dẫn từng bước** rõ ràng: Bước 1 làm gì, Bước 2 làm gì, … (có thể kèm code mẫu hoặc đoạn cần sửa).
+*   Giúp người dùng thực hiện tuần tự, tránh làm dồn một lúc khó kiểm soát.
+
+### 8.10. Ứng dụng Staff – chỉ role Technical
+
+*   **Ứng dụng này chỉ dành cho Staff** (thợ kỹ thuật, role `technical`). Không có tenant.
+*   Màn hình, API, store đều nằm trong `features/staff/` hoặc shared. Không dùng nhầm endpoint/luồng của tenant (tenant nằm ở ứng dụng ISUMS Tenant riêng).
+
+### 8.11. Đa ngôn ngữ (i18n)
+
+*   Tuân thủ **mục 5** (Quy định về Đa ngôn ngữ) cho mọi phần có thể, kể cả message/error từ API hiển thị cho user.
+
+### 8.12. Đọc tài liệu trước khi làm
+
+*   **Đọc lại tài liệu** `docs/SPECIFICATION.md` **trước khi** thực hiện thay đổi hoặc gợi ý code.
+*   Đảm bảo gợi ý và code khớp với spec và quy ước đã ghi.
+
+## 9. Quy định về Alert (Cập nhật mới)
+
+*   **KHÔNG** sử dụng `Alert.alert` mặc định của React Native cho các thông báo hệ thống.
+*   **PHẢI** sử dụng hệ thống **CustomAlert** đã được xây dựng để đảm bảo tính thẩm mỹ và đồng bộ.
+*   **Cách sử dụng**:
+    1.  Import `CustomAlert` từ `src/shared/components/alert` (có thể alias là `Alert`):
+        ```typescript
+        import { CustomAlert as Alert } from "path/to/src/shared/components/alert";
+        ```
+    2.  Sử dụng cú pháp tương tự `Alert.alert` gốc:
+        ```typescript
+        Alert.alert("Tiêu đề", "Nội dung thông báo");
+        ```
+    3.  Hoặc sử dụng các options nâng cao (type: success/error/warning):
+        ```typescript
+        Alert.alert("Thành công", "Đã lưu dữ liệu", [], { type: "success" });
+        ```
+*   **Cấu trúc file Alert**:
+    *   Component: `src/shared/components/alert.tsx` (Chứa logic GlobalAlert và Helper)
+    *   Styles: `src/shared/styles/alertStyles.tsx`
+    *   Store (Zustand): `src/store/useAlertStore.ts`
+    *   Types: `src/shared/types/index.ts`
+
+## 10. Skill Vercel React Native (duy nhất)
+
+*   Khi viết/sửa React Native code, **tuân thủ** các rules trong `.agents/skills/vercel-react-native-skills` (skill duy nhất của project).
