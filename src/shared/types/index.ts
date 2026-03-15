@@ -10,7 +10,6 @@ export type MainTabParamList = {
   ElectricUsage: undefined;
   WaterUsage: undefined;
   Billing: undefined;
-  tenants: undefined;
   Profile: undefined;
   Calendar: undefined;
   Notification: undefined;
@@ -26,8 +25,6 @@ export type RootStackParamList = AuthStackParamList & {
     | undefined
     | { assignForDevice?: AssetItemFromApi; /** "assign" = từ menu + Gán NFC: quét thẻ mới để gán; không truyền = từ footer: chỉ tra cứu mã đã gán */ mode?: "lookup" | "assign"; initialScanMode?: "qr" | "nfc"; navigateOnSuccess?: keyof RootStackParamList | keyof MainTabParamList };
   DeviceDetail: { device: Device };
-  /** Chi tiết thiết bị (tenant): nhận item từ danh sách, fetch theo id, hiển thị giống ItemDescription, có nút Báo cáo sự cố. */
-  TenantItemDetail: { item: AssetItemFromApi };
   Ticket: { device: Device };
   /** Chi tiết nhà cho Staff: danh sách thiết bị + nút gán NFC. Có thể truyền thêm thông tin từ API houses. */
   BuildingDetail: {

@@ -4,7 +4,7 @@ import { StyleSheet } from "react-native";
  * Chiều cao (px) tương ứng 1 giờ trên timeline để tính vị trí slot.
  * Timeline bắt đầu từ HOUR_START (8h) đến HOUR_END (18h).
  */
-export const HOUR_HEIGHT = 54;
+export const HOUR_HEIGHT = 56;
 export const TIMELINE_START_HOUR = 8;
 export const TIMELINE_END_HOUR = 18;
 
@@ -105,12 +105,15 @@ export const staffCalendarStyles = StyleSheet.create({
   /** Một khối slot (công việc) - top và height set bằng style động */
   slotBlock: {
     position: "absolute",
-    left: 10,
-    right: 10,
+    left: 6,
+    right: 6,
     borderRadius: 10,
-    padding: 10,
-    marginTop: 2,
-    marginBottom: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    overflow: "hidden",
+    marginVertical: 0,
+    borderLeftWidth: 4,
+    borderLeftColor: "rgba(255,255,255,0.6)",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -121,16 +124,18 @@ export const staffCalendarStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#fff",
-    marginBottom: 3,
+    marginBottom: 1,
+    lineHeight: 14,
   },
   slotBlockTime: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.92)",
-    marginBottom: 2,
+    fontSize: 10,
+    color: "rgba(255,255,255,0.95)",
+    marginBottom: 1,
   },
   slotBlockSub: {
-    fontSize: 10,
+    fontSize: 9,
     color: "rgba(255,255,255,0.88)",
+    lineHeight: 11,
   },
   /** ---------- Phần đăng ký lịch tuần sau ---------- */
   nextWeekSection: {

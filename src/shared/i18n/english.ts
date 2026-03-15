@@ -2,6 +2,8 @@ export default {
     "login_btn": "Login with ISUMS account",
     "welcome": "Welcome to ISUMS",
     "description": "Please login to continue using the application",
+    "tenant_blocked_title": "Login not allowed",
+    "tenant_blocked_message": "This app is for technical staff only. Please use the resident app.",
     "common": {
         "back": "Back",
         "no_data": "No data",
@@ -59,10 +61,6 @@ export default {
         "success_title": "Success",
         "success_message": "Report ticket has been submitted successfully"
     },
-    "tenants": {
-        "title": "tenant Management",
-        "subtitle": "Track contracts, contact info, and payment history for each tenant."
-    },
     "onboarding": {
         "slide1": {
             "title": "NFC Device Management",
@@ -119,7 +117,6 @@ export default {
         "ElectricUsage": "Electric",
         "WaterUsage": "Water",
         "Billing": "Billing",
-        "tenants": "tenants",
         "Profile": "Profile",
         "Calendar": "Calendar",
         "Notification": "Notification",
@@ -283,6 +280,14 @@ export default {
         "this_week_title": "This week's schedule",
         "no_slots_today": "No slots this day",
         "day_off_label": "Off",
+        "no_task": "No task assigned",
+        "work_slots_load_error": "Could not load work slots",
+        "template_load_error": "Could not load schedule template",
+        "job_type_MAINTENANCE": "Maintenance",
+        "job_type_ISSUE": "Issue handling",
+        "job_type_INSPECTION": "Periodic inspection",
+        "job_type_NFC": "NFC assignment",
+        "job_type_OTHER": "Other",
         "next_week_register_title": "Register schedule for next week",
         "next_week_register_hint": "Pick time slots that work for you. After approval, they will show in next week's schedule.",
         "register_slot": "Register",

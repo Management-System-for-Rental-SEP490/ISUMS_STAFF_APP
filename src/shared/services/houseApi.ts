@@ -20,15 +20,3 @@ export const getHouses = async (): Promise<HousesApiResponse> => {
   return response.data;
 };
 
-/**
- * Lấy danh sách căn nhà gắn với user hiện tại (tenant) (GET /api/houses/house).
- * BE dựa trên userId trong access token (userRentalId) để trả về các nhà mà tenant đang thuê.
- * Dùng cho luồng Tenant Home để không phải filter thủ công theo userId trên FE.
- */
-export const getTenantHouses = async (): Promise<HousesApiResponse> => {
-  const response = await axiosClient.get<HousesApiResponse>(
-    `${BACKEND_API_BASE}/houses/house`
-  );
-  return response.data;
-};
-

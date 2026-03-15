@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import loginStyles from "./loginStyles";
 import { RootStackParamList } from "../../../shared/types";
 import { useAuthStore } from "../../../store/useAuthStore";
-import { getKeycloakAuthUrl, getKeycloakRedirectUri, handleKeycloakCallback, exchangeCodeForToken } from "../../../shared/services/keycloakAuth";
+import { getKeycloakAuthUrl, getKeycloakRedirectUri, handleKeycloakCallback, exchangeCodeForToken, logoutKeycloak } from "../../../shared/services/keycloakAuth";
 import { useTranslation } from "react-i18next";
 
 type LoginNavigationProp = NativeStackNavigationProp<RootStackParamList, "AuthLogin">; //đây là khai báo kiểu để useNavigation có type an toàn khi dùng trong LoginScreen.
@@ -61,14 +61,18 @@ const LoginScreen = () => {
       try {
         const payload = await exchangeCodeForToken(code);
         clearTimeout(timeoutId); // Xóa timeout nếu thành công
-        // Staff app: chỉ cho phép role technical
+        // Staff app: chỉ cho phép role technical. Chặn tenant, xóa session Keycloak để lần sau hiện lại form nhập user/pass.
         if (payload.role !== "technical") {
-          Alert.alert(
-            "Không thể đăng nhập",
-            "Ứng dụng này chỉ dành cho nhân viên kỹ thuật. Vui lòng sử dụng ứng dụng dành cho cư dân."
-          );
+          setShowWebView(false);
           setIsLoading(false);
           isProcessing.current = false;
+          await logoutKeycloak(payload.idToken);
+          Alert.alert(
+            t("tenant_blocked_title"),
+            t("tenant_blocked_message"),
+            [{ text: t("common.close"), onPress: () => {} }],
+            { type: "error" }
+          );
           return;
         }
         useAuthStore.getState().login(payload);

@@ -84,7 +84,7 @@ export default function TicketDetailScreen() {
   const insets = useSafeAreaInsets();
   const route = useRoute<TicketDetailRouteProp>();
   const navigation = useNavigation<NavProp>();
-  const { dayOffList } = useStaffSchedule();
+  const { dayOffList, scheduleTemplate } = useStaffSchedule();
   const { ticketId } = route.params;
 
   const ticket = getTicketById(ticketId);
@@ -198,7 +198,7 @@ export default function TicketDetailScreen() {
       <ChooseScheduleSlotModal
         visible={slotModalVisible}
         onClose={() => setSlotModalVisible(false)}
-        slots={getFreeScheduleSlots(dayOffList)}
+        slots={getFreeScheduleSlots(dayOffList, scheduleTemplate)}
         onConfirm={handleConfirmSlot}
       />
     </View>

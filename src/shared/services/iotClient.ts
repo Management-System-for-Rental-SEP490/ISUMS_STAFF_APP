@@ -1,7 +1,7 @@
 /**
  * IoT Client – kết nối WebSocket + REST tới AWS cho dữ liệu điện/nước realtime.
  * Dùng chung cho tenant (và sau này staff nếu cần).
- * Không gán cứng houseId/areaId/thingId; các giá trị đó lấy từ useTenantContext hoặc param.
+ * Không gán cứng houseId/areaId/thingId; các giá trị đó truyền qua param.
  */
 import { EventEmitter } from "eventemitter3";
 import { IOT_WS_URL, IOT_REST_BASE } from "../api/config";

@@ -3,6 +3,8 @@ import axios from "axios";
 import * as WebBrowser from "expo-web-browser";
 import { AuthPayload, UserRole } from "../types";
 import { useAuthStore } from "../../store/useAuthStore";
+import { CustomAlert } from "../components/alert";
+import i18n from "../i18n";
 
 // Đảm bảo WebBrowser hoạt động đúng trên Web
 WebBrowser.maybeCompleteAuthSession();
@@ -333,10 +335,18 @@ export const openChangePasswordPage = async () => {
         const code = handleKeycloakCallback(result.url);
         if (code) {
              // Đổi mật khẩu thành công, Keycloak redirect về với auth code mới.
-             // Dùng code này để lấy token mới (tự động đăng nhập lại với mật khẩu mới)
              const authPayload = await exchangeCodeForToken(code);
-             
-             // Cập nhật lại AuthStore
+             // Staff app: không cho tenant đăng nhập, xóa session Keycloak để lần sau hiện lại form nhập user/pass
+             if (authPayload.role === "tenant") {
+               useAuthStore.getState().logout();
+               await logoutKeycloak(authPayload.idToken);
+               CustomAlert.alert(
+                 i18n.t("tenant_blocked_title"),
+                 i18n.t("tenant_blocked_message"),
+                 [{ text: i18n.t("common.close") }]
+               );
+               return;
+             }
              useAuthStore.getState().login(authPayload);
         }
     }

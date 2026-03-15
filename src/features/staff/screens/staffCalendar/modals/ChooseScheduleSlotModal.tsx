@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { WorkSlot } from "../data/mockStaffData";
+import { WorkSlot } from "../../../data/mockStaffData";
 
 const DAY_LABELS: Record<number, string> = {
   1: "T2",

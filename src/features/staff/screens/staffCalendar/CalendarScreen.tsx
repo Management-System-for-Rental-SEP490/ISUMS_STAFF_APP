@@ -11,18 +11,18 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import Header from "../../../../shared/components/header";
-import { getWorkScheduleThisWeek, WorkSlot, SlotType } from "../../data/mockStaffData";
+import {
+  getWorkScheduleThisWeek,
+  getScheduleTimelineRange,
+  WorkSlot,
+  SlotType,
+} from "../../data/mockStaffData";
 import { useStaffSchedule } from "../../context/StaffScheduleContext";
 import BookScheduleModal from "./modals/BookScheduleModal";
-import {
-  staffCalendarStyles,
-  HOUR_HEIGHT,
-  TIMELINE_START_HOUR,
-  TIMELINE_END_HOUR,
-  SLOT_COLORS,
-} from "./staffCalendarStyles";
+import { staffCalendarStyles, HOUR_HEIGHT, SLOT_COLORS, TIMELINE_START_HOUR } from "./staffCalendarStyles";
 
-const HOURS_COUNT = TIMELINE_END_HOUR - TIMELINE_START_HOUR; // trả về số giờ từ 08:00 đến 18:00
+/** Slot kéo dài thêm vào ô giờ tiếp theo để thể hiện rõ "đến" 2h (phủ lên ô 2h) */
+const SLOT_OVERLAP_NEXT_ROW = Math.floor(HOUR_HEIGHT / 2);
 
 const DAY_LABELS: Record<number, string> = {
   1: "T2",
@@ -34,10 +34,10 @@ const DAY_LABELS: Record<number, string> = {
   7: "CN",
 };
 
-/** Tạo danh sách mốc giờ để vẽ trục (08:00 - 18:00), format 08 AM, 12 PM, 01 PM... */
-function getTimeTicks(): string[] {
+/** Tạo danh sách mốc giờ để vẽ trục, format 08 AM, 12 PM, 01 PM... */
+function getTimeTicks(startHour: number, endHour: number): string[] {
   const ticks: string[] = [];
-  for (let h = TIMELINE_START_HOUR; h <= TIMELINE_END_HOUR; h++) {
+  for (let h = startHour; h <= endHour; h++) {
     const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
     const hourStr = displayHour.toString().padStart(2, "0");
     const ampm = h < 12 ? "AM" : "PM";
@@ -46,17 +46,22 @@ function getTimeTicks(): string[] {
   return ticks;
 }
 
-const TIME_TICKS = getTimeTicks();
-
 function getSlotColor(slotType?: SlotType): string {
   return slotType ? (SLOT_COLORS[slotType] ?? SLOT_COLORS.other) : SLOT_COLORS.other;
 }
 
+/** Rút gọn ticketId: UUID dài chỉ hiển thị 8 ký tự cuối, ID ngắn (T001) giữ nguyên */
+function formatTicketDisplay(ticketId?: string): string {
+  if (!ticketId || !ticketId.trim()) return "";
+  const s = ticketId.trim();
+  if (s.length > 12 || s.includes("-")) return `#${s.slice(-8)}`;
+  return `#${s}`;
+}
+
 /** Tính top (px) và height (px) cho block slot trên timeline */ //Hàm này quy đổi “slot từ mấy giờ đến mấy giờ” thành “vẽ ô ở đâu và cao bao nhiêu” trên màn hình Lịch.
-function getSlotLayout(startMinutes: number, endMinutes: number) {
+function getSlotLayout(startMinutes: number, endMinutes: number, baseStartHour: number = TIMELINE_START_HOUR) {
   const startHour = startMinutes / 60;
-  const endHour = endMinutes / 60;
-  const top = Math.max(0, (startHour - TIMELINE_START_HOUR) * HOUR_HEIGHT);
+  const top = Math.max(0, (startHour - baseStartHour) * HOUR_HEIGHT);
   const durationHours = (endMinutes - startMinutes) / 60;
   const height = Math.max(24, durationHours * HOUR_HEIGHT);
   return { top, height };
@@ -64,30 +69,50 @@ function getSlotLayout(startMinutes: number, endMinutes: number) {
 
 export default function CalendarScreen() {
   const { t } = useTranslation();
-  const { dayOffList } = useStaffSchedule();
+  const { dayOffList, scheduleTemplate, workSlots } = useStaffSchedule();
   const [bookScheduleVisible, setBookScheduleVisible] = useState(false);
 
-  // Chỉ hiển thị các slot có ticketId (có việc) - không render tất cả khung giờ
+  const { startHour: timelineStartHour, endHour: timelineEndHour } = useMemo(
+    () => getScheduleTimelineRange(scheduleTemplate),
+    [scheduleTemplate]
+  );
+  const hoursCount = timelineEndHour - timelineStartHour;
+  const timeTicks = useMemo(
+    () => getTimeTicks(timelineStartHour, timelineEndHour),
+    [timelineStartHour, timelineEndHour]
+  );
+
+  // Ưu tiên work slots từ API; không có thì dùng mock từ getWorkScheduleThisWeek
   const slotsByDay = useMemo(() => {
-    const schedule = getWorkScheduleThisWeek(dayOffList)
-      .filter((slot) => slot.ticketId && slot.ticketId.trim() !== "");
     const map: Record<number, WorkSlot[]> = {};
     for (let d = 1; d <= 7; d++) map[d] = [];
-    schedule.forEach((slot) => {
-      if (!map[slot.dayOfWeek]) map[slot.dayOfWeek] = [];
-      map[slot.dayOfWeek].push(slot);
-    });
+
+    if (workSlots && workSlots.length > 0) {
+      workSlots.forEach((slot) => {
+        if (!map[slot.dayOfWeek]) map[slot.dayOfWeek] = [];
+        map[slot.dayOfWeek].push(slot);
+      });
+    } else {
+      const schedule = getWorkScheduleThisWeek(dayOffList, scheduleTemplate)
+        .filter((slot) => slot.ticketId && slot.ticketId.trim() !== "");
+      schedule.forEach((slot) => {
+        if (!map[slot.dayOfWeek]) map[slot.dayOfWeek] = [];
+        map[slot.dayOfWeek].push(slot);
+      });
+    }
     Object.keys(map).forEach((d) => {
       const arr = map[Number(d)];
       arr.sort((a, b) => a.startMinutes - b.startMinutes);
     });
     return map;
-  }, [dayOffList]);
+  }, [dayOffList, scheduleTemplate, workSlots]);
 
   const isDayOff = useMemo(() => {
     const set = new Set(dayOffList);
     return (date: string) => set.has(date);
   }, [dayOffList]);
+
+  const timelineMinHeight = hoursCount * HOUR_HEIGHT;
 
   const renderDayTimeline = (dayOfWeek: number, daySlots: WorkSlot[], date: string) => {
     const dayLabel = DAY_LABELS[dayOfWeek] ?? "";
@@ -100,18 +125,18 @@ export default function CalendarScreen() {
             {off ? ` • ${t("staff_calendar.day_off_label")}` : ""}
           </Text>
         </View>
-        <View style={staffCalendarStyles.timelineRow}>
+        <View style={[staffCalendarStyles.timelineRow, { minHeight: timelineMinHeight }]}>
           <View style={staffCalendarStyles.timeAxis}>
-            {TIME_TICKS.map((label, i) => (
+            {timeTicks.map((label, i) => (
               <View key={i} style={staffCalendarStyles.timeTick}>
                 <Text style={staffCalendarStyles.timeTickText}>{label}</Text>
               </View>
             ))}
           </View>
-          <View style={staffCalendarStyles.timelineContent}>
+          <View style={[staffCalendarStyles.timelineContent, { minHeight: timelineMinHeight }]}>
             {daySlots.length > 0 && (
               <View style={staffCalendarStyles.timelineGrid}>
-                {Array.from({ length: HOURS_COUNT }).map((_, i) => (
+                {Array.from({ length: hoursCount }).map((_, i) => (
                   <View key={i} style={staffCalendarStyles.timelineGridRow} />
                 ))}
               </View>
@@ -124,8 +149,16 @@ export default function CalendarScreen() {
               </View>
             ) : (
               daySlots.map((slot) => {
-                const { top, height } = getSlotLayout(slot.startMinutes, slot.endMinutes);
+                const { top, height } = getSlotLayout(
+                  slot.startMinutes,
+                  slot.endMinutes,
+                  timelineStartHour
+                );
                 const bgColor = getSlotColor(slot.slotType);
+                const ticketDisplay = formatTicketDisplay(slot.ticketId);
+                const subText = [slot.buildingName !== "-" && slot.buildingName, ticketDisplay]
+                  .filter(Boolean)
+                  .join(" • ") || "";
                 return (
                   <View
                     key={slot.id}
@@ -133,21 +166,23 @@ export default function CalendarScreen() {
                       staffCalendarStyles.slotBlock,
                       {
                         backgroundColor: bgColor,
+                        borderLeftColor: "rgba(255,255,255,0.6)",
                         top,
-                        height,
+                        height: height + SLOT_OVERLAP_NEXT_ROW,
                       },
                     ]}
                   >
-                    <Text style={staffCalendarStyles.slotBlockTitle} numberOfLines={2}>
-                      {slot.task}
+                    <Text style={staffCalendarStyles.slotBlockTitle} numberOfLines={1} ellipsizeMode="tail">
+                      {slot.taskKey ? t(slot.taskKey) : slot.task}
                     </Text>
                     <Text style={staffCalendarStyles.slotBlockTime}>
                       {slot.timeRange}
                     </Text>
-                    <Text style={staffCalendarStyles.slotBlockSub} numberOfLines={1}>
-                      {slot.buildingName}
-                      {slot.ticketId ? ` • #${slot.ticketId}` : ""}
-                    </Text>
+                    {subText ? (
+                      <Text style={staffCalendarStyles.slotBlockSub} numberOfLines={1} ellipsizeMode="tail">
+                        {subText}
+                      </Text>
+                    ) : null}
                   </View>
                 );
               })

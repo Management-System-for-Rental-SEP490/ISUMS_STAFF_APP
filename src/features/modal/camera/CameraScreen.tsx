@@ -11,7 +11,7 @@ import { ScanMode } from "../../../shared/types";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { getAssetItemByNfcId } from "../../../shared/services/assetItemApi";
-import { useAttachAssetTag, useTenantHouses } from "../../../shared/hooks";
+import { useAttachAssetTag } from "../../../shared/hooks";
 import type { AssetItemFromApi } from "../../../shared/types/api";
 import { AssignNfcModal } from "../../staff/modal/assignNFC/AssignNfcModal";
 
@@ -21,10 +21,6 @@ const CameraScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "Camera">>();
   const role = useAuthStore((s) => s.role);
-  const currentHouseId = useAuthStore((s) => s.houseId);
-  /** Nhà của tenant (để kiểm tra thiết bị quét có thuộc nhà mình không). */
-  const { data: tenantHousesData } = useTenantHouses();
-  const tenantHouseIds = (tenantHousesData?.data ?? []).map((h) => h.id);
   /** Từ BuildingDetail: gán NFC cho thiết bị đã chọn. */
   const assignForDevice = route.params?.assignForDevice;
   /** "assign" = từ menu + Gán NFC; "lookup" (hoặc undefined) = tra cứu. */
@@ -373,81 +369,23 @@ const CameraScreen = () => {
       return;
     }
 
-    // --- Luồng Tenant: quét NFC/QR → mở trang chi tiết thiết bị (TenantItemDetail) nếu thiết bị thuộc nhà mình ---
-    try {
-      const assetItem = await getAssetItemByNfcId(tagValue);
-
-      if (assetItem) {
-        // Yêu cầu mới: Chỉ cho phép quét thiết bị thuộc CĂN NHÀ ĐANG CHỌN (currentHouseId).
-        // Nếu assetItem.houseId trùng với currentHouseId thì mới cho phép.
-        const isCurrentHouseDevice = currentHouseId && assetItem.houseId === currentHouseId;
-
-        if (isCurrentHouseDevice) {
-          navigation.replace("TenantItemDetail", { item: assetItem });
-          return;
-        }
-
-        // Thiết bị không thuộc nhà đang chọn (dù có thể thuộc nhà khác của tenant)
-        if (!isMounted.current) return;
-        Alert.alert(
-          t("camera.not_found_title"),
-          t("camera.device_not_in_your_house"), // Có thể cần sửa lại câu thông báo cho chính xác hơn "Thiết bị không thuộc nhà đang chọn"
-          [
-            {
-              text: t("camera.rescan"),
-              onPress: () => {
-                setScanned(false);
-                if (type === "NFC") startNfcScan();
-              },
-            },
-            { text: t("common.close"), onPress: () => navigation.goBack() },
-          ]
-        );
-        return;
-      }
-
-      // Không tìm thấy thiết bị tương ứng với Tag vừa quét.
-      if (!isMounted.current) return;
-      Alert.alert(
-        t("camera.not_found_title"),
-        type === "QR_CODE"
-          ? t("camera.not_found_qr", { id: tagValue })
-          : t("camera.not_found_nfc", { id: tagValue }),
-        [
-          {
-            text: t("camera.rescan"),
-            onPress: () => {
-              setScanned(false);
-              if (type === "NFC") startNfcScan();
-            },
+    // Staff app: không còn luồng tenant. Nếu không match các luồng trên thì báo không tìm thấy.
+    Alert.alert(
+      t("camera.not_found_title"),
+      type === "QR_CODE"
+        ? t("camera.not_found_qr", { id: tagValue })
+        : t("camera.not_found_nfc", { id: tagValue }),
+      [
+        {
+          text: t("camera.rescan"),
+          onPress: () => {
+            setScanned(false);
+            if (type === "NFC") startNfcScan();
           },
-          {
-            text: t("common.close"),
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
-    } catch (error) {
-      console.log("Lỗi tra cứu thiết bị cho tenant:", error);
-      if (!isMounted.current) return;
-      Alert.alert(
-        t("camera.error_title"),
-        t("camera.read_error"),
-        [
-          {
-            text: t("camera.rescan"),
-            onPress: () => {
-              setScanned(false);
-              if (type === "NFC") startNfcScan();
-            },
-          },
-          {
-            text: t("common.close"),
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
-    }
+        },
+        { text: t("common.close"), onPress: () => navigation.goBack() },
+      ]
+    );
   };
 
   const handleNfcScanned = async (tag: any) => {

@@ -2,6 +2,8 @@ export default {
     "login_btn": "ISUMSアカウントでログイン",
     "welcome": "ISUMSへようこそ",
     "description": "アプリケーションの使用を続けるにはログインしてください",
+    "tenant_blocked_title": "ログインできません",
+    "tenant_blocked_message": "このアプリは技術スタッフ専用です。居住者向けアプリをご利用ください。",
     "common": {
         "back": "戻る",
         "no_data": "データなし",
@@ -58,10 +60,6 @@ export default {
         "description_required": "説明を入力してください",
         "success_title": "成功",
         "success_message": "レポートチケットが正常に送信されました"
-    },
-    "tenants": {
-        "title": "居住者管理",
-        "subtitle": "各居住者の契約、連絡先情報、支払い履歴を追跡します。"
     },
     "onboarding": {
         "slide1": {
@@ -283,6 +281,14 @@ export default {
         "this_week_title": "今週の勤務表",
         "no_slots_today": "この日の予定はありません",
         "day_off_label": "休",
+        "no_task": "作業なし",
+        "work_slots_load_error": "勤務スロットを読み込めませんでした",
+        "template_load_error": "勤務表を読み込めませんでした",
+        "job_type_MAINTENANCE": "メンテナンス",
+        "job_type_ISSUE": "トラブル対応",
+        "job_type_INSPECTION": "定期点検",
+        "job_type_NFC": "NFC割り当て",
+        "job_type_OTHER": "その他",
         "next_week_register_title": "来週の勤務登録",
         "next_week_register_hint": "都合の良い時間帯を選択して登録します。承認後、来週のスケジュールに表示されます。",
         "register_slot": "登録",

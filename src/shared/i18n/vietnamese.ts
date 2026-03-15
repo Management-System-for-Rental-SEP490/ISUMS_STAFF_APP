@@ -2,6 +2,8 @@ export default {
     "login_btn": "Đăng nhập với tài khoản ISUMS",
     "welcome": "Chào mừng bạn đến với ISUMS",
     "description": "Vui lòng đăng nhập để tiếp tục sử dụng ứng dụng",
+    "tenant_blocked_title": "Không thể đăng nhập",
+    "tenant_blocked_message": "Ứng dụng này chỉ dành cho nhân viên kỹ thuật. Vui lòng sử dụng ứng dụng dành cho cư dân.",
     "common": {
         "back": "Quay lại",
         "no_data": "Không có dữ liệu",
@@ -59,10 +61,6 @@ export default {
         "success_title": "Thành công",
         "success_message": "Phiếu báo cáo đã được gửi thành công"
     },
-    "tenants": {
-        "title": "Quản lý cư dân thuê",
-        "subtitle": "Theo dõi hợp đồng, thông tin liên hệ và lịch sử thanh toán của từng cư dân."
-    },
     "onboarding": {
         "slide1": {
             "title": "Quản lý thiết bị NFC",
@@ -119,7 +117,6 @@ export default {
         "ElectricUsage": "Điện",
         "WaterUsage": "Nước",
         "Billing": "Hóa đơn",
-        "tenants": "Cư dân",
         "Profile": "Hồ sơ",
         "Calendar": "Lịch",
         "Notification": "Thông báo",
@@ -283,6 +280,14 @@ export default {
         "this_week_title": "Lịch tuần này",
         "no_slots_today": "Không có ca trong ngày",
         "day_off_label": "Nghỉ",
+        "no_task": "Chưa có công việc",
+        "work_slots_load_error": "Không thể tải ca làm việc",
+        "template_load_error": "Không thể tải lịch làm việc",
+        "job_type_MAINTENANCE": "Bảo trì",
+        "job_type_ISSUE": "Xử lý sự cố",
+        "job_type_INSPECTION": "Kiểm tra định kỳ",
+        "job_type_NFC": "Gán NFC",
+        "job_type_OTHER": "Khác",
         "next_week_register_title": "Đăng ký lịch tuần sau",
         "next_week_register_hint": "Chọn khung giờ phù hợp để đăng ký. Sau khi duyệt, lịch sẽ hiển thị ở tuần tới.",
         "register_slot": "Đăng ký",
