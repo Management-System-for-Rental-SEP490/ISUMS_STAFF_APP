@@ -277,8 +277,14 @@ export default {
         "confirm_slot": "Confirm"
     },
     "staff_calendar": {
+        "weekly_timetable": "Weekly timetable",
+        "current_week": "Current week",
+        "slot_label": "Slot",
+        "room_label": "Room",
         "this_week_title": "This week's schedule",
+        "slot_empty": "Empty",
         "no_slots_today": "No slots this day",
+        "day_not_working": "Not working",
         "day_off_label": "Off",
         "no_task": "No task assigned",
         "work_slots_load_error": "Could not load work slots",
@@ -291,7 +297,21 @@ export default {
         "next_week_register_title": "Register schedule for next week",
         "next_week_register_hint": "Pick time slots that work for you. After approval, they will show in next week's schedule.",
         "register_slot": "Register",
-        "registered": "Registered"
+        "registered": "Registered",
+        "day_short_1": "Mon",
+        "day_short_2": "Tue",
+        "day_short_3": "Wed",
+        "day_short_4": "Thu",
+        "day_short_5": "Fri",
+        "day_short_6": "Sat",
+        "day_short_7": "Sun",
+        "day_full_1": "Monday",
+        "day_full_2": "Tuesday",
+        "day_full_3": "Wednesday",
+        "day_full_4": "Thursday",
+        "day_full_5": "Friday",
+        "day_full_6": "Saturday",
+        "day_full_7": "Sunday"
     },
     "staff_building_detail": {
         "devices_title": "Devices ({{count}})",

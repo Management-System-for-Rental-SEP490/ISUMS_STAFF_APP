@@ -278,8 +278,14 @@ export default {
         "confirm_slot": "確認"
     },
     "staff_calendar": {
+        "weekly_timetable": "週間勤務表",
+        "current_week": "今週",
+        "slot_label": "スロット",
+        "room_label": "部屋",
         "this_week_title": "今週の勤務表",
+        "slot_empty": "空き",
         "no_slots_today": "この日の予定はありません",
+        "day_not_working": "休業日",
         "day_off_label": "休",
         "no_task": "作業なし",
         "work_slots_load_error": "勤務スロットを読み込めませんでした",
@@ -292,7 +298,21 @@ export default {
         "next_week_register_title": "来週の勤務登録",
         "next_week_register_hint": "都合の良い時間帯を選択して登録します。承認後、来週のスケジュールに表示されます。",
         "register_slot": "登録",
-        "registered": "登録済み"
+        "registered": "登録済み",
+        "day_short_1": "月",
+        "day_short_2": "火",
+        "day_short_3": "水",
+        "day_short_4": "木",
+        "day_short_5": "金",
+        "day_short_6": "土",
+        "day_short_7": "日",
+        "day_full_1": "月曜日",
+        "day_full_2": "火曜日",
+        "day_full_3": "水曜日",
+        "day_full_4": "木曜日",
+        "day_full_5": "金曜日",
+        "day_full_6": "土曜日",
+        "day_full_7": "日曜日"
     },
     "staff_building_detail": {
         "devices_title": "デバイス ({{count}})",

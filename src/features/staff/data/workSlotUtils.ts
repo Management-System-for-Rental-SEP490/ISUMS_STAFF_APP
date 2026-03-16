@@ -79,6 +79,36 @@ export function filterWorkSlotsByCurrentWeek(apiSlots: WorkSlotFromApi[]): WorkS
 }
 
 /**
+ * Lọc work slots theo tuần bắt đầu từ Thứ Hai.
+ * @param apiSlots Danh sách work slots từ API.
+ * @param weekStartDate Ngày Thứ Hai của tuần (YYYY-MM-DD).
+ */
+export function filterWorkSlotsByWeek(
+  apiSlots: WorkSlotFromApi[],
+  weekStartDate: string
+): WorkSlotFromApi[] {
+  const monday = new Date(weekStartDate);
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return apiSlots.filter((s) => {
+    const d = new Date(s.startTime);
+    return d >= monday && d <= sunday;
+  });
+}
+
+/**
+ * Lọc theo tuần rồi map sang WorkSlot.
+ */
+export function mapWorkSlotsFromApiForWeek(
+  apiSlots: WorkSlotFromApi[],
+  weekStartDate: string
+): WorkSlot[] {
+  return filterWorkSlotsByWeek(apiSlots, weekStartDate).map(mapWorkSlotFromApiToWorkSlot);
+}
+
+/**
  * Lọc theo tuần hiện tại rồi map sang WorkSlot. Dùng cho StaffScheduleContext.
  */
 export function mapWorkSlotsFromApiForCurrentWeek(apiSlots: WorkSlotFromApi[]): WorkSlot[] {

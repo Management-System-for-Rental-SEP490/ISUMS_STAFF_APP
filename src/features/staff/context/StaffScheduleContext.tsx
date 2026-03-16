@@ -98,6 +98,20 @@ export function StaffScheduleProvider({ children }: { children: React.ReactNode 
     try {
       const res = await getCurrentScheduleTemplate(date);
       if (res.success && res.data) {
+        const d = res.data;
+        // // eslint-disable-next-line no-console
+        // console.log("[Schedule Template API] Đã bắt được giá trị:", {
+        //   id: d.id,
+        //   workingDays: d.workingDays,
+        //   openTime: d.openTime,
+        //   breakStart: d.breakStart,
+        //   breakEnd: d.breakEnd,
+        //   closeTime: d.closeTime,
+        //   slotMinutes: d.slotMinutes,
+        //   bufferMinutes: d.bufferMinutes,
+        //   effectiveFrom: d.effectiveFrom,
+        //   updatedAt: d.updatedAt,
+        // });
         setScheduleTemplate(res.data);
       }
     } catch (err: unknown) {

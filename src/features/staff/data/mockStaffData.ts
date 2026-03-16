@@ -178,21 +178,69 @@ function parseWorkingDaysToSet(workingDays: string): Set<number> {
   return set;
 }
 
-/** Sinh các khung giờ từ template (open→breakStart, breakEnd→close, mỗi slot = slotMinutes) */
+/**
+ * Sinh các khung giờ từ template.
+ * - openTime → breakStart: slot 1 (openTime → openTime+slotMinutes), buffer 15min, slot 2 (9:15→10:15), ...
+ * - breakEnd → closeTime: tương tự sau giờ nghỉ.
+ * Mỗi slot = slotMinutes, giữa các slot có bufferMinutes (nghỉ giữa giờ).
+ */
 function buildTimeRangesFromTemplate(t: ScheduleTemplateData): { startMinutes: number; endMinutes: number }[] {
   const open = parseTimeToMinutes(t.openTime);
   const breakStart = parseTimeToMinutes(t.breakStart);
   const breakEnd = parseTimeToMinutes(t.breakEnd);
   const close = parseTimeToMinutes(t.closeTime);
   const slotM = t.slotMinutes || 60;
+  const bufferM = t.bufferMinutes ?? 0; //bufferMinutes là thời gian nghỉ giữa các slot
   const ranges: { startMinutes: number; endMinutes: number }[] = [];
-  for (let m = open; m < breakStart; m += slotM) {
-    ranges.push({ startMinutes: m, endMinutes: Math.min(m + slotM, breakStart) });
+
+  // Sáng: open → breakStart (slot + buffer luân phiên)
+  let m = open;
+  while (m < breakStart) {
+    const end = Math.min(m + slotM, breakStart);
+    ranges.push({ startMinutes: m, endMinutes: end });
+    m = end + bufferM;
   }
-  for (let m = breakEnd; m < close; m += slotM) {
-    ranges.push({ startMinutes: m, endMinutes: Math.min(m + slotM, close) });
+
+  // Chiều: breakEnd → close
+  m = breakEnd;
+  while (m < close) {
+    const end = Math.min(m + slotM, close);
+    ranges.push({ startMinutes: m, endMinutes: end });
+    m = end + bufferM;
   }
   return ranges;
+}
+
+/**
+ * Export: Lấy các khung giờ chuẩn từ template BE.
+ * Dùng cho CalendarScreen để hiển thị grid đầy đủ (có workslot thì điền, không thì trống).
+ * Data từ BE: openTime, breakStart, breakEnd, closeTime, slotMinutes, bufferMinutes.
+ */
+export function getScheduleTimeSlotsFromTemplate(
+  template?: ScheduleTemplateData | null
+): { startMinutes: number; endMinutes: number; timeRange: string; slotIndex: number }[] {
+  if (!template) {
+    const fallback = [
+      { start: 8 * 60, end: 9 * 60 },
+      { start: 9 * 60 + 15, end: 10 * 60 + 15 },
+      { start: 10 * 60 + 30, end: 11 * 60 + 30 },
+      { start: 13 * 60, end: 14 * 60 },
+      { start: 14 * 60 + 15, end: 15 * 60 + 15 },
+      { start: 15 * 60 + 30, end: 16 * 60 + 30 },
+    ];
+    return fallback.map((r, i) => ({
+      startMinutes: r.start,
+      endMinutes: r.end,
+      timeRange: formatTimeRange(r.start, r.end),
+      slotIndex: i + 1,
+    }));
+  }
+  const ranges = buildTimeRangesFromTemplate(template);
+  return ranges.map((r, i) => ({
+    ...r,
+    timeRange: formatTimeRange(r.startMinutes, r.endMinutes),
+    slotIndex: i + 1,
+  }));
 }
 
 function formatTimeRange(startM: number, endM: number): string {
@@ -218,6 +266,12 @@ export function getScheduleTimelineRange(template?: ScheduleTemplateData | null)
     startHour: Math.floor(startM / 60),
     endHour: Math.ceil(endM / 60),
   };
+}
+
+/** Lấy set ngày làm việc từ template (1=T2...7=CN) để biết ngày nào có slot. */
+export function getWorkingDaysFromTemplate(template?: ScheduleTemplateData | null): Set<number> {
+  if (!template) return new Set([1, 2, 3, 4, 5, 6, 7]);
+  return parseWorkingDaysToSet(template.workingDays);
 }
 
 /**

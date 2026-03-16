@@ -61,6 +61,7 @@ const LoginScreen = () => {
       try {
         const payload = await exchangeCodeForToken(code);
         clearTimeout(timeoutId); // Xóa timeout nếu thành công
+        console.log("[Login] Token nhận được:", payload.token ? "CÓ" : "KHÔNG", "| User:", payload.username, "| Role:", payload.role);
         // Staff app: chỉ cho phép role technical. Chặn tenant, xóa session Keycloak để lần sau hiện lại form nhập user/pass.
         if (payload.role !== "technical") {
           setShowWebView(false);
