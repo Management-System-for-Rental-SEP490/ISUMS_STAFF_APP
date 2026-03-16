@@ -46,7 +46,9 @@ const useAuthStore = create<AuthState>()(
 
       setHouseId: (id: string | null) => set({ houseId: id }),
 
-      login: (data) =>
+      login: (data) => {
+        // Staff app: không cho tenant đăng nhập
+        if (data.role === "tenant") return;
         set((state) => ({
           user: data.username,
           role: data.role,
@@ -57,7 +59,8 @@ const useAuthStore = create<AuthState>()(
           isLoggedIn: true,
           // Giữ nguyên onboardedUsers
           onboardedUsers: state.onboardedUsers, 
-        })),
+        }));
+      },
 
       logout: () =>
         set((state) => ({
@@ -84,8 +87,6 @@ const useAuthStore = create<AuthState>()(
           });
         }
       },
-
-      setHouseId: (id: string | null) => set({ houseId: id }),
     }),
     {
       name: "auth-storage-v2", // Đổi tên key để reset data cũ (tránh lỗi conflict type)

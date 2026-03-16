@@ -23,7 +23,6 @@ const tabIconMap: Record<keyof MainTabParamList, (props: IconProps) => React.Rea
   ElectricUsage: (props) => <Icons.electric {...props} />,
   WaterUsage: (props) => <Icons.water {...props} />,
   Billing: (props) => <Icons.contract {...props} />,
-  tenants: (props) => <Icons.people {...props} />,
   Profile: (props) => <Icons.user {...props} />,
   Calendar: (props) => <Icons.calendar {...props} />,
   Notification: (props) => <Icons.notification {...props} />,

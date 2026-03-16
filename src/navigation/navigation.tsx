@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
+import { useTranslation } from "react-i18next";
+import { CustomAlert } from "../shared/components/alert";
+import { logoutKeycloak } from "../shared/services/keycloakAuth";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Login from "../features/screens/authentication/LoginScreen";
 import OnBoarding from "../features/screens/onBoarding/onBoarding";
@@ -17,6 +20,9 @@ import ItemListScreen from "../features/staff/screens/staffItems/ItemListScreen"
 import ItemCreateScreen from "../features/staff/screens/staffItems/ItemCreateScreen";
 import ItemEditScreen from "../features/staff/screens/staffItems/ItemEditScreen";
 import ItemDescriptionScreen from "../features/staff/screens/staffItems/itemDescription";
+import WorkSlotDetailScreen from "../features/staff/screens/staffWorkSlot/staffWorkSlotDetail";
+import StaffDayOffListScreen from "../features/staff/screens/staffDayOff/staffDayOffList";
+import StaffRequestDayOffScreen from "../features/staff/screens/staffDayOff/staffRequestDayOff";
 import { StaffScheduleProvider } from "../features/staff/context/StaffScheduleContext";
 
 // Wrapper components để bọc Provider cho các screen cần useStaffSchedule
@@ -35,6 +41,7 @@ const TicketDetailScreenWrapper = () => (
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const Navigation = () => {
+  const { t } = useTranslation();
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const user = useAuthStore((state) => state.user);
   const role = useAuthStore((state) => state.role);
@@ -44,7 +51,7 @@ const Navigation = () => {
 
   // Kiểm tra xem User hiện tại đã xem Onboarding chưa
   const showOnboarding = isLoggedIn && user && !onboardedUsers.includes(user);
-// đọc state từ AsyncStorage vào store
+  // đọc state từ AsyncStorage vào store
   useEffect(() => {
     const rehydrate = async () => {
         if (useAuthStore.persist && useAuthStore.persist.hasHydrated) { //Middleware của Zustand giúp lưu state vào AsyncStorage (ổ cứng điện thoại).
@@ -59,6 +66,21 @@ const Navigation = () => {
     };
     rehydrate();
   }, []);
+
+  // Staff app: nếu có session cũ với role tenant (persisted) → logout, xóa session Keycloak và thông báo
+  useEffect(() => {
+    if (!isReady) return;
+    const { isLoggedIn, role, idToken } = useAuthStore.getState();
+    if (isLoggedIn && role === "tenant") {
+      useAuthStore.getState().logout();
+      logoutKeycloak(idToken).catch(() => {});
+      CustomAlert.alert(
+        t("tenant_blocked_title"),
+        t("tenant_blocked_message"),
+        [{ text: t("common.close") }]
+      );
+    }
+  }, [isReady, isLoggedIn, role, t]);
 
   if (!isReady) {
       return (
@@ -87,6 +109,7 @@ const Navigation = () => {
               />
               <Stack.Screen name="BuildingDetail" component={BuildingDetailScreenWrapper} />
               <Stack.Screen name="TicketDetail" component={TicketDetailScreenWrapper} />
+              <Stack.Screen name="WorkSlotDetail" component={WorkSlotDetailScreen} />
               <Stack.Screen name="CategoryList" component={CategoryListScreen} />
               <Stack.Screen name="Category" component={CategoryScreen} />
               <Stack.Screen
@@ -106,6 +129,8 @@ const Navigation = () => {
                 component={ItemDescriptionScreen}
                 options={{ presentation: "modal" }}
               />
+              <Stack.Screen name="LeaveRequestList" component={StaffDayOffListScreen} />
+              <Stack.Screen name="RequestDayOff" component={StaffRequestDayOffScreen} />
             </>
           )
         ) : (

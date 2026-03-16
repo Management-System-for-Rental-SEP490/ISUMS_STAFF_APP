@@ -10,7 +10,6 @@ export type MainTabParamList = {
   ElectricUsage: undefined;
   WaterUsage: undefined;
   Billing: undefined;
-  tenants: undefined;
   Profile: undefined;
   Calendar: undefined;
   Notification: undefined;
@@ -26,8 +25,6 @@ export type RootStackParamList = AuthStackParamList & {
     | undefined
     | { assignForDevice?: AssetItemFromApi; /** "assign" = từ menu + Gán NFC: quét thẻ mới để gán; không truyền = từ footer: chỉ tra cứu mã đã gán */ mode?: "lookup" | "assign"; initialScanMode?: "qr" | "nfc"; navigateOnSuccess?: keyof RootStackParamList | keyof MainTabParamList };
   DeviceDetail: { device: Device };
-  /** Chi tiết thiết bị (tenant): nhận item từ danh sách, fetch theo id, hiển thị giống ItemDescription, có nút Báo cáo sự cố. */
-  TenantItemDetail: { item: AssetItemFromApi };
   Ticket: { device: Device };
   /** Chi tiết nhà cho Staff: danh sách thiết bị + nút gán NFC. Có thể truyền thêm thông tin từ API houses. */
   BuildingDetail: {
@@ -49,6 +46,23 @@ export type RootStackParamList = AuthStackParamList & {
   };
   /** Chi tiết ticket cho Staff: thông tin, trạng thái, nút Nhận ticket (nếu pending) */
   TicketDetail: { ticketId: string };
+  /** Chi tiết work slot: thông tin đầy đủ job + work slot (từ lịch làm việc) */
+  WorkSlotDetail: {
+    slot: {
+      id: string;
+      dayOfWeek: number;
+      date: string;
+      timeRange: string;
+      startMinutes: number;
+      endMinutes: number;
+      buildingName: string;
+      task: string;
+      taskKey?: string;
+      slotType?: string;
+      ticketId?: string;
+      status?: string;
+    };
+  };
   /** Màn form tạo danh mục thiết bị (Staff). Không tham số. */
   Category: undefined;
   /** Màn danh sách danh mục thiết bị (Staff). Không tham số. */
@@ -63,6 +77,10 @@ export type RootStackParamList = AuthStackParamList & {
   ItemEdit: { item: AssetItemFromApi };
   /** Màn chỉ xem thông tin thiết bị (Staff), khi thợ quét NFC bằng nút Quét ở footer. Param: item. */
   ItemDescription: { item: AssetItemFromApi };
+  /** Màn danh sách yêu cầu nghỉ của staff (từ API leave). */
+  LeaveRequestList: undefined;
+  /** Màn form gửi yêu cầu nghỉ (sẽ làm sau). */
+  RequestDayOff: undefined;
 };
 
 export type IconProps = {

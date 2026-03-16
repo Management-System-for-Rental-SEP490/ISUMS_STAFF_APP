@@ -295,6 +295,151 @@ export interface GetAssetByTagValueApiResponse {
   data: AssetItemFromApi[] | AssetItemFromApi;
 }
 
+// =========================================================
+// Schedule Template API (/api/schedules/templates/current/{date})
+// =========================================================
+
+/** Mẫu lịch làm việc trả về từ GET /api/schedules/templates/current/{date}. */
+export interface ScheduleTemplateData {
+  id: string;
+  /** Các ngày làm việc (VD: "MON, TUE, WED, THU, FRI, SAT") */
+  workingDays: string;
+  /** Giờ mở cửa (VD: "08:00:00") */
+  openTime: string;
+  /** Giờ bắt đầu nghỉ (VD: "12:00:00") */
+  breakStart: string;
+  /** Giờ kết thúc nghỉ (VD: "13:00:00") */
+  breakEnd: string;
+  /** Giờ đóng cửa (VD: "17:00:00") */
+  closeTime: string;
+  /** Độ dài mỗi slot (phút) */
+  slotMinutes: number;
+  /** Thời gian đệm (phút) */
+  bufferMinutes: number;
+  /** Ngày có hiệu lực (YYYY-MM-DD) */
+  effectiveFrom: string;
+  updatedAt: string;
+}
+
+/** Response body của GET /api/schedules/templates/current/{date}. */
+export interface ScheduleTemplateApiResponse {
+  data: ScheduleTemplateData;
+  message: string;
+  statusCode: number;
+  success: boolean;
+}
+
+// =========================================================
+// Work Slots API (/api/schedules/work_slots/staff/{staffId})
+// =========================================================
+
+/** Một work slot trả về từ GET /api/schedules/work_slots/staff/{staffId}. */
+export interface WorkSlotFromApi {
+  id: string;
+  staffId: string;
+  jobId: string;
+  /** Loại công việc: MAINTENANCE, ISSUE, ... */
+  jobType: string;
+  /** Thời gian bắt đầu (ISO 8601), VD "2026-03-13T13:00:00" */
+  startTime: string;
+  /** Thời gian kết thúc (ISO 8601), VD "2026-03-13T14:00:00" */
+  endTime: string;
+  /** Trạng thái job: CREATED, SCHEDULED, NEED_RESCHEDULE, IN_PROGRESS, COMPLETED, FAILED, CANCELLED, OVERDUE */
+  status: string;
+}
+
+/** Response body của GET /api/schedules/work_slots/staff/{staffId}. */
+export interface WorkSlotsApiResponse {
+  data: WorkSlotFromApi[];
+  message: string;
+  statusCode: number;
+  success: boolean;
+}
+
+// =========================================================
+// Leave API (GET /api/schedules/leave/staff/{staffId})
+// =========================================================
+
+/** Một yêu cầu nghỉ trả về từ GET /api/schedules/leave/staff/{staffId}. */
+export interface LeaveRequestFromApi {
+  id: string;
+  staffId: string;
+  /** Ngày nghỉ (YYYY-MM-DD) */
+  leaveDate: string;
+  /** Ghi chú / lý do nghỉ */
+  note?: string | null;
+  /** Trạng thái: PENDING, APPROVED, REJECTED, CANCELLED */
+  status: string;
+  /** ID manager duyệt (có thể null) */
+  managerId?: string | null;
+  /** Ghi chú quyết định từ manager */
+  decisionNote?: string | null;
+  createdAt?: string;
+}
+
+/** Response body của GET /api/schedules/leave/staff/{staffId}. */
+export interface LeaveRequestsApiResponse {
+  data: LeaveRequestFromApi[];
+  message?: string;
+  statusCode?: number;
+  success?: boolean;
+}
+
+/** Body gửi khi POST /api/schedules/leave. */
+export interface CreateLeaveRequestPayload {
+  staffId: string;
+  leaveDate: string; // YYYY-MM-DD
+  note?: string; // Ghi chú, có thể để trống
+}
+
+/** Response body của POST /api/schedules/leave (201). */
+export interface CreateLeaveRequestResponse {
+  data: LeaveRequestFromApi;
+  message?: string;
+  statusCode?: number;
+  success?: boolean;
+}
+
+/** Body gửi khi PUT /api/schedules/leave/{id} (cập nhật trạng thái, VD hủy PENDING → CANCELLED). */
+export interface UpdateLeaveRequestPayload {
+  status: "CANCELLED";
+  /** Ghi chú quyết định (tùy chọn, thường dùng khi manager duyệt/từ chối). */
+  decisionNote?: string;
+}
+
+/** Response body của PUT /api/schedules/leave/{id} (200). */
+export interface UpdateLeaveRequestResponse {
+  data: LeaveRequestFromApi;
+  message?: string;
+  statusCode?: number;
+  success?: boolean;
+}
+
+// =========================================================
+// Job API (GET /api/maintenances/jobs/{jobId})
+// =========================================================
+
+/** Job trả về từ GET /api/maintenances/jobs/{jobId}. Dùng jobId từ work slot để lấy chi tiết. */
+export interface JobFromApi {
+  id: string;
+  planId: string;
+  houseId: string;
+  /** Ngày bắt đầu kỳ (YYYY-MM-DD) */
+  periodStartDate: string;
+  /** Hạn hoàn thành (ISO 8601) */
+  dueDate: string;
+  /** Trạng thái: CREATED, SCHEDULED, NEED_RESCHEDULE, IN_PROGRESS, COMPLETED, FAILED, CANCELLED, OVERDUE */
+  status: string;
+}
+
+/** Response body của GET /api/maintenances/jobs/{jobId}. */
+export interface JobApiResponse {
+  data: JobFromApi;
+  message: string;
+  statusCode: number;
+  success: boolean;
+}
+
 // Sau này có thêm API khác thì định nghĩa tiếp ở dưới
 // Ví dụ:
 // export interface DeviceResponse { ... }

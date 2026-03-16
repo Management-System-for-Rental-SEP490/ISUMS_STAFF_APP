@@ -4,7 +4,7 @@ import { StyleSheet } from "react-native";
  * Chiều cao (px) tương ứng 1 giờ trên timeline để tính vị trí slot.
  * Timeline bắt đầu từ HOUR_START (8h) đến HOUR_END (18h).
  */
-export const HOUR_HEIGHT = 54;
+export const HOUR_HEIGHT = 56;
 export const TIMELINE_START_HOUR = 8;
 export const TIMELINE_END_HOUR = 18;
 
@@ -12,21 +12,37 @@ export const TIMELINE_END_HOUR = 18;
  * Styles cho màn hình Lịch làm việc (Calendar) của Staff.
  * Timeline có dòng kẻ giữa các khung giờ (giống bảng), nhãn giờ có khoảng cách rõ ràng.
  */
+/** Fantastical Calendar style: clean, minimal, soft palette */
 export const staffCalendarStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#FAFBFC",
   },
   scrollContent: {
-    paddingHorizontal: 14,
-    paddingTop: 14,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 120,
+  },
+  /** Phần cố định trên cùng: title + week nav + danh sách ngày */
+  fixedTopSection: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    backgroundColor: "#FAFBFC",
+  },
+  /** ScrollView chứa chỉ bảng lịch */
+  timetableScroll: {
+    flex: 1,
+  },
+  timetableScrollContent: {
+    paddingHorizontal: 16,
     paddingBottom: 120,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1e293b",
-    marginBottom: 14,
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#1a1a2e",
+    marginBottom: 8,
+    letterSpacing: -0.3,
   },
   /** Một ngày trong tuần: tiêu đề ngày + timeline */
   dayCard: {
@@ -105,12 +121,15 @@ export const staffCalendarStyles = StyleSheet.create({
   /** Một khối slot (công việc) - top và height set bằng style động */
   slotBlock: {
     position: "absolute",
-    left: 10,
-    right: 10,
+    left: 6,
+    right: 6,
     borderRadius: 10,
-    padding: 10,
-    marginTop: 2,
-    marginBottom: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    overflow: "hidden",
+    marginVertical: 0,
+    borderLeftWidth: 4,
+    borderLeftColor: "rgba(255,255,255,0.6)",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -121,16 +140,18 @@ export const staffCalendarStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#fff",
-    marginBottom: 3,
+    marginBottom: 1,
+    lineHeight: 14,
   },
   slotBlockTime: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.92)",
-    marginBottom: 2,
+    fontSize: 10,
+    color: "rgba(255,255,255,0.95)",
+    marginBottom: 1,
   },
   slotBlockSub: {
-    fontSize: 10,
+    fontSize: 9,
     color: "rgba(255,255,255,0.88)",
+    lineHeight: 11,
   },
   /** ---------- Phần đăng ký lịch tuần sau ---------- */
   nextWeekSection: {
@@ -215,6 +236,316 @@ export const staffCalendarStyles = StyleSheet.create({
   emptyDayHintText: {
     fontSize: 13,
     color: "#94a3b8",
+  },
+  /** ---------- Weekly timetable layout (expand/collapse) ---------- */
+  titleRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    marginBottom: 8,
+  },
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#6366f1",
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    shadowColor: "#6366f1",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  addButtonText: {
+    fontSize: 22,
+    fontWeight: "600" as const,
+    color: "#fff",
+  },
+  weekNavRow: { marginBottom: 8 },
+  weekNavLabel: {
+    fontSize: 13,
+    color: "#64748b",
+    marginBottom: 4,
+  },
+  weekNavArrows: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    minHeight: 36,
+  },
+  navArrow: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#e2e8f0",
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+  },
+  navArrowText: {
+    fontSize: 24,
+    lineHeight: 24,
+    color: "#475569",
+    fontWeight: "600" as const,
+    textAlign: "center" as const,
+    includeFontPadding: false,
+  },
+  weekNavMonthWrap: {
+    flex: 1,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+  },
+  monthText: {
+    fontSize: 16,
+    fontWeight: "700" as const,
+    color: "#1e293b",
+    textAlign: "center" as const,
+  },
+  /** DayTicker style: horizontal strip ngày trong tuần */
+  daysHeaderRow: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    marginBottom: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  daysHeaderCell: {
+    alignItems: "center" as const,
+    flex: 1,
+  },
+  daysHeaderDay: {
+    fontSize: 11,
+    color: "#64748b",
+    marginBottom: 4,
+  },
+  daysHeaderDayToday: {
+    color: "#6366f1",
+    fontWeight: "700" as const,
+  },
+  daysHeaderNumWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    overflow: "hidden" as const,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+  },
+  daysHeaderNumWrapToday: { backgroundColor: "#6366f1" },
+  daysHeaderNum: {
+    fontSize: 14,
+    fontWeight: "600" as const,
+    color: "#334155",
+  },
+  daysHeaderNumToday: { color: "#fff" },
+  daysHeaderDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#6366f1",
+    marginTop: 4,
+  },
+  /** Khung lớn chứa toàn bộ lịch tuần: [ngày trái | slot phải] */
+  timetableFrame: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    overflow: "hidden",
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  timetableRow: {
+    flexDirection: "row" as const,
+    alignItems: "stretch" as const,
+    minHeight: 48,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  timetableRowLast: { borderBottomWidth: 0 },
+  /** Cột ngày bên trái: cố định width */
+  timetableDateCol: {
+    width: 80,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    justifyContent: "center" as const,
+    borderRightWidth: 1,
+    borderRightColor: "#e2e8f0",
+  },
+  timetableDateText: {
+    fontSize: 13,
+    fontWeight: "600" as const,
+    color: "#475569",
+  },
+  timetableDateToday: { color: "#6366f1" },
+  /** Thanh xám thu nhỏ khi không có slot */
+  timetableEmptySlot: {
+    flex: 1,
+    minHeight: 32,
+    backgroundColor: "#f8fafc",
+    marginVertical: 8,
+    marginRight: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  /** Vùng slot bên phải có nội dung */
+  timetableSlotCol: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 10,
+  },
+  collapsedDayRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#fff",
+    marginBottom: 6,
+    borderRadius: 14,
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+  },
+  collapsedDayLabel: {
+    fontSize: 13,
+    fontWeight: "600" as const,
+    color: "#64748b",
+  },
+  collapsedDayHint: {
+    fontSize: 12,
+    color: "#94a3b8",
+  },
+  /** Ô trống bên phải khi ngày thu nhỏ */
+  collapsedDayRight: {
+    flex: 1,
+    minWidth: 8,
+  },
+  /** Cột ngày (trái) - CalendarScreen dùng */
+  timetableDateColumn: {
+    width: 80,
+    paddingVertical: 12,
+    paddingLeft: 16,
+    paddingRight: 12,
+    justifyContent: "center" as const,
+    borderRightWidth: 1,
+    borderRightColor: "#e2e8f0",
+  },
+  /** Cột slot (phải) - CalendarScreen dùng - full ô, không padding */
+  timetableSlotColumn: {
+    flex: 1,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    alignItems: "stretch" as const,
+    justifyContent: "flex-start" as const,
+  },
+  /** Vùng slot có nội dung - slot cards tràn full ô */
+  slotColumnContent: {
+    flexDirection: "column" as const,
+    gap: 0,
+    flex: 1,
+    alignSelf: "stretch" as const,
+  },
+  /** Hàng workslot: [ngày] | [khung workslot] */
+  workslotRow: {
+    flexDirection: "row" as const,
+    alignItems: "stretch" as const,
+    marginBottom: 12,
+    gap: 12,
+  },
+  workslotDayLabel: {
+    width: 72,
+    fontSize: 13,
+    fontWeight: "600" as const,
+    color: "#475569",
+  },
+  timetableList: { gap: 0 },
+  expandedDayBlock: { marginBottom: 12 },
+  /** Workslot tràn full ô ngày - không khối nhỏ */
+  slotCard: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 0,
+    padding: 12,
+    marginBottom: 0,
+    borderLeftWidth: 4,
+    minHeight: 48,
+  },
+  slotCardTime: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    color: "#1e293b",
+    marginBottom: 8,
+  },
+  /** Placeholder cho khung slot trống (chờ API workslot) */
+  slotCardPlaceholder: {
+    fontSize: 12,
+    color: "#94a3b8",
+    fontStyle: "italic" as const,
+  },
+  slotCardLabel: { fontSize: 12, color: "#64748b" },
+  slotCardRoom: { fontSize: 12, color: "#475569" },
+  slotCardTask: { fontSize: 14, fontWeight: "700" as const },
+  slotCardStatus: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 4,
+  },
+  slotCardTicket: {
+    fontSize: 12,
+    color: "#3b82f6",
+    fontWeight: "600" as const,
+  },
+  /** Grid layout: mỗi ngày có section, mỗi slot là 1 row */
+  daySection: {
+    marginBottom: 20,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    overflow: "hidden",
+  },
+  daySectionTitle: {
+    fontSize: 15,
+    fontWeight: "700" as const,
+    color: "#1e293b",
+    marginBottom: 12,
+  },
+  slotRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    marginBottom: 6,
+    minHeight: 44,
+  },
+  slotRowFilled: {
+    marginBottom: 6,
+  },
+  slotRowTime: {
+    width: 100,
+    fontSize: 12,
+    fontWeight: "600" as const,
+    color: "#475569",
+  },
+  slotRowEmpty: {
+    flex: 1,
+    minHeight: 40,
+    backgroundColor: "#f8fafc",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderStyle: "dashed" as const,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+  },
+  slotRowEmptyText: {
+    fontSize: 14,
+    color: "#cbd5e1",
   },
 });
 

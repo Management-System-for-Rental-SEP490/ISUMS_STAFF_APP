@@ -7,6 +7,42 @@ import axiosClient from "../api/axiosClient";
 import { BACKEND_API_BASE } from "../api/config";
 import type { HousesApiResponse } from "../types/api";
 
+/** Chuẩn hóa response từ BE — hỗ trợ nhiều format: { data: [...] } hoặc mảng trực tiếp. */
+function normalizeHousesResponse(body: unknown): HousesApiResponse {
+  if (Array.isArray(body)) {
+    return { data: body, message: "OK", statusCode: 200, success: true };
+  }
+  if (body && typeof body === "object" && "data" in body) {
+    const d = (body as any).data;
+    if (Array.isArray(d)) return body as HousesApiResponse;
+    // Một số BE bọc thêm: { data: { data: [...], message, statusCode, success } }
+    if (d && typeof d === "object" && Array.isArray(d.data)) {
+      return { data: d.data, message: d.message ?? "OK", statusCode: d.statusCode ?? 200, success: d.success ?? true };
+    }
+  }
+  if (body && typeof body === "object" && "houses" in body && Array.isArray((body as any).houses)) {
+    const b = body as any;
+    return { data: b.houses, message: b.message ?? "OK", statusCode: b.statusCode ?? 200, success: b.success ?? true };
+  }
+  if (body && typeof body === "object" && "result" in body) {
+    const result = (body as any).result;
+    if (Array.isArray(result?.data)) {
+      return {
+        data: result.data,
+        message: result.message ?? (body as any).message ?? "OK",
+        statusCode: result.statusCode ?? (body as any).statusCode ?? 200,
+        success: result.success ?? (body as any).success ?? true,
+      };
+    }
+  }
+  return {
+    data: [],
+    message: (body as any)?.message ?? "Không có dữ liệu",
+    statusCode: (body as any)?.statusCode ?? 200,
+    success: (body as any)?.success ?? false,
+  };
+}
+
 /**
  * Lấy danh sách TẤT CẢ căn nhà (GET /api/houses).
  * Dùng cho luồng Staff (quản lý nhiều nhà).
@@ -14,21 +50,9 @@ import type { HousesApiResponse } from "../types/api";
  * @returns Promise<HousesApiResponse> - data là mảng HouseFromApi, success/message/statusCode từ BE.
  */
 export const getHouses = async (): Promise<HousesApiResponse> => {
-  const response = await axiosClient.get<HousesApiResponse>(
-    `${BACKEND_API_BASE}/houses`
-  );
-  return response.data;
-};
-
-/**
- * Lấy danh sách căn nhà gắn với user hiện tại (tenant) (GET /api/houses/house).
- * BE dựa trên userId trong access token (userRentalId) để trả về các nhà mà tenant đang thuê.
- * Dùng cho luồng Tenant Home để không phải filter thủ công theo userId trên FE.
- */
-export const getTenantHouses = async (): Promise<HousesApiResponse> => {
-  const response = await axiosClient.get<HousesApiResponse>(
-    `${BACKEND_API_BASE}/houses/house`
-  );
-  return response.data;
+  const url = `${BACKEND_API_BASE}/houses`;
+  const response = await axiosClient.get(url);
+  const normalized = normalizeHousesResponse(response.data);
+  return normalized;
 };
 

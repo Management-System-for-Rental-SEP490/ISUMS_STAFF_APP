@@ -37,4 +37,27 @@ export const iconStyles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+
+  /** Work Slot Detail: wrapper cho icon trong mỗi row. */
+  workSlotRowIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#F8FAFC",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    marginRight: 12,
+  },
+  /** Work Slot Detail: wrapper cho icon section header. */
+  workSlotSectionIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#EEF2FF",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  workSlotSectionIconWrapJob: {
+    backgroundColor: "#ECFDF5",
+  },
 });

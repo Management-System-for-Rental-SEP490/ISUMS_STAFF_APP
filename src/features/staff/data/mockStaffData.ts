@@ -4,6 +4,7 @@
  */
 
 import { Device, DeviceStatus, DeviceType } from "../../../shared/types";
+import type { ScheduleTemplateData } from "../../../shared/types/api";
 
 /** Căn nhà / tòa nhà trong hệ thống (staff quản lý nhiều căn) */
 export interface Building {
@@ -43,10 +44,31 @@ export interface WorkSlot {
   buildingName: string;
   /** Nội dung công việc (kiểm tra định kỳ, sửa ticket, ...) */
   task: string;
+  /** Key i18n cho task khi có (VD staff_calendar.job_type.MAINTENANCE). Ưu tiên dùng khi hiển thị. */
+  taskKey?: string;
   /** Loại slot để hiển thị màu (inspection=tím/xanh, ticket=xanh ngọc, nfc=cam, break=xám) */
   slotType?: SlotType;
-  /** Mã ticket nếu slot gắn với ticket (VD "T001") */
+  /** Mã ticket/job nếu slot gắn với job (dùng jobId từ API để lấy chi tiết) */
   ticketId?: string;
+  /** Trạng thái job: CREATED, SCHEDULED, IN_PROGRESS, COMPLETED, ... */
+  status?: string;
+}
+
+/** Lọc work slots (đã map) thuộc tuần hiện tại (Thứ Hai – Chủ Nhật). */
+export function filterWorkSlotsByCurrentWeek(slots: WorkSlot[]): WorkSlot[] {
+  const today = new Date();
+  const day = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return slots.filter((s) => {
+    const [d, m] = s.date.split("/").map(Number);
+    const slotDate = new Date(today.getFullYear(), m - 1, d);
+    return slotDate >= monday && slotDate <= sunday;
+  });
 }
 
 /** Trạng thái ticket (theo spec) */
@@ -80,7 +102,7 @@ export interface StaffTicketListItem {
 const WORK_START_MINUTES = 8 * 60;
 const WORK_END_MINUTES = 18 * 60;
 
-/** Các khung 2h trong ngày: 08:00-10:00, 10:00-12:00, 12:00-14:00, 14:00-16:00, 16:00-18:00 */
+/** Các khung 2h trong ngày (fallback khi không có template): 08:00-10:00 ... 16:00-18:00 */
 const DEFAULT_TIME_SLOTS = [
   "08:00 - 10:00",
   "10:00 - 12:00",
@@ -137,33 +159,172 @@ const MOCK_TICKET_ASSIGNMENTS: TicketAssignment[] = [
   { date: weekDays[2].date, timeRange: "10:00 - 12:00", ticketId: "T003", task: "Xử lý ticket #T003 - Ổ cắm chập", buildingName: "Nhà A - Tòa 1" },
 ];
 
+/** Parse "HH:mm" hoặc "HH:mm:ss" sang phút từ 0h */
+function parseTimeToMinutes(timeStr: string): number {
+  const match = timeStr.trim().match(/(\d{1,2}):(\d{2})(?::\d{2})?/);
+  if (!match) return 8 * 60;
+  const [, h, m] = match.map(Number);
+  return h * 60 + m;
+}
+
+/** Parse workingDays "MON, TUE, WED..." thành Set dayOfWeek (1=T2...7=CN) */
+function parseWorkingDaysToSet(workingDays: string): Set<number> {
+  const map: Record<string, number> = {
+    MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6, SUN: 7,
+  };
+  const set = new Set<number>();
+  workingDays.split(",").forEach((d) => {
+    const key = d.trim().toUpperCase();
+    if (map[key]) set.add(map[key]);
+  });
+  return set;
+}
+
 /**
- * Sinh lịch tuần này: mỗi ngày (trừ ngày nghỉ) có 5 khung 8–10, 10–12, 12–14, 14–16, 16–18.
- * Ngày có trong dayOffDates sẽ không có slot nào. Slot trùng với MOCK_TICKET_ASSIGNMENTS sẽ có task/ticketId.
+ * Sinh các khung giờ từ template.
+ * - openTime → breakStart: slot 1 (openTime → openTime+slotMinutes), buffer 15min, slot 2 (9:15→10:15), ...
+ * - breakEnd → closeTime: tương tự sau giờ nghỉ.
+ * Mỗi slot = slotMinutes, giữa các slot có bufferMinutes (nghỉ giữa giờ).
  */
-export function getWorkScheduleThisWeek(dayOffDates: string[]): WorkSlot[] {
+function buildTimeRangesFromTemplate(t: ScheduleTemplateData): { startMinutes: number; endMinutes: number }[] {
+  const open = parseTimeToMinutes(t.openTime);
+  const breakStart = parseTimeToMinutes(t.breakStart);
+  const breakEnd = parseTimeToMinutes(t.breakEnd);
+  const close = parseTimeToMinutes(t.closeTime);
+  const slotM = t.slotMinutes || 60;
+  const bufferM = t.bufferMinutes ?? 0; //bufferMinutes là thời gian nghỉ giữa các slot
+  const ranges: { startMinutes: number; endMinutes: number }[] = [];
+
+  // Sáng: open → breakStart (slot + buffer luân phiên)
+  let m = open;
+  while (m < breakStart) {
+    const end = Math.min(m + slotM, breakStart);
+    ranges.push({ startMinutes: m, endMinutes: end });
+    m = end + bufferM;
+  }
+
+  // Chiều: breakEnd → close
+  m = breakEnd;
+  while (m < close) {
+    const end = Math.min(m + slotM, close);
+    ranges.push({ startMinutes: m, endMinutes: end });
+    m = end + bufferM;
+  }
+  return ranges;
+}
+
+/**
+ * Export: Lấy các khung giờ chuẩn từ template BE.
+ * Dùng cho CalendarScreen để hiển thị grid đầy đủ (có workslot thì điền, không thì trống).
+ * Data từ BE: openTime, breakStart, breakEnd, closeTime, slotMinutes, bufferMinutes.
+ */
+export function getScheduleTimeSlotsFromTemplate(
+  template?: ScheduleTemplateData | null
+): { startMinutes: number; endMinutes: number; timeRange: string; slotIndex: number }[] {
+  if (!template) {
+    const fallback = [
+      { start: 8 * 60, end: 9 * 60 },
+      { start: 9 * 60 + 15, end: 10 * 60 + 15 },
+      { start: 10 * 60 + 30, end: 11 * 60 + 30 },
+      { start: 13 * 60, end: 14 * 60 },
+      { start: 14 * 60 + 15, end: 15 * 60 + 15 },
+      { start: 15 * 60 + 30, end: 16 * 60 + 30 },
+    ];
+    return fallback.map((r, i) => ({
+      startMinutes: r.start,
+      endMinutes: r.end,
+      timeRange: formatTimeRange(r.start, r.end),
+      slotIndex: i + 1,
+    }));
+  }
+  const ranges = buildTimeRangesFromTemplate(template);
+  return ranges.map((r, i) => ({
+    ...r,
+    timeRange: formatTimeRange(r.startMinutes, r.endMinutes),
+    slotIndex: i + 1,
+  }));
+}
+
+function formatTimeRange(startM: number, endM: number): string {
+  const sh = Math.floor(startM / 60);
+  const sm = startM % 60;
+  const eh = Math.floor(endM / 60);
+  const em = endM % 60;
+  return `${sh.toString().padStart(2, "0")}:${sm.toString().padStart(2, "0")} - ${eh.toString().padStart(2, "0")}:${em.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Lấy khoảng giờ timeline (startHour, endHour) từ template để vẽ trục và layout.
+ * Dùng cho CalendarScreen: template 08:00–17:00 → { startHour: 8, endHour: 17 }.
+ */
+export function getScheduleTimelineRange(template?: ScheduleTemplateData | null): {
+  startHour: number;
+  endHour: number;
+} {
+  if (!template) return { startHour: 8, endHour: 18 };
+  const startM = parseTimeToMinutes(template.openTime);
+  const endM = parseTimeToMinutes(template.closeTime);
+  return {
+    startHour: Math.floor(startM / 60),
+    endHour: Math.ceil(endM / 60),
+  };
+}
+
+/** Lấy set ngày làm việc từ template (1=T2...7=CN) để biết ngày nào có slot. */
+export function getWorkingDaysFromTemplate(template?: ScheduleTemplateData | null): Set<number> {
+  if (!template) return new Set([1, 2, 3, 4, 5, 6, 7]);
+  return parseWorkingDaysToSet(template.workingDays);
+}
+
+/**
+ * Sinh lịch tuần này.
+ * - Nếu template: dùng workingDays, openTime, closeTime, breakStart, breakEnd, slotMinutes từ API.
+ * - Không template: mặc định 8h–18h, 5 khung 2h.
+ * Ngày trong dayOffDates hoặc không thuộc workingDays sẽ không có slot.
+ * Slot trùng MOCK_TICKET_ASSIGNMENTS sẽ có task/ticketId.
+ */
+export function getWorkScheduleThisWeek(
+  dayOffDates: string[],
+  template?: ScheduleTemplateData | null
+): WorkSlot[] {
   const result: WorkSlot[] = [];
   const dayOffSet = new Set(dayOffDates.map((d) => d.trim()));
 
-  for (const day of weekDays) { 
-    if (dayOffSet.has(day.date)) continue; //Nếu đúng là ngày nghỉ thì bỏ qua luôn
+  const workDaySet = template
+    ? parseWorkingDaysToSet(template.workingDays)
+    : new Set([1, 2, 3, 4, 5, 6, 7]);
 
-    for (const timeRange of DEFAULT_TIME_SLOTS) {
-      const { startMinutes, endMinutes } = parseTimeRange(timeRange); // gán giá trị trả về của parseTimeRange vào startMinutes và endMinutes
-      const assignment = MOCK_TICKET_ASSIGNMENTS.find(
-        (a) => a.date === day.date && a.timeRange === timeRange
-      );
+  const timeRanges = template
+    ? buildTimeRangesFromTemplate(template)
+    : DEFAULT_TIME_SLOTS.map((tr) => {
+        const p = parseTimeRange(tr);
+        return { startMinutes: p.startMinutes, endMinutes: p.endMinutes };
+      });
 
-      const id = `ws-${day.dayOfWeek}-${timeRange.replace(/\s/g, "")}`;
+  for (const day of weekDays) {
+    if (dayOffSet.has(day.date) || !workDaySet.has(day.dayOfWeek)) continue;
+
+    for (const range of timeRanges) {
+      const startM = range.startMinutes;
+      const endM = range.endMinutes;
+      const timeRange = formatTimeRange(startM, endM);
+      const assignment = MOCK_TICKET_ASSIGNMENTS.find((a) => {
+        if (a.date !== day.date) return false;
+        const { startMinutes: asM, endMinutes: aeM } = parseTimeRange(a.timeRange);
+        return startM < aeM && endM > asM;
+      });
+
+      const id = `ws-${day.dayOfWeek}-${startM}-${endM}`;
       result.push({
         id,
         dayOfWeek: day.dayOfWeek,
         date: day.date,
         timeRange,
-        startMinutes,
-        endMinutes,
-        buildingName: assignment?.buildingName ?? "-", //Nếu assignment có buildingName thì gán, nếu không thì gán "-"
-        task: assignment?.task ?? "Chưa có công việc",
+        startMinutes: startM,
+        endMinutes: endM,
+        buildingName: assignment?.buildingName ?? "-",
+        task: assignment?.task ?? "",
+        taskKey: assignment ? undefined : "staff_calendar.no_task",
         slotType: assignment ? "ticket" : "other",
         ticketId: assignment?.ticketId,
       });
@@ -176,8 +337,11 @@ export function getWorkScheduleThisWeek(dayOffDates: string[]): WorkSlot[] {
  * Lấy các khung giờ còn trống (chưa gán ticket) trong tuần, bỏ qua ngày nghỉ.
  * Dùng khi staff "Nhận ticket" → chỉ được chọn slot trống.
  */
-export function getFreeScheduleSlots(dayOffDates: string[]): WorkSlot[] {
-  return getWorkScheduleThisWeek(dayOffDates).filter(
+export function getFreeScheduleSlots(
+  dayOffDates: string[],
+  template?: ScheduleTemplateData | null
+): WorkSlot[] {
+  return getWorkScheduleThisWeek(dayOffDates, template).filter(
     (slot) => !slot.ticketId || slot.ticketId.trim() === ""
   );
 }
@@ -270,85 +434,7 @@ export const MOCK_NEXT_WEEK_SLOTS: AvailableSlot[] = [
   },
 ];
 
-// ---------- Mock: Danh sách căn nhà và asset ----------
-export const MOCK_BUILDINGS: Building[] = [
-  { id: "B001", name: "Nhà A - Tòa 1", address: "123 Đường ABC, Q.1, TP.HCM" },
-  { id: "B002", name: "Nhà B - Tòa 2", address: "456 Đường XYZ, Q.2, TP.HCM" },
-  { id: "B003", name: "Nhà C - Tòa 3", address: "789 Đường DEF, Q.3, TP.HCM" },
-];
-
-export const MOCK_STAFF_ASSETS: StaffAsset[] = [
-  {
-    id: "dev-a1",
-    name: "Đồng hồ điện - P101",
-    type: "electric" as DeviceType,
-    nfcTagId: "04 9C 59 A2 B2 19 90",
-    location: "Tầng 1 - Phòng 101",
-    status: "active" as DeviceStatus,
-    buildingId: "B001",
-    metadata: { serialNumber: "SN-ELEC-001", manufacturer: "Siemens" },
-  },
-  {
-    id: "dev-a2",
-    name: "Đồng hồ nước - P101",
-    type: "water" as DeviceType,
-    nfcTagId: "1D 6C 7D 0E 09 10 80",
-    location: "Tầng 1 - Phòng 101",
-    status: "active" as DeviceStatus,
-    buildingId: "B001",
-    metadata: { serialNumber: "SN-WATER-001" },
-  },
-  {
-    id: "dev-a3",
-    name: "Máy lạnh - P102",
-    type: "other" as DeviceType,
-    nfcTagId: "",
-    location: "Tầng 1 - Phòng 102",
-    status: "maintenance" as DeviceStatus,
-    buildingId: "B001",
-    metadata: {},
-  },
-  {
-    id: "dev-a4",
-    name: "Thiết bị chưa đặt tên",
-    type: "other" as DeviceType,
-    nfcTagId: "",
-    location: "Tầng 2 - Kho",
-    status: "pending" as DeviceStatus,
-    buildingId: "B001",
-    metadata: {},
-  },
-  {
-    id: "dev-b1",
-    name: "Đồng hồ điện - P201",
-    type: "electric" as DeviceType,
-    nfcTagId: "AA BB CC DD EE FF",
-    location: "Tầng 2 - Phòng 201",
-    status: "active" as DeviceStatus,
-    buildingId: "B002",
-    metadata: {},
-  },
-  {
-    id: "dev-b2",
-    name: "Tủ lạnh - P202",
-    type: "other" as DeviceType,
-    nfcTagId: "",
-    location: "Tầng 2 - Phòng 202",
-    status: "active" as DeviceStatus,
-    buildingId: "B002",
-    metadata: {},
-  },
-  {
-    id: "dev-c1",
-    name: "Đồng hồ nước - P301",
-    type: "water" as DeviceType,
-    nfcTagId: "11 22 33 44 55 66",
-    location: "Tầng 3 - Phòng 301",
-    status: "active" as DeviceStatus,
-    buildingId: "B003",
-    metadata: {},
-  },
-];
+// Nhà và thiết bị: đã dùng API (useHouses, useAssetItems). MOCK_BUILDINGS, MOCK_STAFF_ASSETS, getAssetsByBuilding đã xóa.
 
 // ---------- Mock: Danh sách ticket (tenant gửi) ----------
 export const MOCK_STAFF_TICKETS: StaffTicketListItem[] = [
@@ -401,11 +487,6 @@ export const MOCK_STAFF_TICKETS: StaffTicketListItem[] = [
     createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
   },
 ];
-
-/** Lấy asset theo buildingId */
-export function getAssetsByBuilding(buildingId: string): StaffAsset[] {
-  return MOCK_STAFF_ASSETS.filter((a) => a.buildingId === buildingId);
-}
 
 /** Lấy ticket theo id (cho màn chi tiết). Khi có API thay bằng gọi BE. */
 export function getTicketById(ticketId: string): StaffTicketListItem | undefined {

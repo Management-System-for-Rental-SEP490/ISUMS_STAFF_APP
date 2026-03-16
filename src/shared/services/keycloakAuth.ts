@@ -3,29 +3,21 @@ import axios from "axios";
 import * as WebBrowser from "expo-web-browser";
 import { AuthPayload, UserRole } from "../types";
 import { useAuthStore } from "../../store/useAuthStore";
+import { CustomAlert } from "../components/alert";
+import i18n from "../i18n";
 
 // Đảm bảo WebBrowser hoạt động đúng trên Web
 WebBrowser.maybeCompleteAuthSession();
 
-// Lấy IP address động hoặc dùng localhost
+// Lấy base URL Keycloak - ưu tiên biến môi trường cho mọi nền tảng
 const getKeycloakBaseUrl = (): string => {
-  if (Platform.OS === 'web') {
+  if (process.env.EXPO_PUBLIC_KEYCLOAK_BASE_URL) {
+    return process.env.EXPO_PUBLIC_KEYCLOAK_BASE_URL;
+  }
+  if (Platform.OS === "web") {
     return "http://localhost:8080";
   }
-  // Cho phép override bằng biến môi trường nếu cần
-  if (process.env.EXPO_PUBLIC_KEYCLOAK_BASE_URL) {
-      return process.env.EXPO_PUBLIC_KEYCLOAK_BASE_URL;
-  }
-  
-  // Mặc định dùng Local IP cho Docker Keycloak (thay vì sso.isums.pro)
-  // const MOBILE_KEYCLOAK_IP = process.env.EXPO_PUBLIC_KEYCLOAK_IP || "192.168.1.80";
-  // return `http://${MOBILE_KEYCLOAK_IP}:8080`;
-  //hotpot của lap
-const MOBILE_KEYCLOAK_IP = process.env.EXPO_PUBLIC_KEYCLOAK_IP || "https://sso-dev.isums.pro";
-return `http://${MOBILE_KEYCLOAK_IP}:8080`;
-  // Nếu dùng chung cho mọi nền tảng
-  //return "https://sso.isums.pro";
- //return process.env.EXPO_PUBLIC_KEYCLOAK_BASE_URL || "https://sso.isums.pro";
+  return "https://sso-dev.isums.pro";
 };
 
 // Cấu hình Keycloak
@@ -69,9 +61,12 @@ export const getKeycloakAuthUrl = (locale?: string): string => {
 
 // Trao đổi authorization code lấy access token
 export const exchangeCodeForToken = async (code: string): Promise<AuthPayload> => {
+  const tokenUrl = `${KEYCLOAK_CONFIG.baseUrl}/realms/${KEYCLOAK_CONFIG.realm}/protocol/openid-connect/token`;
+
+  console.log("[Keycloak] Đổi code lấy token - URL:", tokenUrl);
+  console.log("[Keycloak] Redirect URI:", KEYCLOAK_CONFIG.redirectUri);
+
   try {
-    const tokenUrl = `${KEYCLOAK_CONFIG.baseUrl}/realms/${KEYCLOAK_CONFIG.realm}/protocol/openid-connect/token`;
-    
     const response = await axios.post(
       tokenUrl,
       new URLSearchParams({
@@ -120,6 +115,7 @@ export const exchangeCodeForToken = async (code: string): Promise<AuthPayload> =
       houseId: houseId,
     };
   } catch (error: any) {
+    console.error("[Keycloak] Lỗi exchangeCodeForToken:", error?.response?.data || error?.message || error);
     const errorMessage = error.response?.data?.error_description 
       || error.response?.data?.error 
       || error.message 
@@ -333,10 +329,18 @@ export const openChangePasswordPage = async () => {
         const code = handleKeycloakCallback(result.url);
         if (code) {
              // Đổi mật khẩu thành công, Keycloak redirect về với auth code mới.
-             // Dùng code này để lấy token mới (tự động đăng nhập lại với mật khẩu mới)
              const authPayload = await exchangeCodeForToken(code);
-             
-             // Cập nhật lại AuthStore
+             // Staff app: không cho tenant đăng nhập, xóa session Keycloak để lần sau hiện lại form nhập user/pass
+             if (authPayload.role === "tenant") {
+               useAuthStore.getState().logout();
+               await logoutKeycloak(authPayload.idToken);
+               CustomAlert.alert(
+                 i18n.t("tenant_blocked_title"),
+                 i18n.t("tenant_blocked_message"),
+                 [{ text: i18n.t("common.close") }]
+               );
+               return;
+             }
              useAuthStore.getState().login(authPayload);
         }
     }
