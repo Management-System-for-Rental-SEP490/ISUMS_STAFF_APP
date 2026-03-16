@@ -7,6 +7,10 @@ export const PRIMARY_BACKEND_URL = "https://api-dev.isums.pro/api";
 /** URL dự phòng (ngrok) — khi primary thất bại (lỗi mạng, 5xx, 404...) thì thử ngrok. */
 export const FALLBACK_BACKEND_URL = "https://unrestrictable-lan-syzygial.ngrok-free.dev/api";
 
+/** Axios interceptor dùng để biết request đang gọi primary hay fallback. */
+export const BACKEND_URL_PRIMARY = PRIMARY_BACKEND_URL;
+export const BACKEND_URL_FALLBACK = FALLBACK_BACKEND_URL;
+
 /**
  * Base URL của Backend API — luôn dùng PRIMARY trước.
  * AxiosClient sẽ tự động retry với FALLBACK khi request tới PRIMARY thất bại.
@@ -17,8 +21,13 @@ export const BACKEND_API_BASE = PRIMARY_BACKEND_URL;
  * Base URL của API User (do dev khác làm, đường dẫn khác).
  * Dùng chung logic primary/fallback với houses.
  */
-export const USER_API_BASE = PRIMARY_BACKEND_URL; 
+export const USER_API_BASE = PRIMARY_BACKEND_URL;
 
+/**
+ * Base URL cho Schedule API (work slot, template) và Maintenance Job API.
+ * Ưu tiên dùng ngrok trước để đồng bộ dữ liệu: work slot trả jobId, job API cũng gọi cùng server.
+ */
+export const SCHEDULE_API_BASE = FALLBACK_BACKEND_URL;
 
 /** true = gửi body PUT /api/asset/items/:id dạng snake_case (house_id, category_id...) để BE map được. */
 export const ASSET_PUT_BODY_SNAKE_CASE =

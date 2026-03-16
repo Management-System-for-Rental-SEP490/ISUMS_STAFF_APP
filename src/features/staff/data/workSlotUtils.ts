@@ -56,6 +56,7 @@ export function mapWorkSlotFromApiToWorkSlot(api: WorkSlotFromApi): WorkSlot {
     taskKey,
     slotType,
     ticketId: api.jobId,
+    status: api.status,
   };
 }
 

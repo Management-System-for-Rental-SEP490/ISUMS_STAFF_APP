@@ -3,7 +3,7 @@
  * - Không có workslot: cột phải để trắng (không hiển thị ô khung giờ).
  * - Có workslot (từ API): hiển thị workslot với giờ, task, phòng, ticket.
  */
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,11 +11,14 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { useTranslation } from "react-i18next";
+import { useNavigation, useFocusEffect, type NavigationProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../../../../shared/types";
 import Header from "../../../../shared/components/header";
 import { getWorkingDaysFromTemplate } from "../../data/mockStaffData";
 import type { WorkSlot, SlotType } from "../../data/mockStaffData";
 import { useStaffSchedule } from "../../context/StaffScheduleContext";
-import BookScheduleModal from "./modals/BookScheduleModal";
+import DayOffActionModal from "./modals/DayOffActionModal";
 import { staffCalendarStyles, SLOT_COLORS } from "./staffCalendarStyles";
 
 /** Key i18n cho ngày ngắn (T2, Mon, 月...) - 1=Mon..7=Sun */
@@ -40,15 +43,24 @@ const DAY_FULL_KEYS: Record<number, string> = {
   7: "staff_calendar.day_full_7",
 };
 
+const JOB_STATUS_KEYS = new Set([
+  "CREATED", "SCHEDULED", "NEED_RESCHEDULE", "IN_PROGRESS", "COMPLETED",
+  "FAILED", "CANCELLED", "OVERDUE", "AVAILABLE", "BOOKED",
+]);
+
 function getSlotColor(slotType?: SlotType): string {
   return slotType ? (SLOT_COLORS[slotType] ?? SLOT_COLORS.other) : SLOT_COLORS.other;
 }
 
-function formatTicketDisplay(ticketId?: string): string {
-  if (!ticketId || !ticketId.trim()) return "";
-  const s = ticketId.trim();
-  if (s.length > 12 || s.includes("-")) return `#${s.slice(-8)}`;
-  return `#${s}`;
+function getJobStatusKey(status: string | undefined): string {
+  if (!status) return "staff_calendar.job_status_OTHER";
+  const key = `staff_calendar.job_status_${status.toUpperCase()}`;
+  return JOB_STATUS_KEYS.has(status.toUpperCase()) ? key : "staff_calendar.job_status_OTHER";
+}
+
+/** Giữ để tương thích - workslot không hiển thị ticket nữa, chỉ status + time + jobType */
+function formatTicketDisplay(_ticketId?: string): string {
+  return "";
 }
 
 function formatDateRange(start: Date, end: Date): string {
@@ -63,8 +75,9 @@ function formatMonthYear(d: Date): string {
 
 export default function CalendarScreen() {
   const { t } = useTranslation();
-  const { dayOffList, scheduleTemplate, workSlots, refetchTemplate } = useStaffSchedule();
-  const [bookScheduleVisible, setBookScheduleVisible] = useState(false);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { dayOffList, scheduleTemplate, workSlots, refetchTemplate, refetchLeaveRequests } = useStaffSchedule();
+  const [dayOffActionVisible, setDayOffActionVisible] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   /** null = hiển thị full tuần, string = chỉ hiển thị ngày đó */
   const [selectedDateYMD, setSelectedDateYMD] = useState<string | null>(null);
@@ -137,6 +150,12 @@ export default function CalendarScreen() {
     if (weekOffset !== 0) setSelectedDateYMD(null);
   }, [weekOffset]);
 
+  useFocusEffect(
+    useCallback(() => {
+      refetchLeaveRequests();
+    }, [refetchLeaveRequests])
+  );
+
   const navigateWeek = (delta: number) => setWeekOffset((prev) => prev + delta);
 
   return (
@@ -150,7 +169,7 @@ export default function CalendarScreen() {
           </Text>
           <TouchableOpacity
             style={staffCalendarStyles.addButton}
-            onPress={() => setBookScheduleVisible(true)}
+            onPress={() => setDayOffActionVisible(true)}
             activeOpacity={0.8}
           >
             <Text style={staffCalendarStyles.addButtonText}>+</Text>
@@ -247,26 +266,22 @@ export default function CalendarScreen() {
                     <View style={staffCalendarStyles.slotColumnContent}>
                       {daySlots.map((slot) => {
                         const bgColor = getSlotColor(slot.slotType);
-                        const ticketDisplay = formatTicketDisplay(slot.ticketId);
-                        const roomText = slot.buildingName !== "-" ? slot.buildingName : null;
+                        const statusKey = getJobStatusKey(slot.status);
                         return (
-                          <View
+                          <TouchableOpacity
                             key={slot.id}
                             style={[staffCalendarStyles.slotCard, { borderLeftColor: bgColor }]}
+                            onPress={() => {
+                              navigation.getParent<NavigationProp<RootStackParamList>>()?.navigate("WorkSlotDetail", { slot });
+                            }}
+                            activeOpacity={0.8}
                           >
                             <Text style={staffCalendarStyles.slotCardTime}>{slot.timeRange}</Text>
                             <Text style={[staffCalendarStyles.slotCardTask, { color: bgColor }]}>
                               {slot.taskKey ? t(slot.taskKey) : slot.task}
                             </Text>
-                            {roomText ? (
-                              <Text style={staffCalendarStyles.slotCardRoom}>
-                                {t("staff_calendar.room_label")}: {roomText}
-                              </Text>
-                            ) : null}
-                            {ticketDisplay ? (
-                              <Text style={staffCalendarStyles.slotCardTicket}>{ticketDisplay}</Text>
-                            ) : null}
-                          </View>
+                            <Text style={staffCalendarStyles.slotCardStatus}>{t(statusKey)}</Text>
+                          </TouchableOpacity>
                         );
                       })}
                     </View>
@@ -278,10 +293,9 @@ export default function CalendarScreen() {
         </View>
       </ScrollView>
 
-      <BookScheduleModal
-        visible={bookScheduleVisible}
-        onClose={() => setBookScheduleVisible(false)}
-        onConfirm={() => {}}
+      <DayOffActionModal
+        visible={dayOffActionVisible}
+        onClose={() => setDayOffActionVisible(false)}
       />
     </View>
   );

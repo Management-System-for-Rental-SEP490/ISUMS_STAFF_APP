@@ -74,6 +74,39 @@ const Icons = {
   close: ({ size = 24, color = 'black' }: IconProps = {}) => (
     <AntDesign name="close" size={size} color={color} />
   ),
+
+  /** Work Slot Detail: khung giờ (section header + row). */
+  schedule: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="schedule" size={size} color={color} />
+  ),
+  /** Work Slot Detail: thời gian (access-time). */
+  accessTime: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="access-time" size={size} color={color} />
+  ),
+  /** Work Slot Detail: loại công việc. */
+  workOutline: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="work-outline" size={size} color={color} />
+  ),
+  /** Work Slot Detail: trạng thái. */
+  flag: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="flag" size={size} color={color} />
+  ),
+  /** Work Slot Detail: thông tin job (section header). */
+  assignment: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="assignment" size={size} color={color} />
+  ),
+  /** Work Slot Detail: job id, tag. */
+  tag: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="tag" size={size} color={color} />
+  ),
+  /** Work Slot Detail: plan id, folder. */
+  folder: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="folder" size={size} color={color} />
+  ),
+  /** Work Slot Detail: sự kiện, ngày (event). */
+  event: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="event" size={size} color={color} />
+  ),
 };
 
 export default Icons;

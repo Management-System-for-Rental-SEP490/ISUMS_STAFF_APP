@@ -493,6 +493,11 @@ export const staffCalendarStyles = StyleSheet.create({
   slotCardLabel: { fontSize: 12, color: "#64748b" },
   slotCardRoom: { fontSize: 12, color: "#475569" },
   slotCardTask: { fontSize: 14, fontWeight: "700" as const },
+  slotCardStatus: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 4,
+  },
   slotCardTicket: {
     fontSize: 12,
     color: "#3b82f6",

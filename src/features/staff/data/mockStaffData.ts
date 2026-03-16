@@ -48,8 +48,10 @@ export interface WorkSlot {
   taskKey?: string;
   /** Loại slot để hiển thị màu (inspection=tím/xanh, ticket=xanh ngọc, nfc=cam, break=xám) */
   slotType?: SlotType;
-  /** Mã ticket nếu slot gắn với ticket (VD "T001") */
+  /** Mã ticket/job nếu slot gắn với job (dùng jobId từ API để lấy chi tiết) */
   ticketId?: string;
+  /** Trạng thái job: CREATED, SCHEDULED, IN_PROGRESS, COMPLETED, ... */
+  status?: string;
 }
 
 /** Lọc work slots (đã map) thuộc tuần hiện tại (Thứ Hai – Chủ Nhật). */

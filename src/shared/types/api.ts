@@ -344,13 +344,97 @@ export interface WorkSlotFromApi {
   startTime: string;
   /** Thời gian kết thúc (ISO 8601), VD "2026-03-13T14:00:00" */
   endTime: string;
-  /** Trạng thái: BOOKED, AVAILABLE, ... */
+  /** Trạng thái job: CREATED, SCHEDULED, NEED_RESCHEDULE, IN_PROGRESS, COMPLETED, FAILED, CANCELLED, OVERDUE */
   status: string;
 }
 
 /** Response body của GET /api/schedules/work_slots/staff/{staffId}. */
 export interface WorkSlotsApiResponse {
   data: WorkSlotFromApi[];
+  message: string;
+  statusCode: number;
+  success: boolean;
+}
+
+// =========================================================
+// Leave API (GET /api/schedules/leave/staff/{staffId})
+// =========================================================
+
+/** Một yêu cầu nghỉ trả về từ GET /api/schedules/leave/staff/{staffId}. */
+export interface LeaveRequestFromApi {
+  id: string;
+  staffId: string;
+  /** Ngày nghỉ (YYYY-MM-DD) */
+  leaveDate: string;
+  /** Ghi chú / lý do nghỉ */
+  note?: string | null;
+  /** Trạng thái: PENDING, APPROVED, REJECTED, CANCELLED */
+  status: string;
+  /** ID manager duyệt (có thể null) */
+  managerId?: string | null;
+  /** Ghi chú quyết định từ manager */
+  decisionNote?: string | null;
+  createdAt?: string;
+}
+
+/** Response body của GET /api/schedules/leave/staff/{staffId}. */
+export interface LeaveRequestsApiResponse {
+  data: LeaveRequestFromApi[];
+  message?: string;
+  statusCode?: number;
+  success?: boolean;
+}
+
+/** Body gửi khi POST /api/schedules/leave. */
+export interface CreateLeaveRequestPayload {
+  staffId: string;
+  leaveDate: string; // YYYY-MM-DD
+  note?: string; // Ghi chú, có thể để trống
+}
+
+/** Response body của POST /api/schedules/leave (201). */
+export interface CreateLeaveRequestResponse {
+  data: LeaveRequestFromApi;
+  message?: string;
+  statusCode?: number;
+  success?: boolean;
+}
+
+/** Body gửi khi PUT /api/schedules/leave/{id} (cập nhật trạng thái, VD hủy PENDING → CANCELLED). */
+export interface UpdateLeaveRequestPayload {
+  status: "CANCELLED";
+  /** Ghi chú quyết định (tùy chọn, thường dùng khi manager duyệt/từ chối). */
+  decisionNote?: string;
+}
+
+/** Response body của PUT /api/schedules/leave/{id} (200). */
+export interface UpdateLeaveRequestResponse {
+  data: LeaveRequestFromApi;
+  message?: string;
+  statusCode?: number;
+  success?: boolean;
+}
+
+// =========================================================
+// Job API (GET /api/maintenances/jobs/{jobId})
+// =========================================================
+
+/** Job trả về từ GET /api/maintenances/jobs/{jobId}. Dùng jobId từ work slot để lấy chi tiết. */
+export interface JobFromApi {
+  id: string;
+  planId: string;
+  houseId: string;
+  /** Ngày bắt đầu kỳ (YYYY-MM-DD) */
+  periodStartDate: string;
+  /** Hạn hoàn thành (ISO 8601) */
+  dueDate: string;
+  /** Trạng thái: CREATED, SCHEDULED, NEED_RESCHEDULE, IN_PROGRESS, COMPLETED, FAILED, CANCELLED, OVERDUE */
+  status: string;
+}
+
+/** Response body của GET /api/maintenances/jobs/{jobId}. */
+export interface JobApiResponse {
+  data: JobFromApi;
   message: string;
   statusCode: number;
   success: boolean;

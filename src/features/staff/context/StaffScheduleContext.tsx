@@ -1,6 +1,6 @@
 /**
  * Context chia sẻ lịch làm việc của Staff giữa Calendar, Home và TicketDetail.
- * - dayOffList: ngày staff đăng ký nghỉ (định dạng dd/MM).
+ * - dayOffList: ngày nghỉ đã duyệt (định dạng dd/MM), derived từ leave API.
  * - scheduleTemplate: mẫu lịch từ API (giờ làm, ngày làm việc, slot...) – fetch khi mount.
  */
 import React, {
@@ -9,16 +9,24 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useMemo,
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
   getCurrentScheduleTemplate,
   getWorkSlotsByStaffId,
+  getLeaveRequestsByStaffId,
   getStaffIdForSchedule,
 } from "../../../shared/services/scheduleApi";
-import type { ScheduleTemplateData } from "../../../shared/types/api";
+import type { LeaveRequestFromApi, ScheduleTemplateData } from "../../../shared/types/api";
 import type { WorkSlot } from "../data/mockStaffData";
 import { mapWorkSlotsFromApiForCurrentWeek } from "../data/workSlotUtils";
+
+/** Chuyển YYYY-MM-DD hoặc ISO sang dd/MM */
+function toDdMm(s: string): string {
+  const d = new Date(s);
+  return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}`;
+}
 
 /** Chuyển thứ Hai tuần hiện tại sang chuỗi YYYY-MM-DD cho API. */
 function getMondayOfCurrentWeek(): string {
@@ -33,12 +41,10 @@ function getMondayOfCurrentWeek(): string {
 }
 
 type StaffScheduleContextValue = {
-  /** Danh sách ngày nghỉ (định dạng dd/MM, VD "21/02") */
+  /** Danh sách ngày nghỉ đã duyệt (định dạng dd/MM), từ leave API */
   dayOffList: string[];
-  /** Thêm một ngày nghỉ */
-  addDayOff: (date: string) => void;
-  /** Bỏ đăng ký nghỉ một ngày */
-  removeDayOff: (date: string) => void;
+  /** Gọi lại API leave để cập nhật dayOffList */
+  refetchLeaveRequests: () => Promise<void>;
   /** Mẫu lịch làm việc từ API (null khi chưa load hoặc lỗi) */
   scheduleTemplate: ScheduleTemplateData | null;
   /** Đang fetch template */
@@ -59,11 +65,9 @@ type StaffScheduleContextValue = {
 
 const StaffScheduleContext = createContext<StaffScheduleContextValue | null>(null);
 
-const INITIAL_DAY_OFF: string[] = [];
-
 export function StaffScheduleProvider({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
-  const [dayOffList, setDayOffList] = useState<string[]>(INITIAL_DAY_OFF);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequestFromApi[]>([]);
   const [scheduleTemplate, setScheduleTemplate] = useState<ScheduleTemplateData | null>(null);
   const [templateLoading, setTemplateLoading] = useState(false);
   const [templateError, setTemplateError] = useState<string | null>(null);
@@ -132,23 +136,35 @@ export function StaffScheduleProvider({ children }: { children: React.ReactNode 
     refetchWorkSlots();
   }, [refetchWorkSlots]);
 
-  const addDayOff = useCallback((date: string) => {
-    const d = date.trim();
-    if (!d) return;
-    setDayOffList((prev) => (prev.includes(d) ? prev : [...prev, d]));
+  const refetchLeaveRequests = useCallback(async () => {
+    const staffId = getStaffIdForSchedule();
+    try {
+      const res = await getLeaveRequestsByStaffId(staffId);
+      const data = Array.isArray(res.data) ? res.data : [];
+      setLeaveRequests(data);
+    } catch {
+      setLeaveRequests([]);
+    }
   }, []);
 
-  const removeDayOff = useCallback((date: string) => {
-    const d = date.trim();
-    setDayOffList((prev) => prev.filter((x) => x !== d));
-  }, []);
+  useEffect(() => {
+    refetchLeaveRequests();
+  }, [refetchLeaveRequests]);
+
+  const dayOffList = useMemo(() => {
+    const approved = leaveRequests.filter((r) => r.status?.toUpperCase() === "APPROVED");
+    const set = new Set<string>();
+    approved.forEach((r) => {
+      if (r.leaveDate) set.add(toDdMm(r.leaveDate));
+    });
+    return Array.from(set);
+  }, [leaveRequests]);
 
   return (
     <StaffScheduleContext.Provider
       value={{
         dayOffList,
-        addDayOff,
-        removeDayOff,
+        refetchLeaveRequests,
         scheduleTemplate,
         templateLoading,
         templateError,
