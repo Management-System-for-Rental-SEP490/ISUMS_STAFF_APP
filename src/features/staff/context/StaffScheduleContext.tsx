@@ -18,7 +18,14 @@ import {
   getLeaveRequestsByStaffId,
   getStaffIdForSchedule,
 } from "../../../shared/services/scheduleApi";
-import type { LeaveRequestFromApi, ScheduleTemplateData } from "../../../shared/types/api";
+import { getJobById } from "../../../shared/services/maintenanceApi";
+import { getHouseById } from "../../../shared/services/houseApi";
+import type {
+  LeaveRequestFromApi,
+  ScheduleTemplateData,
+  JobFromApi,
+  HouseFromApi,
+} from "../../../shared/types/api";
 import type { WorkSlot } from "../data/mockStaffData";
 import { mapWorkSlotsFromApiForCurrentWeek } from "../data/workSlotUtils";
 
@@ -82,8 +89,63 @@ export function StaffScheduleProvider({ children }: { children: React.ReactNode 
     try {
       const res = await getWorkSlotsByStaffId(staffId);
       if (res.success && res.data) {
-        const mapped = mapWorkSlotsFromApiForCurrentWeek(res.data);
-        setWorkSlots(mapped);
+        // Bước 1: map work slots từ API sang định dạng dùng chung.
+        const baseSlots = mapWorkSlotsFromApiForCurrentWeek(res.data);
+
+        // Bước 2: lấy danh sách jobId duy nhất từ các slot có ticketId.
+        const jobIds = Array.from(
+          new Set(
+            baseSlots
+              .map((s) => s.ticketId?.trim())
+              .filter((id): id is string => !!id && id.length > 0)
+          )
+        );
+
+        // Bước 3: gọi API lấy chi tiết job cho từng jobId để biết houseId.
+        const jobResults = await Promise.allSettled(jobIds.map((id) => getJobById(id)));
+        const jobMap = new Map<string, JobFromApi>();
+        const houseIdSet = new Set<string>();
+        jobResults.forEach((r, idx) => {
+          if (r.status === "fulfilled" && r.value.success && r.value.data) {
+            const job = r.value.data;
+            const jobId = jobIds[idx];
+            jobMap.set(jobId, job);
+            if (job.houseId) {
+              houseIdSet.add(job.houseId);
+            }
+          }
+        });
+
+        // Bước 4: với các houseId duy nhất, gọi API GET /api/houses/{id} để lấy tên nhà.
+        const houseIds = Array.from(houseIdSet);
+        const houseResults = await Promise.allSettled(
+          houseIds.map((id) => getHouseById(id))
+        );
+        const houseMap = new Map<string, HouseFromApi>();
+        houseResults.forEach((r, idx) => {
+          if (r.status === "fulfilled" && r.value.success && r.value.data) {
+            const house = r.value.data;
+            houseMap.set(house.id, house);
+          }
+        });
+
+        // Bước 5: enrich từng slot với houseId + houseName (buildingName) để Home/Calendar hiển thị được.
+        const enriched: WorkSlot[] = baseSlots.map((slot) => {
+          const job = slot.ticketId ? jobMap.get(slot.ticketId) : undefined;
+          const house =
+            (job?.houseId && houseMap.get(job.houseId)) ||
+            (slot as any).houseId
+              ? houseMap.get((slot as any).houseId as string)
+              : undefined;
+
+          return {
+            ...slot,
+            houseId: job?.houseId ?? (slot as any).houseId,
+            buildingName: house?.name ?? slot.buildingName,
+          };
+        });
+
+        setWorkSlots(enriched);
       } else {
         setWorkSlots([]);
       }

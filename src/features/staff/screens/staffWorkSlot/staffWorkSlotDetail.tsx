@@ -18,10 +18,11 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import { getJobById, updateJobStatus } from "../../../../shared/services/maintenanceApi";
 import { CustomAlert } from "../../../../shared/components/alert";
-import type { JobFromApi } from "../../../../shared/types/api";
+import type { JobFromApi, HouseFromApi } from "../../../../shared/types/api";
 import Icons from "../../../../shared/theme/icon";
 import { iconStyles } from "../../../../shared/styles/iconStyles";
 import { staffWorkSlotStyles, STATUS_COLORS } from "./staffWorkSlotStyles";
+import { useHouses } from "../../../../shared/hooks/useHouses";
 
 const JOB_STATUS_KEYS = new Set([
   "CREATED", "SCHEDULED", "NEED_RESCHEDULE", "IN_PROGRESS", "COMPLETED",
@@ -53,6 +54,10 @@ export default function WorkSlotDetailScreen() {
   const [loading, setLoading] = useState(!!slot.ticketId);
   const [error, setError] = useState<string | null>(null);
   const [updateLoading, setUpdateLoading] = useState(false);
+
+  // Danh sách houses từ BE (dùng để map houseId -> tên căn nhà hiển thị cho người dùng).
+  const { data: housesResp } = useHouses();
+  const houses: HouseFromApi[] = housesResp?.data ?? [];
 
   const refetchJob = () => {
     if (!slot.ticketId?.trim()) return;
@@ -120,6 +125,11 @@ export default function WorkSlotDetailScreen() {
   const jobStatusKey = getJobStatusKey(slot.status);
   const slotStatusKey = getJobStatusKey(job?.status ?? slot.status);
 
+  // Tên căn nhà hiển thị ở phần chi tiết công việc: ưu tiên lấy từ houseId của job.
+  const houseDisplayName = job?.houseId
+    ? houses.find((h) => h.id === job.houseId)?.name ?? job.houseId
+    : "";
+
   return (
     <View style={staffWorkSlotStyles.container}>
       <View style={[staffWorkSlotStyles.topBar, { paddingTop: insets.top + 12 }]}>
@@ -185,9 +195,12 @@ export default function WorkSlotDetailScreen() {
             </View>
           ) : job ? (
             <View style={staffWorkSlotStyles.card}>
-              <InfoRow icon={<Icons.tag size={18} color="#64748b" />} label={t("staff_work_slot_detail.job_id")} value={job.id} mono />
-              <InfoRow icon={<Icons.folder size={18} color="#64748b" />} label={t("staff_work_slot_detail.plan_id")} value={job.planId} mono />
-              <InfoRow icon={<Icons.home size={18} color="#64748b" />} label={t("staff_work_slot_detail.house_id")} value={job.houseId} mono />
+              {/* Ẩn Job ID và Plan ID vì không cần thiết cho Staff */}
+              <InfoRow
+                icon={<Icons.home size={18} color="#64748b" />}
+                label={t("staff_work_slot_detail.house_id")}
+                value={houseDisplayName}
+              />
               <InfoRow icon={<Icons.event size={18} color="#64748b" />} label={t("staff_work_slot_detail.period_start")} value={job.periodStartDate} />
               <InfoRow icon={<Icons.calendar size={18} color="#64748b" />} label={t("staff_work_slot_detail.due_date")} value={formatDueDate(job.dueDate)} />
               <InfoRow

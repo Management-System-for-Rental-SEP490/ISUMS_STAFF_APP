@@ -1,6 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getUserProfile, updateUserProfile } from "../services/userApi";
-import { UserProfileResponse } from "../types/api";
+import { useQuery } from "@tanstack/react-query";
+import { getUserProfile } from "../services/userApi";
 
 // Query Key
 export const USER_KEYS = {
@@ -16,18 +15,4 @@ export const useUserProfile = () => {
   });
 };
 
-// Hook cập nhật thông tin user
-export const useUpdateUserMutation = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: updateUserProfile, 
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: USER_KEYS.profile() });
-      console.log("Update profile success!");
-    },
-    onError: (error) => {
-      console.error("Update profile failed:", error);
-    },
-  });
-};
+// Hiện tại BE chưa có API update profile nên tạm thời không export hook update.

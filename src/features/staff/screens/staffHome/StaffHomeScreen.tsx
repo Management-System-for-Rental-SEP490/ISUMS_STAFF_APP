@@ -27,8 +27,8 @@ import type {
 } from "../../../../shared/types/api";
 import Header from "../../../../shared/components/header";
 import SuggestionDropdown, { Suggestion } from "../../../../shared/components/SuggestionDropdown";
-import { getWorkScheduleThisWeek, WorkSlot } from "../../data/mockStaffData";
-import { useStaffSchedule } from "../../context/StaffScheduleContext";
+import { WorkSlot } from "../../data/mockStaffData"; // kiểu WorkSlot dùng chung cho lịch
+import { useStaffSchedule } from "../../context/StaffScheduleContext"; // context lịch đã lấy dữ liệu thật từ BE
 import { useHouses, useAssetCategories, useAssetItemsAllHouses } from "../../../../shared/hooks";
 import { useCategoryFilterStore } from "../../../../store/useCategoryFilterStore";
 import Icons from "../../../../shared/theme/icon";
@@ -52,7 +52,10 @@ const DAY_LABELS: Record<number, string> = {
 export default function StaffHomeScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<StaffHomeNavProp>();
-  const { dayOffList } = useStaffSchedule();
+  // Lấy danh sách workSlots thật trong tuần hiện tại từ BE (đã được map về WorkSlot trong StaffScheduleContext).
+  // - workSlots: mảng các ca làm việc, mỗi ca có thông tin buildingName, task, ticketId, ...
+  // - Nếu API lỗi hoặc chưa load xong, workSlots sẽ là null → UI tóm tắt lịch sẽ hiển thị rỗng.
+  const { workSlots } = useStaffSchedule();
 
   // React Query: gọi API GET /api/houses qua custom hook dùng chung.
   const { data, isLoading, isError, refetch } = useHouses();
@@ -150,33 +153,63 @@ export default function StaffHomeScreen() {
     }
   };
 
-  // Chỉ hiển thị các slot có việc (có ticketId) - tóm tắt lịch có việc
+  // Tóm tắt lịch có việc tuần hiện tại:
+  // - Dùng trực tiếp workSlots từ BE (đã được StaffScheduleContext map theo tuần hiện tại).
+  // - Chỉ giữ lại các ca có ticketId (tức là đã có công việc cụ thể).
+  // - Sắp xếp theo thứ trong tuần (T2→CN), rồi theo khung giờ timeRange để bảng gọn và dễ đọc.
   const sortedSchedule = useMemo(
-    () =>
-      getWorkScheduleThisWeek(dayOffList)
-        .filter((slot) => slot.ticketId && slot.ticketId.trim() !== "")
-        .sort(
-          (a, b) => a.dayOfWeek - b.dayOfWeek || a.timeRange.localeCompare(b.timeRange)
-        ),
-    [dayOffList]
+    () => {
+      // Nếu chưa có dữ liệu từ BE (null hoặc mảng rỗng) thì trả về mảng rỗng để UI hiển thị text "Không có ca làm việc".
+      if (!workSlots || workSlots.length === 0) return [];
+
+      // Lọc các slot có ticketId (đã có job/ticket được gán cho ca này).
+      const slotsWithJob = workSlots.filter(
+        (slot) => slot.ticketId && slot.ticketId.trim() !== ""
+      );
+
+      // Sắp xếp theo thứ trong tuần, sau đó theo khung giờ (chuỗi "HH:mm - HH:mm").
+      return [...slotsWithJob].sort(
+        (a, b) => a.dayOfWeek - b.dayOfWeek || a.timeRange.localeCompare(b.timeRange)
+      );
+    },
+    [workSlots]
   );
 
-  const renderScheduleRow = (item: WorkSlot, isLast: boolean) => (
-    <View
-      key={item.id}
-      style={[staffHomeStyles.scheduleRow, isLast && staffHomeStyles.scheduleRowLast]}
-    >
-      <Text style={staffHomeStyles.scheduleCellTime}>
-        {DAY_LABELS[item.dayOfWeek] || ""} {item.date} • {item.timeRange}
-      </Text>
-      <Text style={staffHomeStyles.scheduleCellBuilding} numberOfLines={1}>
-        {item.buildingName}
-      </Text>
-      <Text style={staffHomeStyles.scheduleCellTask} numberOfLines={2}>
-        {item.task}
-      </Text>
-    </View>
-  );
+  /**
+   * Hiển thị một dòng trong bảng tóm tắt lịch có việc.
+   * Cột "Công việc" dùng jobType từ API (PERIODIC, MANUAL, MAINTENANCE, ISSUE):
+   * - Nếu slot có taskKey (đã map từ workSlotUtils) thì hiển thị bản dịch t(taskKey).
+   * - Ngược lại hiển thị raw item.task để tránh lỗi khi BE trả type mới chưa có trong i18n.
+   */
+  /**
+   * Hiển thị một dòng trong bảng tóm tắt lịch có việc.
+   * - Cột căn nhà: lấy houseId từ slot rồi map sang tên nhà bằng danh sách houses (buildings).
+   *   Nếu chưa map được (BE chưa trả houseId hoặc chưa load houses) thì fallback về item.buildingName.
+   * - Cột công việc: ưu tiên hiển thị bản dịch t(taskKey) từ JobType (PERIODIC, MANUAL, MAINTENANCE, ISSUE).
+   */
+  const renderScheduleRow = (item: WorkSlot, isLast: boolean) => {
+    const houseName =
+      (item.houseId && buildings.find((b) => b.id === item.houseId)?.name) ||
+      item.buildingName ||
+      "";
+
+    return (
+      <View
+        key={item.id}
+        style={[staffHomeStyles.scheduleRow, isLast && staffHomeStyles.scheduleRowLast]}
+      >
+        <Text style={staffHomeStyles.scheduleCellTime}>
+          {DAY_LABELS[item.dayOfWeek] || ""} {item.date} • {item.timeRange}
+        </Text>
+        <Text style={staffHomeStyles.scheduleCellBuilding} numberOfLines={1}>
+          {houseName}
+        </Text>
+        <Text style={staffHomeStyles.scheduleCellTask} numberOfLines={2}>
+          {item.taskKey ? t(item.taskKey) : item.task}
+        </Text>
+      </View>
+    );
+  };
 
   const openBuildingDetail = (house: HouseFromApi) => {
     const root = navigation.getParent?.();

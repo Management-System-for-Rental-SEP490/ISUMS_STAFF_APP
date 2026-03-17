@@ -32,6 +32,8 @@ export interface WorkSlot {
   id: string;
   /** Thứ (1=T2, 7=CN) */
   dayOfWeek: number;
+  /** ID căn nhà (nếu có) mà ca làm việc gắn với job thuộc về */
+  houseId?: string;
   /** Ngày trong tháng (string để hiển thị, VD "18/02") */
   date: string;
   /** Giờ bắt đầu - kết thúc, ví dụ "08:00 - 10:00" */

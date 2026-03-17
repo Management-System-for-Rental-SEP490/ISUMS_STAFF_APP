@@ -101,6 +101,18 @@ export interface HousesApiResponse {
   success: boolean;
 }
 
+/** Response body của API GET /api/houses/{id}. */
+export interface HouseDetailApiResponse {
+  /** Thông tin chi tiết một căn nhà. */
+  data: HouseFromApi;
+  /** Thông điệp từ BE (dùng cho debug/log). */
+  message: string;
+  /** HTTP status code mà BE mapping (ví dụ: 200, 401, 500). */
+  statusCode: number;
+  /** Cờ đánh dấu request thành công hay không. */
+  success: boolean;
+}
+
 // =========================================================
 // Asset Categories API (/api/asset/categories)
 // =========================================================
@@ -338,6 +350,8 @@ export interface WorkSlotFromApi {
   id: string;
   staffId: string;
   jobId: string;
+  /** ID căn nhà mà job thuộc về (BE có thể trả thêm trường này). */
+  houseId?: string;
   /** Loại công việc: MAINTENANCE, ISSUE, ... */
   jobType: string;
   /** Thời gian bắt đầu (ISO 8601), VD "2026-03-13T13:00:00" */
