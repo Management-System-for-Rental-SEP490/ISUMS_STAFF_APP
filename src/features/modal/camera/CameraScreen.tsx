@@ -26,11 +26,10 @@ const CameraScreen = () => {
   /** "assign" = từ menu + Gán NFC; "lookup" (hoặc undefined) = tra cứu. */
   const cameraMode = route.params?.mode;
   const initialScanMode = route.params?.initialScanMode;
-  const navigateOnSuccess = route.params?.navigateOnSuccess;
 
   // Debug params
   useEffect(() => {
-    console.log("CameraScreen params:", { mode: cameraMode, assignForDevice: assignForDevice?.id, role, initialScanMode, navigateOnSuccess });
+    console.log("CameraScreen params:", { mode: cameraMode, assignForDevice: assignForDevice?.id, role, initialScanMode });
   }, [route.params]);
 
   const [permission, requestPermission] = useCameraPermissions(); 

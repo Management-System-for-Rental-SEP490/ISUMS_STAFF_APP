@@ -14,12 +14,9 @@ import { useTranslation } from "react-i18next";
 import { useFocusEffect } from "@react-navigation/native";
 import Header from "../../../../shared/components/header";
 import { CustomAlert } from "../../../../shared/components/alert";
-import {
-  getLeaveRequestsByStaffId,
-  getStaffIdForSchedule,
-  updateLeaveRequestStatus,
-} from "../../../../shared/services/scheduleApi";
+import { getStaffIdForSchedule } from "../../../../shared/services/scheduleApi";
 import type { LeaveRequestFromApi } from "../../../../shared/types/api";
+import { useLeaveRequests, useUpdateLeaveRequestStatus } from "../../../../shared/hooks";
 import { staffDayOffStyles } from "./staffDayOffStyles";
 
 function formatLeaveDate(leaveDate: string): string {
@@ -44,12 +41,18 @@ export default function StaffDayOffListScreen() {
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<LeaveRequestFromApi[]>([]);
 
+  // React Query: lấy danh sách yêu cầu nghỉ, dữ liệu nền tảng cho màn hình.
+  const { data: leaveData, isLoading: queryLoading, refetch } = useLeaveRequests();
+  const updateStatusMutation = useUpdateLeaveRequestStatus();
+
   const fetchData = useCallback(
     async (cacheBust?: number) => {
       const staffId = getStaffIdForSchedule();
       try {
-        const res = await getLeaveRequestsByStaffId(staffId, cacheBust ?? Date.now());
-        const data = Array.isArray(res.data) ? res.data : [];
+        // Kết hợp dữ liệu từ React Query với refetch thủ công để đảm bảo luôn mới.
+        const res = await refetch();
+        const apiData = res.data?.data ?? leaveData?.data ?? [];
+        const data = Array.isArray(apiData) ? apiData : [];
         setItems(data);
         setError(null);
       } catch (err: unknown) {
@@ -61,7 +64,7 @@ export default function StaffDayOffListScreen() {
         setRefreshing(false);
       }
     },
-    [t]
+    [t, leaveData, refetch]
   );
 
   useFocusEffect(
@@ -92,8 +95,9 @@ export default function StaffDayOffListScreen() {
             try {
               // Refetch để lấy trạng thái mới nhất (manager có thể đã duyệt/từ chối)
               const staffId = getStaffIdForSchedule();
-              const res = await getLeaveRequestsByStaffId(staffId, Date.now());
-              const latest = (res.data ?? []).find((r) => r.id === item.id);
+              const res = await refetch();
+              const latestList = res.data?.data ?? [];
+              const latest = latestList.find((r) => r.id === item.id);
               if (latest && latest.status?.toUpperCase() !== "PENDING") {
                 setCancellingId(null);
                 CustomAlert.alert(
@@ -105,7 +109,9 @@ export default function StaffDayOffListScreen() {
                 fetchData();
                 return;
               }
-              const apiRes = await updateLeaveRequestStatus(item.id, { status: "CANCELLED" });
+              const apiRes = await updateStatusMutation.mutateAsync({
+                id: item.id,
+              });
               const updated = apiRes.data;
               if (updated?.status?.toUpperCase() === "CANCELLED") {
                 setItems((prev) =>

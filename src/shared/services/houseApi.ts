@@ -5,7 +5,7 @@
  */
 import axiosClient from "../api/axiosClient";
 import { BACKEND_API_BASE } from "../api/config";
-import type { HousesApiResponse, HouseDetailApiResponse } from "../types/api";
+import type { HousesApiResponse, HouseDetailApiResponse, ApiResponse, FunctionalAreaFromApi } from "../types/api";
 
 /** Chuẩn hóa response từ BE — hỗ trợ nhiều format: { data: [...] } hoặc mảng trực tiếp. */
 function normalizeHousesResponse(body: unknown): HousesApiResponse {
@@ -64,6 +64,18 @@ export const getHouses = async (): Promise<HousesApiResponse> => {
 export const getHouseById = async (id: string): Promise<HouseDetailApiResponse> => {
   const url = `${BACKEND_API_BASE}/houses/${encodeURIComponent(id)}`;
   const response = await axiosClient.get<HouseDetailApiResponse>(url);
+  return response.data;
+};
+
+/**
+ * Lấy danh sách khu vực chức năng theo houseId (GET /api/houses/functionalAreas/{houseId}).
+ * API response theo swagger: { data: FunctionalAreaFromApi[], message, statusCode, success }.
+ */
+export const getFunctionalAreasByHouseId = async (
+  houseId: string
+): Promise<ApiResponse<FunctionalAreaFromApi[]>> => {
+  const url = `${BACKEND_API_BASE}/houses/functionalAreas/${encodeURIComponent(houseId)}`;
+  const response = await axiosClient.get<ApiResponse<FunctionalAreaFromApi[]>>(url);
   return response.data;
 };
 

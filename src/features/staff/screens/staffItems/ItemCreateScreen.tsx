@@ -38,6 +38,7 @@ export default function ItemCreateScreen() {
   const [displayName, setDisplayName] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
   const [nfcId, setNfcId] = useState("");
+  const [qrId, setQrId] = useState("");
   const [conditionPercent, setConditionPercent] = useState("");
   const [status, setStatus] = useState<string>(STATUS_OPTIONS[0]);
 
@@ -68,6 +69,7 @@ export default function ItemCreateScreen() {
         displayName: displayName.trim(),
         serialNumber: serialNumber.trim(),
         nfcTag: nfcId.trim() || null,
+        qrTag: qrId.trim() || null,
         conditionPercent: percent,
         status: status || "AVAILABLE",
       },
@@ -87,11 +89,9 @@ export default function ItemCreateScreen() {
     conditionPercent.length > 0 &&
     !Number.isNaN(parseInt(conditionPercent, 10));
 
-  const safeStyle = { paddingTop: insets.top, paddingBottom: insets.bottom };
-
   return (
-    <View style={[itemScreenStyles.container, safeStyle]}>
-      <View style={itemScreenStyles.topBar}>
+    <View style={itemScreenStyles.container}>
+      <View style={[itemScreenStyles.topBar, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={itemScreenStyles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Icons.chevronBack size={24} color="#1F2937" />
         </TouchableOpacity>
@@ -185,6 +185,18 @@ export default function ItemCreateScreen() {
                 value={nfcId}
                 onChangeText={setNfcId}
                 placeholder={t("staff_item_create.nfc_id_placeholder")}
+                placeholderTextColor="#9CA3AF"
+                editable={!isPending}
+              />
+            </View>
+
+            <View style={itemScreenStyles.fieldSpacer}>
+              <Text style={itemScreenStyles.label}>{t("staff_item_create.qr_id_label")}</Text>
+              <TextInput
+                style={itemScreenStyles.input}
+                value={qrId}
+                onChangeText={setQrId}
+                placeholder={t("staff_item_create.qr_id_placeholder")}
                 placeholderTextColor="#9CA3AF"
                 editable={!isPending}
               />

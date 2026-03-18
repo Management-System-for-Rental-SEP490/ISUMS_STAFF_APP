@@ -263,6 +263,109 @@ export interface UpdateAssetItemApiResponse {
 }
 
 // =========================================================
+// IoT Devices API (/api/assets/iot-devices)
+// =========================================================
+
+/**
+ * Một thiết bị IoT (node) trả về trong `data.devices` từ API
+ * GET /api/assets/iot-devices/house/{houseId}.
+ *
+ * Lưu ý: backend đã gắn thiết bị IoT vào khu vực bằng `areaName`.
+ */
+export interface IotNodeDeviceFromApi {
+  /** ID bản ghi thiết bị IoT (UUID). */
+  id: string;
+  /** ID asset item liên quan trong hệ thống asset (UUID). */
+  assetId: string;
+  /** Mã loại thiết bị IoT (ví dụ: IOT_NODE). */
+  categoryCode: string;
+  /** Tên hiển thị (ví dụ: Node DA234878). */
+  displayName: string;
+  /** Serial number của thiết bị. */
+  serialNumber: string;
+  /** Trạng thái (ví dụ: IN_USE). */
+  status: string;
+  /** Thing name/ID dùng để subscribe telemetry. */
+  thing: string;
+  /** Tên khu vực được gắn (ví dụ: Phòng Bếp). */
+  areaName: string | null;
+}
+
+/**
+ * Dữ liệu tổng của một "controller" IoT của nhà.
+ * Đây chính là object trong response `data`.
+ */
+export interface IotControllerHouseDataFromApi {
+  id: string;
+  houseName: string;
+  /** MAC / Device ID (ví dụ: B0:CB:D8:C1:A0:F4). */
+  deviceId: string;
+  /** Thing name của controller (ví dụ: ctrl-b0cbd8c1a0f4). */
+  thingName: string;
+  /** Trạng thái provisioning (ví dụ: DEPROVISIONED). */
+  status: string;
+  /** Khu vực gắn controller (nếu có). */
+  areaName: string | null;
+  createdAt?: string;
+  activatedAt?: string;
+  /** Danh sách node thuộc controller/nhà. */
+  devices: IotNodeDeviceFromApi[];
+}
+
+/** Response chuẩn: { data: IotControllerHouseDataFromApi, message, statusCode, success, errors } */
+export type IotDevicesByHouseApiResponse = ApiResponse<IotControllerHouseDataFromApi>;
+
+// =========================================================
+// IoT Provision API (/api/assets/houses/{houseId}/iot/provision)
+// =========================================================
+
+/** Body gửi lên khi gắn (provision) thiết bị IoT vào nhà/khu vực. */
+export interface IotProvisionRequest {
+  /** Device ID đọc được từ QR của thiết bị IoT. */
+  deviceId: string;
+  /** ID khu vực chức năng trong nhà. */
+  areaId: string;
+}
+
+/** Data trả về khi gắn controller IoT thành công (theo swagger). */
+export interface IotProvisionResult {
+  thingName: string;
+  certificatePem: string;
+  privateKey: string;
+  mqttEndpoint: string;
+  houseId: string;
+}
+
+/** Response chuẩn của API provision controller. */
+export type IotProvisionApiResponse = ApiResponse<IotProvisionResult>;
+
+/** Body gửi lên khi xin token provision cho Node. */
+export interface IotProvisionTokenRequest {
+  serial: string;
+}
+
+/** Data trả về khi xin token provision cho Node. */
+export interface IotProvisionTokenResult {
+  token: string;
+}
+
+export type IotProvisionTokenApiResponse = ApiResponse<IotProvisionTokenResult>;
+
+/** Data trả về khi lấy controller theo house (để lấy deviceId/MAC). */
+export interface IotControllerByHouseResult {
+  deviceId: string;
+}
+export type IotControllerByHouseApiResponse = ApiResponse<IotControllerByHouseResult>;
+
+/** Body gửi lên khi gắn Node vào house. */
+export interface IotProvisionNodeRequest {
+  serial: string;
+  token: string;
+  areaId: string;
+}
+export type IotProvisionNodeApiResponse = ApiResponse<string>;
+
+// =========================================================
 // Asset Tags API (POST /api/asset/tags — gán NFC vào thiết bị)
 // =========================================================
 

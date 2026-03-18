@@ -135,7 +135,8 @@ Khi bắt đầu tích hợp API và kết nối với BE, AI agent **phải** t
 ### 8.7. React Query và Zustand theo tài liệu
 
 *   **Đảm bảo dùng React Query và Zustand** đúng như tài liệu dự án (docx / spec) yêu cầu.
-*   Gọi API qua React Query (useQuery, useMutation, v.v.); state global/client (vd user, session, cache nghiệp vụ) dùng Zustand theo quy ước đã định.
+*   Gọi API qua **React Query (useQuery, useMutation, v.v.)**; mọi hook React Query **phải được đặt trong `src/shared/hooks`** (ví dụ: `useHouses`, `useAssetItems`, `useStaffLeave`, `useUserProfile`), không gọi `axiosClient` trực tiếp trong screen.
+*   State global/client (vd user, session, cache nghiệp vụ) dùng Zustand theo quy ước đã định.
 *   **Vị trí store Zustand:** Tất cả store Zustand đặt trong **`src/store/`** (xem mục 8.2).
 
 ### 8.8. Gen code trong chat: đầy đủ để code tay theo

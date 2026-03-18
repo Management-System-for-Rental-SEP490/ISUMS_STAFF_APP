@@ -10,6 +10,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  StatusBar,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -225,6 +226,10 @@ export default function BuildingDetailScreen() {
     });
   };
 
+  const openIotManage = () => {
+    navigation.navigate("StaffIotList", { houseId: buildingId, houseName: buildingName });
+  };
+
   if (loading) {
     return (
       <View style={[staffBuildingDetailStyles.container, staffBuildingDetailStyles.loadingContainer]}>
@@ -236,6 +241,7 @@ export default function BuildingDetailScreen() {
 
   return (
     <View style={staffBuildingDetailStyles.container}>
+      <StatusBar translucent={false} barStyle="dark-content" backgroundColor="#fff" />
       <View style={[staffBuildingDetailStyles.topBar, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={staffBuildingDetailStyles.backBtn}
@@ -271,6 +277,31 @@ export default function BuildingDetailScreen() {
             <Text style={staffBuildingDetailStyles.buildingDescription}>{description}</Text>
           ) : null}
         </View>
+
+        <TouchableOpacity
+          style={staffBuildingDetailStyles.iotManageCard}
+          onPress={openIotManage}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={t("staff_iot.manage_cta")}
+        >
+          <View style={staffBuildingDetailStyles.iotManageLeft}>
+            <View style={staffBuildingDetailStyles.iotManageIconWrap}>
+              <Icons.electric size={18} color="#2563EB" />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={staffBuildingDetailStyles.iotManageTitle} numberOfLines={1}>
+                {t("staff_iot.manage_cta")}
+              </Text>
+              <Text style={staffBuildingDetailStyles.iotManageSub} numberOfLines={2}>
+                {t("staff_iot.manage_subtitle", { houseName: buildingName })}
+              </Text>
+            </View>
+          </View>
+          <View style={staffBuildingDetailStyles.deviceCardChevron}>
+            <Icons.chevronForward size={20} color="#64748b" />
+          </View>
+        </TouchableOpacity>
 
         {/* Khu vực chức năng trong nhà (từ API functionalAreas) */}
         <View style={staffBuildingDetailStyles.functionalAreasSection}>

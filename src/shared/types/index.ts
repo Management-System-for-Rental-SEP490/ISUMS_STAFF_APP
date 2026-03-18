@@ -23,7 +23,7 @@ export type RootStackParamList = AuthStackParamList & {
   /** Quét QR/NFC. Tenant: hiện DeviceDetail. Staff: tra cứu thiết bị theo NFC (chỉ mã đã gán) hoặc gán NFC (khi mode assign hoặc assignForDevice). */
   Camera:
     | undefined
-    | { assignForDevice?: AssetItemFromApi; /** "assign" = từ menu + Gán NFC: quét thẻ mới để gán; không truyền = từ footer: chỉ tra cứu mã đã gán */ mode?: "lookup" | "assign"; initialScanMode?: "qr" | "nfc"; navigateOnSuccess?: keyof RootStackParamList | keyof MainTabParamList };
+    | { assignForDevice?: AssetItemFromApi; /** "assign" = từ menu + Gán NFC: quét thẻ mới để gán; không truyền = từ footer: chỉ tra cứu mã đã gán */ mode?: "lookup" | "assign"; initialScanMode?: "qr" | "nfc" };
   DeviceDetail: { device: Device };
   Ticket: { device: Device };
   /** Chi tiết nhà cho Staff: danh sách thiết bị + nút gán NFC. Có thể truyền thêm thông tin từ API houses. */
@@ -81,6 +81,50 @@ export type RootStackParamList = AuthStackParamList & {
   LeaveRequestList: undefined;
   /** Màn form gửi yêu cầu nghỉ (sẽ làm sau). */
   RequestDayOff: undefined;
+
+  /** Staff: Quản lý thiết bị IoT theo nhà (controller/node). */
+  StaffIotList: { houseId: string; houseName: string };
+
+  /** Staff: Luồng gắn IoT (chọn khu vực -> quét QR -> nhập WiFi). */
+  StaffIotProvision: { houseId: string; houseName: string; kind: "controller" | "node" };
+  /** Staff: Quét QR thiết bị IoT để lấy deviceId (dùng cho flow provision). */
+  StaffIotQrScan: {
+    houseId: string;
+    houseName: string;
+    kind: "controller" | "node";
+    areaId: string;
+    areaName: string;
+  };
+  /** Staff: Chọn WiFi để cấu hình controller qua BLE. */
+  StaffIotWifi: {
+    houseId: string;
+    houseName: string;
+    kind: "controller";
+    areaId: string;
+    areaName: string;
+    deviceId: string;
+  };
+  /** Staff: Nhập mật khẩu WiFi cho controller (sau khi chọn SSID). */
+  StaffIotWifiPassword: {
+    houseId: string;
+    houseName: string;
+    kind: "controller";
+    areaId: string;
+    areaName: string;
+    deviceId: string;
+    wifiSsid: string;
+  };
+  /** Staff: Màn chờ hệ thống kết nối/cấu hình IoT. */
+  StaffIotProvisionWaiting: {
+    houseId: string;
+    houseName: string;
+    kind: "controller" | "node";
+    areaId: string;
+    areaName: string;
+    deviceId: string;
+    wifiSsid?: string;
+    wifiPass?: string;
+  };
 };
 
 export type IconProps = {

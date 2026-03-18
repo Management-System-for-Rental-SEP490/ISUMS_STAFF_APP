@@ -12,10 +12,19 @@ import type {
   CreateAssetItemApiResponse,
   UpdateAssetItemRequest,
   UpdateAssetItemApiResponse,
+  IotDevicesByHouseApiResponse,
   AttachAssetTagRequest,
   AttachAssetTagApiResponse,
   DetachAssetTagApiResponse,
   GetAssetByTagValueApiResponse,
+  ApiResponse,
+  IotProvisionRequest,
+  IotProvisionApiResponse,
+  IotProvisionTokenRequest,
+  IotProvisionTokenApiResponse,
+  IotControllerByHouseApiResponse,
+  IotProvisionNodeRequest,
+  IotProvisionNodeApiResponse,
 } from "../types/api";
 
 /**
@@ -95,6 +104,18 @@ export const getAssetItemsByHouseId = async (
     };
   }
   return data;
+};
+
+/**
+ * Lấy thiết bị IoT của một nhà (GET /api/assets/iot-devices/house/{houseId}).
+ * Response format theo swagger: ApiResponse<{...controller..., devices:[...node...]}>.
+ */
+export const getIotDevicesByHouseId = async (
+  houseId: string
+): Promise<IotDevicesByHouseApiResponse> => {
+  const url = `${BACKEND_API_BASE}/assets/iot-devices/house/${encodeURIComponent(houseId)}`;
+  const response = await axiosClient.get<IotDevicesByHouseApiResponse>(url);
+  return response.data;
 };
 
 /**
@@ -273,6 +294,68 @@ export const detachAssetTag = async (
   const normalized = normalizeTagValueForApi(tagValue.trim());
   const response = await axiosClient.put<DetachAssetTagApiResponse>(
     `${BACKEND_API_BASE}/assets/tags/detach/${encodeURIComponent(normalized)}`
+  );
+  return response.data;
+};
+
+/**
+ * Tháo (deprovision) controller IoT khỏi nhà.
+ * API: DELETE /api/assets/houses/{houseId}/iot/deprovision
+ */
+export const deprovisionIotControllerByHouseId = async (
+  houseId: string
+): Promise<ApiResponse<string>> => {
+  const response = await axiosClient.delete<ApiResponse<string>>(
+    `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
+  );
+  return response.data;
+};
+
+/**
+ * Gắn (provision) controller IoT vào nhà.
+ * API: POST /api/assets/houses/{houseId}/iot/provision
+ * Body: { deviceId, areaId }
+ */
+export const provisionIotControllerByHouseId = async (
+  houseId: string,
+  payload: IotProvisionRequest
+): Promise<IotProvisionApiResponse> => {
+  const response = await axiosClient.post<IotProvisionApiResponse>(
+    `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
+    payload
+  );
+  return response.data;
+};
+
+/** Node: xin token provision theo serial. API: POST /api/assets/iot/provision-token */
+export const getIotProvisionTokenBySerial = async (
+  payload: IotProvisionTokenRequest
+): Promise<IotProvisionTokenApiResponse> => {
+  const response = await axiosClient.post<IotProvisionTokenApiResponse>(
+    `${BACKEND_API_BASE}/assets/iot/provision-token`,
+    payload
+  );
+  return response.data;
+};
+
+/** Node: lấy controller theo house để lấy MAC/deviceId. API: GET /api/assets/houses/{houseId}/iot/controller */
+export const getIotControllerByHouseId = async (
+  houseId: string
+): Promise<IotControllerByHouseApiResponse> => {
+  const response = await axiosClient.get<IotControllerByHouseApiResponse>(
+    `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
+  );
+  return response.data;
+};
+
+/** Node: gắn node vào house. API: POST /api/assets/houses/{houseId}/iot/provision-node */
+export const provisionIotNodeByHouseId = async (
+  houseId: string,
+  payload: IotProvisionNodeRequest
+): Promise<IotProvisionNodeApiResponse> => {
+  const response = await axiosClient.post<IotProvisionNodeApiResponse>(
+    `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
+    payload
   );
   return response.data;
 };

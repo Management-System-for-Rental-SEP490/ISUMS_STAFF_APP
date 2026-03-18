@@ -465,7 +465,6 @@ export default function ItemEditScreen() {
                     assignForDevice: latestItem,
                     mode: "assign",
                     initialScanMode: "nfc",
-                    navigateOnSuccess: "Main"
                   })}
                   activeOpacity={0.8}
                 >
@@ -517,7 +516,6 @@ export default function ItemEditScreen() {
                     assignForDevice: latestItem,
                     mode: "assign",
                     initialScanMode: "qr",
-                    navigateOnSuccess: "Main"
                   })}
                   activeOpacity={0.8}
                 >
