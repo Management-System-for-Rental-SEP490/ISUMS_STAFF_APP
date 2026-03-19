@@ -466,6 +466,8 @@ export default {
         "wifi_password_title": "Nhập mật khẩu WiFi",
         "wifi_password_heading": "Mật khẩu WiFi",
         "wifi_password_for": "WiFi: {{ssid}}",
+        "wifi_password_show": "Hiện mật khẩu",
+        "wifi_password_hide": "Ẩn mật khẩu",
         "wifi_continue": "Tiếp tục",
         "wifi_permission_required": "Cần cấp quyền vị trí để quét WiFi.",
         "wifi_scan_failed": "Không thể quét danh sách WiFi. Vui lòng thử lại.",

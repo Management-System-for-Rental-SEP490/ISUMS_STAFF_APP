@@ -466,6 +466,8 @@ export default {
         "wifi_password_title": "Enter WiFi password",
         "wifi_password_heading": "WiFi password",
         "wifi_password_for": "WiFi: {{ssid}}",
+        "wifi_password_show": "Show password",
+        "wifi_password_hide": "Hide password",
         "wifi_continue": "Continue",
         "wifi_permission_required": "Location permission is required to scan WiFi.",
         "wifi_scan_failed": "Unable to scan WiFi list. Please try again.",

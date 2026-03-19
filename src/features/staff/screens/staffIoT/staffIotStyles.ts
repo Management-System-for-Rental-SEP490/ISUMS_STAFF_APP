@@ -410,5 +410,34 @@ export const staffIotStyles = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
   waitRetryText: { fontSize: 14, fontWeight: "900", color: "#111827" },
+
+  // WiFi password input: nhét icon show/hide ngay trong khung input
+  wifiPasswordInputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginBottom: 10,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    overflow: "hidden",
+    paddingHorizontal: 12,
+    justifyContent: "space-between",
+  },
+  wifiPasswordInput: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 0,
+    color: "#111827",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  wifiPasswordToggleBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
 

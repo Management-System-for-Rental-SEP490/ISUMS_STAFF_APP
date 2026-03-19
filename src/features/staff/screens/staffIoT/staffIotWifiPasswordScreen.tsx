@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import Icons from "../../../../shared/theme/icon";
 import type { RootStackParamList } from "../../../../shared/types";
 import { staffIotStyles as s } from "./staffIotStyles";
+import Ionicons from "@expo/vector-icons/build/Ionicons";
 
 type RouteT = RouteProp<RootStackParamList, "StaffIotWifiPassword">;
 type NavT = NativeStackNavigationProp<RootStackParamList, "StaffIotWifiPassword">;
@@ -19,6 +20,7 @@ export default function StaffIotWifiPasswordScreen() {
   const { houseId, houseName, kind, areaId, areaName, deviceId, wifiSsid } = route.params;
 
   const [pass, setPass] = useState("");
+  const [showPass, setShowPass] = useState(false);
 
   useEffect(() => {
     console.log("[StaffIotWifiPassword] ssid:", wifiSsid);
@@ -63,16 +65,34 @@ export default function StaffIotWifiPasswordScreen() {
         <Text style={s.flowSectionSub}>{t("staff_iot.wifi_password_for", { ssid: wifiSsid })}</Text>
 
         <View style={{ marginTop: 12 }}>
-          <TextInput
-            value={pass}
-            onChangeText={setPass}
-            placeholder={t("staff_iot.wifi_password_placeholder")}
-            placeholderTextColor="#9CA3AF"
-            autoCapitalize="none"
-            secureTextEntry
-            style={[s.deviceCard, { paddingVertical: 10 }]}
-            autoFocus
-          />
+          <View style={[s.wifiPasswordInputWrap, { paddingVertical: 10 }]}>
+            <TextInput
+              value={pass}
+              onChangeText={setPass}
+              placeholder={t("staff_iot.wifi_password_placeholder")}
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="none"
+              secureTextEntry={!showPass}
+              style={s.wifiPasswordInput}
+              autoFocus
+            />
+
+            <TouchableOpacity
+              onPress={() => setShowPass((v) => !v)}
+              style={s.wifiPasswordToggleBtn}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={t(
+                showPass ? "staff_iot.wifi_password_hide" : "staff_iot.wifi_password_show"
+              )}
+            >
+              <Ionicons
+                name={showPass ? "eye-off-outline" : "eye-outline"}
+                size={18}
+                color="#2563EB"
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <TouchableOpacity

@@ -467,6 +467,8 @@ export default {
         "wifi_password_title": "WiFiパスワードを入力",
         "wifi_password_heading": "WiFiパスワード",
         "wifi_password_for": "WiFi: {{ssid}}",
+        "wifi_password_show": "パスワードを表示",
+        "wifi_password_hide": "パスワードを非表示",
         "wifi_continue": "続行",
         "wifi_permission_required": "WiFiをスキャンするには位置情報の権限が必要です。",
         "wifi_scan_failed": "WiFi一覧を取得できませんでした。もう一度お試しください。",
