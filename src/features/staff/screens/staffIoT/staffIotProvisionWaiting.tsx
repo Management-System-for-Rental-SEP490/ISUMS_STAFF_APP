@@ -55,9 +55,9 @@ export default function StaffIotProvisionWaitingScreen() {
   const steps = useMemo(() => {
     if (kind === "controller") {
       return [
-        { key: "provisioning_aws", label: t("staff_iot.ctrl_step_provisioning_aws") },
         { key: "scanning_ble", label: t("staff_iot.ctrl_step_scanning_ble") },
         { key: "connecting", label: t("staff_iot.ctrl_step_connecting") },
+        { key: "provisioning_aws", label: t("staff_iot.ctrl_step_provisioning_aws") },
         { key: "sending", label: t("staff_iot.ctrl_step_sending") },
         { key: "finalizing", label: t("staff_iot.provision_wait_step_finalize") },
       ] as const;
@@ -80,6 +80,69 @@ export default function StaffIotProvisionWaitingScreen() {
     ]);
     return Object.values(grants).every((v) => v === PermissionsAndroid.RESULTS.GRANTED);
   }
+
+  const getPhaseUi = (p: typeof phase): { title: string; sub: string } => {
+    switch (p) {
+      case "scanning_ble":
+        return {
+          title: t("staff_iot.wait_phase_scan_title"),
+          sub: t("staff_iot.wait_phase_scan_sub"),
+        };
+      case "connecting":
+        return {
+          title: t("staff_iot.wait_phase_connect_title"),
+          sub: t("staff_iot.wait_phase_connect_sub"),
+        };
+      case "provisioning_aws":
+        return {
+          title: t("staff_iot.wait_phase_aws_title"),
+          sub: t("staff_iot.wait_phase_aws_sub"),
+        };
+      case "sending":
+        return {
+          title: t("staff_iot.wait_phase_send_title"),
+          sub: t("staff_iot.wait_phase_send_sub"),
+        };
+      case "fetching_token":
+        return {
+          title: t("staff_iot.wait_phase_token_title"),
+          sub: t("staff_iot.wait_phase_token_sub"),
+        };
+      case "finalizing":
+        return {
+          title: t("staff_iot.wait_phase_finalize_title"),
+          sub: t("staff_iot.wait_phase_finalize_sub"),
+        };
+      case "starting":
+      default:
+        return {
+          title: t("staff_iot.provision_waiting_title"),
+          sub: t("staff_iot.provision_waiting_sub"),
+        };
+    }
+  };
+
+  const describeError = (p: typeof phase, err: any): string => {
+    const raw = err?.message ? String(err.message) : "";
+    const rawTail = raw ? `\n\n${t("staff_iot.wait_error_details")}\n${raw}` : "";
+
+    switch (p) {
+      case "scanning_ble":
+        return `${t("staff_iot.wait_error_ble_scan")}${rawTail}`;
+      case "connecting":
+        return `${t("staff_iot.wait_error_ble_connect")}${rawTail}`;
+      case "provisioning_aws":
+        return `${t("staff_iot.wait_error_aws")}${rawTail}`;
+      case "sending":
+        return `${t("staff_iot.wait_error_send")}${rawTail}`;
+      case "fetching_token":
+        return `${t("staff_iot.wait_error_token")}${rawTail}`;
+      case "finalizing":
+        return `${t("staff_iot.wait_error_finalize")}${rawTail}`;
+      default:
+        return raw || t("staff_iot.provision_failed_message");
+    }
+  };
 
   async function scanForDevice(match: (d: Device) => boolean): Promise<Device> {
     return new Promise((resolve, reject) => {
@@ -119,29 +182,35 @@ export default function StaffIotProvisionWaitingScreen() {
     console.log("[StaffIotProvisionWaiting] start:", { houseId, kind, areaId, areaName, deviceId, wifiSsid });
     const hasBlePerm = await requestBlePermissions();
     if (!hasBlePerm) {
-      CustomAlert.alert(t("common.error"), t("staff_iot.ble_permission_required"), [{ text: t("common.close") }], {
+      CustomAlert.alert(t("common.error"), t("staff_iot.wait_error_ble_permission"), [{ text: t("common.close") }], {
         type: "warning",
       });
       return;
     }
 
+    let lastPhase: typeof phase = "starting";
+
     try {
       if (kind === "controller") {
         if (!wifiSsid) throw new Error(t("staff_iot.wifi_required"));
 
+        lastPhase = "scanning_ble";
+        setPhase("scanning_ble");
+        const dev = await scanForDevice((d) => Boolean(d?.name?.startsWith("ISUMS-CTRL-")));
+        setBleDeviceName(dev.name ?? null);
+
+        lastPhase = "connecting";
+        setPhase("connecting");
+        const connected = await dev.connect();
+        await connected.discoverAllServicesAndCharacteristics();
+
+        lastPhase = "provisioning_aws";
         setPhase("provisioning_aws");
         const res = await provisionCtrlMutation.mutateAsync({ deviceId, areaId });
         const { thingName, certificatePem, privateKey } = res.data;
         if (!thingName || !certificatePem || !privateKey) throw new Error(t("staff_iot.provision_invalid_response"));
 
-        setPhase("scanning_ble");
-        const dev = await scanForDevice((d) => Boolean(d?.name?.startsWith("ISUMS-CTRL-")));
-        setBleDeviceName(dev.name ?? null);
-
-        setPhase("connecting");
-        const connected = await dev.connect();
-        await connected.discoverAllServicesAndCharacteristics();
-
+        lastPhase = "sending";
         setPhase("sending");
         const payload = JSON.stringify({
           wifi_ssid: wifiSsid,
@@ -153,6 +222,7 @@ export default function StaffIotProvisionWaitingScreen() {
         await sendChunked(connected, payload);
         await connected.cancelConnection().catch(() => {});
 
+        lastPhase = "finalizing";
         setPhase("finalizing");
         CustomAlert.alert(
           t("staff_iot.provision_success_title"),
@@ -165,6 +235,7 @@ export default function StaffIotProvisionWaitingScreen() {
       }
 
       // kind === "node"
+      lastPhase = "fetching_token";
       setPhase("fetching_token");
       const tokenRes = await tokenMutation.mutateAsync({ serial: deviceId });
       const token = tokenRes.data.token;
@@ -174,14 +245,17 @@ export default function StaffIotProvisionWaitingScreen() {
       const ctrlMac = ctrlRes.data.deviceId;
       if (!ctrlMac) throw new Error(t("staff_iot.node_controller_missing"));
 
+      lastPhase = "scanning_ble";
       setPhase("scanning_ble");
       const dev = await scanForDevice((d) => Boolean(d?.name?.startsWith("ISUMS-") && !d.name?.startsWith("ISUMS-CTRL-")));
       setBleDeviceName(dev.name ?? null);
 
+      lastPhase = "connecting";
       setPhase("connecting");
       const connected = await dev.connect();
       await connected.discoverAllServicesAndCharacteristics();
 
+      lastPhase = "sending";
       setPhase("sending");
       const payload = JSON.stringify({
         serial: deviceId,
@@ -202,6 +276,7 @@ export default function StaffIotProvisionWaitingScreen() {
       }
       await connected.cancelConnection().catch(() => {});
 
+      lastPhase = "finalizing";
       setPhase("finalizing");
       await provisionNodeMutation.mutateAsync({ serial: deviceId, token, areaId });
 
@@ -214,9 +289,10 @@ export default function StaffIotProvisionWaitingScreen() {
       navigation.dispatch(StackActions.pop(2));
     } catch (err: any) {
       console.log("[StaffIotProvisionWaiting] error:", err);
+      const msg = describeError(lastPhase, err);
       CustomAlert.alert(
         t("staff_iot.provision_failed_title"),
-        err?.message ? String(err.message) : t("staff_iot.provision_failed_message"),
+        msg,
         [{ text: t("common.close") }],
         { type: "error" }
       );
@@ -270,8 +346,8 @@ export default function StaffIotProvisionWaitingScreen() {
 
       <View style={s.waitWrap}>
         <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={s.waitTitle}>{t("staff_iot.provision_waiting_title")}</Text>
-        <Text style={s.waitSub}>{t("staff_iot.provision_waiting_sub")}</Text>
+        <Text style={s.waitTitle}>{getPhaseUi(phase).title}</Text>
+        <Text style={s.waitSub}>{getPhaseUi(phase).sub}</Text>
 
         <View style={s.waitStepList}>
           {steps.map((step) => {

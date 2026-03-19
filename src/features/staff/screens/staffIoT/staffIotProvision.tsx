@@ -110,7 +110,6 @@ export default function StaffIotProvisionScreen() {
             <View style={s.flowAreaGrid}>
               {sortedAreas.map((a) => {
                 const isSelected = selectedArea?.id === a.id;
-                const isSuggested = !usedAreaNames.has(a.name.trim());
                 return (
                   <TouchableOpacity
                     key={a.id}
@@ -131,11 +130,6 @@ export default function StaffIotProvisionScreen() {
                     >
                       {a.name}
                     </Text>
-                    {isSuggested ? (
-                      <Text style={s.flowAreaChipHint} numberOfLines={1}>
-                        {t("staff_iot.provision_area_suggested")}
-                      </Text>
-                    ) : null}
                   </TouchableOpacity>
                 );
               })}
