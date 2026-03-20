@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useFocusEffect, type NavigationProp } from "@react-navigation/native";
+import { useInvalidateScheduleRelatedQueries } from "../../hooks/useStaffScheduleData";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import Header from "../../../../shared/components/header";
@@ -76,7 +77,8 @@ function formatMonthYear(d: Date): string {
 export default function CalendarScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { dayOffList, scheduleTemplate, workSlots, refetchTemplate, refetchLeaveRequests } = useStaffSchedule();
+  const { dayOffList, scheduleTemplate, workSlots, refetchTemplate } = useStaffSchedule();
+  const invalidateScheduleRelated = useInvalidateScheduleRelatedQueries();
   const [dayOffActionVisible, setDayOffActionVisible] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   /** null = hiển thị full tuần, string = chỉ hiển thị ngày đó */
@@ -152,8 +154,8 @@ export default function CalendarScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      refetchLeaveRequests();
-    }, [refetchLeaveRequests])
+      invalidateScheduleRelated();
+    }, [invalidateScheduleRelated])
   );
 
   const navigateWeek = (delta: number) => setWeekOffset((prev) => prev + delta);

@@ -190,7 +190,10 @@ export default {
         "condition": "Tình trạng: {{percent}}%",
         "status_available": "Sẵn sàng",
         "status_in_use": "Đang sử dụng",
-        "status_disposed": "Đã thanh lý"
+        "status_active": "Đang hoạt động",
+        "status_broken": "Bị hỏng",
+        "status_disposed": "Đã thanh lý",
+        "status_deleted": "Đã xóa"
     },
     "staff_item_create": {
         "title": "Thêm thiết bị",
@@ -208,7 +211,10 @@ export default {
         "status_label": "Trạng thái",
         "status_available": "Sẵn sàng",
         "status_in_use": "Đang sử dụng",
+        "status_active": "Đang hoạt động",
+        "status_broken": "Bị hỏng",
         "status_disposed": "Đã thanh lý",
+        "status_deleted": "Đã xóa",
         "submit": "Thêm thiết bị",
         "success_message": "Đã thêm thiết bị.",
         "error_message": "Có lỗi. Vui lòng thử lại."

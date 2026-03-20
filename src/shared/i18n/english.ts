@@ -190,7 +190,10 @@ export default {
         "condition": "Condition: {{percent}}%",
         "status_available": "Available",
         "status_in_use": "In use",
-        "status_disposed": "Disposed"
+        "status_active": "Active",
+        "status_broken": "Broken",
+        "status_disposed": "Disposed",
+        "status_deleted": "Deleted"
     },
     "staff_item_create": {
         "title": "Add device",
@@ -208,7 +211,10 @@ export default {
         "status_label": "Status",
         "status_available": "Available",
         "status_in_use": "In use",
+        "status_active": "Active",
+        "status_broken": "Broken",
         "status_disposed": "Disposed",
+        "status_deleted": "Deleted",
         "submit": "Add device",
         "success_message": "Device added.",
         "error_message": "Something went wrong. Please try again."

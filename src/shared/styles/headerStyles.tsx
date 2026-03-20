@@ -20,6 +20,10 @@ const headerStyles = StyleSheet.create({
     width: "100%", // Đảm bảo chiếm toàn bộ chiều rộng
     flexShrink: 1, // Cho phép thu nhỏ nếu cần
   },
+  /** Chỉ logo + tên app — căn giữa thanh header */
+  headerRowCentered: {
+    justifyContent: "center",
+  },
   brandRow: { // Style cho phần chứa logo và tên thương hiệu
     flexDirection: "row", // Xếp cạnh nhau theo hàng ngang
     alignItems: "center", // Căn giữa các mục theo chiều dọc

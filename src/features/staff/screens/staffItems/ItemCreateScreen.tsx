@@ -26,7 +26,8 @@ import type { AssetCategoryFromApi, HouseFromApi } from "../../../../shared/type
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemCreate">;
 
-const STATUS_OPTIONS = ["AVAILABLE", "IN_USE", "DISPOSED"] as const;
+// AssetStatus: bỏ "AVAILABLE". Backend có thể trả về thêm ACTIVE/BROKEN/DELETED.
+const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED", "DELETED"] as const;
 
 export default function ItemCreateScreen() {
   const { t } = useTranslation();
@@ -71,7 +72,7 @@ export default function ItemCreateScreen() {
         nfcTag: nfcId.trim() || null,
         qrTag: qrId.trim() || null,
         conditionPercent: percent,
-        status: status || "AVAILABLE",
+        status: status || "IN_USE",
       },
       {
         onSuccess: () => {
@@ -232,10 +233,14 @@ export default function ItemCreateScreen() {
                         status === s && itemScreenStyles.statusBtnTextSelected,
                       ]}
                     >
-                      {s === "AVAILABLE"
-                        ? t("staff_item_create.status_available")
-                        : s === "IN_USE"
+                      {s === "IN_USE"
                         ? t("staff_item_create.status_in_use")
+                        : s === "ACTIVE"
+                        ? t("staff_item_create.status_active")
+                        : s === "BROKEN"
+                        ? t("staff_item_create.status_broken")
+                        : s === "DELETED"
+                        ? t("staff_item_create.status_deleted")
                         : t("staff_item_create.status_disposed")}
                     </Text>
                   </TouchableOpacity>

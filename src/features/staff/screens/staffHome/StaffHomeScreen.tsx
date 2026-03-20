@@ -2,7 +2,7 @@
  * Màn hình Home dành cho Staff (technical).
  * (1) Tóm tắt lịch có việc. (2) Danh sách nhà từ API GET /api/houses; nhấn vào nhà → màn Chi tiết nhà (thiết bị + nút gán NFC).
  */
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
   Pressable,
 } from "react-native";
 import { useTranslation } from "react-i18next";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -30,6 +30,7 @@ import SuggestionDropdown, { Suggestion } from "../../../../shared/components/Su
 import { WorkSlot } from "../../data/mockStaffData"; // kiểu WorkSlot dùng chung cho lịch
 import { useStaffSchedule } from "../../context/StaffScheduleContext"; // context lịch đã lấy dữ liệu thật từ BE
 import { useHouses, useAssetCategories, useAssetItemsAllHouses } from "../../../../shared/hooks";
+import { useInvalidateScheduleRelatedQueries } from "../../hooks/useStaffScheduleData";
 import { useCategoryFilterStore } from "../../../../store/useCategoryFilterStore";
 import Icons from "../../../../shared/theme/icon";
 import { staffHomeStyles } from "./staffHomeStyles";
@@ -56,9 +57,17 @@ export default function StaffHomeScreen() {
   // - workSlots: mảng các ca làm việc, mỗi ca có thông tin buildingName, task, ticketId, ...
   // - Nếu API lỗi hoặc chưa load xong, workSlots sẽ là null → UI tóm tắt lịch sẽ hiển thị rỗng.
   const { workSlots } = useStaffSchedule();
+  const invalidateScheduleRelated = useInvalidateScheduleRelatedQueries();
 
   // React Query: gọi API GET /api/houses qua custom hook dùng chung.
   const { data, isLoading, isError, refetch } = useHouses();
+
+  useFocusEffect(
+    useCallback(() => {
+      void refetch();
+      invalidateScheduleRelated();
+    }, [refetch, invalidateScheduleRelated])
+  );
   const buildings: HouseFromApi[] = data?.data ?? [];
   const loading = isLoading;
 
@@ -233,18 +242,21 @@ export default function StaffHomeScreen() {
 
   /** Dịch trạng thái thiết bị từ API (AVAILABLE, IN_USE, DISPOSED, ...). */
   const getItemStatusLabel = (statusValue: string) => {
-    if (statusValue === "AVAILABLE") return t("staff_home.all_devices_status_available");
-    if (statusValue === "IN_USE") return t("staff_home.all_devices_status_in_use");
-    if (statusValue === "DISPOSED") return t("staff_home.all_devices_status_disposed");
-    return t("staff_home.all_devices_status_other", { status: statusValue });
+    const normalizedStatus = statusValue === "AVAILABLE" ? "IN_USE" : statusValue;
+    if (normalizedStatus === "IN_USE" || normalizedStatus === "ACTIVE") {
+      return t("staff_home.all_devices_status_in_use");
+    }
+    if (normalizedStatus === "DISPOSED" || normalizedStatus === "BROKEN") {
+      return t("staff_home.all_devices_status_disposed");
+    }
+    return t("staff_home.all_devices_status_other", { status: normalizedStatus });
   };
 
   const getItemStatusStyle = (statusValue: string) => {
-    if (statusValue === "AVAILABLE")
-      return { bg: "#D1FAE5", color: "#059669" };
-    if (statusValue === "IN_USE")
+    const normalizedStatus = statusValue === "AVAILABLE" ? "IN_USE" : statusValue;
+    if (normalizedStatus === "IN_USE" || normalizedStatus === "ACTIVE")
       return { bg: "#FEF3C7", color: "#92400E" };
-    if (statusValue === "DISPOSED")
+    if (normalizedStatus === "DISPOSED" || normalizedStatus === "BROKEN")
       return { bg: "#FEE2E2", color: "#DC2626" };
     return { bg: "#F3F4F6", color: "#6B7280" };
   };
@@ -568,6 +580,7 @@ export default function StaffHomeScreen() {
     <View style={staffHomeStyles.container}>
       <Header
         variant="default"
+        showSearch
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         searchPlaceholder={t("search.placeholder_staff")}

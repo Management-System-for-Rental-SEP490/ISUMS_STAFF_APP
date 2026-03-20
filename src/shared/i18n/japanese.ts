@@ -191,7 +191,10 @@ export default {
         "condition": "状態: {{percent}}%",
         "status_available": "利用可能",
         "status_in_use": "使用中",
-        "status_disposed": "廃棄済み"
+        "status_active": "稼働中",
+        "status_broken": "故障",
+        "status_disposed": "廃棄済み",
+        "status_deleted": "削除済み"
     },
     "staff_item_create": {
         "title": "デバイスを追加",
@@ -209,7 +212,10 @@ export default {
         "status_label": "ステータス",
         "status_available": "利用可能",
         "status_in_use": "使用中",
+        "status_active": "稼働中",
+        "status_broken": "故障",
         "status_disposed": "廃棄済み",
+        "status_deleted": "削除済み",
         "submit": "追加",
         "success_message": "デバイスを追加しました。",
         "error_message": "エラーが発生しました。もう一度お試しください。"

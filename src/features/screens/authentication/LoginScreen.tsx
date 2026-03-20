@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, TouchableOpacity, Linking, Image, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, Linking, Image, ActivityIndicator, Platform, BackHandler } from "react-native";
 import WebView from "react-native-webview";
 import { CustomAlert as Alert } from "../../../shared/components/alert";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -22,7 +22,8 @@ const LoginScreen = () => {
   const [showWebView, setShowWebView] = useState(false);
   const [authUrl, setAuthUrl] = useState<string | null>(null);
   const isProcessing = useRef(false); //useRef là một hook trong React để lưu trữ giá trị không thay đổi (immutable) trong suốt cả quá trình render của component.
-
+  const hasShownUpdatePasswordAlert = useRef(false);
+  const pendingUpdatePasswordUrl = useRef<string | null>(null);
   // Reset trạng thái khi màn hình được focus lại (ví dụ: quay lại từ browser nhưng không login):
   //Đoạn code này là một cơ chế dọn dẹp và reset trạng thái an toàn dành riêng cho việc điều hướng giữa các màn hình 
   // trong React Native, đảm bảo UI không bị treo ở trạng thái loading khi người dùng quay lại màn hình này.
@@ -124,6 +125,25 @@ const LoginScreen = () => {
 
   // Đã xóa AppState listener vì Linking.addEventListener đã đủ để bắt deep link khi app resume
 
+   // Bắt nút back cứng Android: nếu đang mở WebView login thì đóng overlay trước thay vì thoát app.
+   useEffect(() => {
+    if (Platform.OS !== "android") {
+      return;
+    }
+
+    const onHardwareBack = () => {
+      if (showWebView) {
+        setShowWebView(false);
+        hasShownUpdatePasswordAlert.current = false;
+        pendingUpdatePasswordUrl.current = null;
+        return true;
+      }
+      return false;
+    };
+
+    const subscription = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
+    return () => subscription.remove();
+  }, [showWebView]);
 
   const handleKeycloakLogin = () => {
     // Dùng WebView nội bộ app để mở trang đăng nhập Keycloak
@@ -131,7 +151,7 @@ const LoginScreen = () => {
     setAuthUrl(url);
     setShowWebView(true);
   };
-
+  
   const handleWebViewRequest = useCallback(
     (request: any) => {
       const redirectUri = getKeycloakRedirectUri();
@@ -226,7 +246,7 @@ const LoginScreen = () => {
 
         {showWebView && authUrl && (
           <View style={loginStyles.webViewOverlay}>
-            <View style={loginStyles.webViewHeader}>
+            {/* <View style={loginStyles.webViewHeader}>
               <TouchableOpacity
                 onPress={() => {
                   setShowWebView(false);
@@ -237,7 +257,7 @@ const LoginScreen = () => {
                   {t("common.cancel")}
                 </Text>
               </TouchableOpacity>
-            </View>
+            </View> */}
             <WebView
               source={{ uri: authUrl }}
               onShouldStartLoadWithRequest={handleWebViewRequest}

@@ -89,10 +89,13 @@ export default function ItemListScreen() {
   );
 
   const getStatusLabel = (status: string) => {
-    if (status === "AVAILABLE") return t("staff_item_list.status_available");
-    if (status === "IN_USE") return t("staff_item_list.status_in_use");
-    if (status === "DISPOSED") return t("staff_item_list.status_disposed");
-    return status;
+    const normalizedStatus = status === "AVAILABLE" ? "IN_USE" : status;
+    if (normalizedStatus === "IN_USE") return t("staff_item_list.status_in_use");
+    if (normalizedStatus === "ACTIVE") return t("staff_item_list.status_active");
+    if (normalizedStatus === "DISPOSED") return t("staff_item_list.status_disposed");
+    if (normalizedStatus === "BROKEN") return t("staff_item_list.status_broken");
+    if (normalizedStatus === "DELETED") return t("staff_item_list.status_deleted");
+    return normalizedStatus;
   };
 
   const getHouseName = (houseId: string) =>

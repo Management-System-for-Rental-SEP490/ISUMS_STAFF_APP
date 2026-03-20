@@ -99,6 +99,8 @@ export const itemScreenStyles = StyleSheet.create({
   /** Hàng nút trạng thái (AVAILABLE / DISPOSED) */
   statusRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
   },
   statusBtn: {
     paddingHorizontal: 14,

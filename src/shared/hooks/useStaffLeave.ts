@@ -17,7 +17,7 @@ import type {
  */
 export const STAFF_LEAVE_KEYS = {
   all: ["staffLeave"] as const,
-  list: () => [...STAFF_LEAVE_KEYS.all, "list"] as const,
+  list: (staffId: string) => [...STAFF_LEAVE_KEYS.all, "list", staffId] as const,
 };
 
 /**
@@ -29,8 +29,12 @@ export const useLeaveRequests = () => {
   const staffId = getStaffIdForSchedule();
 
   return useQuery<LeaveRequestsApiResponse>({
-    queryKey: STAFF_LEAVE_KEYS.list(),
+    queryKey: STAFF_LEAVE_KEYS.list(staffId),
     queryFn: () => getLeaveRequestsByStaffId(staffId),
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
   });
 };
 
@@ -49,7 +53,7 @@ export const useCreateLeaveRequest = () => {
         ...payload,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: STAFF_LEAVE_KEYS.list() });
+      queryClient.invalidateQueries({ queryKey: STAFF_LEAVE_KEYS.list(staffId) });
     },
   });
 };
@@ -61,6 +65,7 @@ export const useCreateLeaveRequest = () => {
  */
 export const useUpdateLeaveRequestStatus = () => {
   const queryClient = useQueryClient();
+  const staffId = getStaffIdForSchedule();
 
   return useMutation<
     UpdateLeaveRequestResponse,
@@ -72,7 +77,7 @@ export const useUpdateLeaveRequestStatus = () => {
         status: "CANCELLED",
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: STAFF_LEAVE_KEYS.list() });
+      queryClient.invalidateQueries({ queryKey: STAFF_LEAVE_KEYS.list(staffId) });
     },
   });
 };

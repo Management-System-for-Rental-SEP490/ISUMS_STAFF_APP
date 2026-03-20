@@ -4,6 +4,7 @@ import { CustomAlert as Alert } from "../../../shared/components/alert";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import userProfileStyles from "./UserProfileScreenStyles";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { logoutKeycloak, openChangePasswordPage } from "../../../shared/services/keycloakAuth";
@@ -16,6 +17,7 @@ const UserProfileScreen = () => {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { user, role, idToken, logout } = useAuthStore();
+  const insets = useSafeAreaInsets();
   const [userInfo, setUserInfo] = useState<UserProfileResponse | null>(null);
 
   useEffect(() => {
@@ -74,18 +76,38 @@ const UserProfileScreen = () => {
   const displayEmail = userInfo?.email || "";
   const displayPhone = userInfo?.phoneNumber || "";
 
+  const goHome = () => {
+    const nav: any = navigation;
+    if (typeof nav?.jumpTo === "function") {
+      nav.jumpTo("Dashboard");
+      return;
+    }
+    nav.navigate("Dashboard");
+  };
+
   return (
     <View style={userProfileStyles.container}>
-      <ScrollView contentContainerStyle={userProfileStyles.contentContainer}>
+      <ScrollView
+        contentContainerStyle={[
+          userProfileStyles.contentContainer,
+          
+        ]}
+      >
         {/* Header Background */}
-        <LinearGradient
-          colors={["#3bb582", "#0c6ab5"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={userProfileStyles.headerBackground}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={goHome}
+          accessibilityRole="button"
         >
-          <Text style={userProfileStyles.headerTitle}>{t('profile.title')}</Text>
-        </LinearGradient>
+          <LinearGradient
+            colors={["#3bb582", "#0c6ab5"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={userProfileStyles.headerBackground}
+          >
+            <Text style={userProfileStyles.headerTitle}>{t('profile.title')}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
         {/* Profile Card */}
         <View style={userProfileStyles.profileCard}>

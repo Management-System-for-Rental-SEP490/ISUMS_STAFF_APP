@@ -41,7 +41,8 @@ import type { UpdateAssetItemRequest } from "../../../../shared/types/api";
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemEdit">;
 type ItemEditRouteProp = RouteProp<RootStackParamList, "ItemEdit">;
 
-const STATUS_OPTIONS = ["AVAILABLE", "IN_USE", "DISPOSED"] as const;
+// AssetStatus: bỏ "AVAILABLE". Backend có thể trả về thêm ACTIVE/BROKEN/DELETED.
+const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED", "DELETED"] as const;
 
 export default function ItemEditScreen() {
   const { t } = useTranslation();
@@ -89,7 +90,10 @@ export default function ItemEditScreen() {
   const [nfcId, setNfcId] = useState(latestItem.nfcTag ?? "");
   const [qrId, setQrId] = useState(latestItem.qrTag ?? "");
   const [conditionPercent, setConditionPercent] = useState(String(latestItem.conditionPercent));
-  const [status, setStatus] = useState<string>(latestItem.status || STATUS_OPTIONS[0]);
+  // AssetStatus: normalize "AVAILABLE" -> "IN_USE"
+  const [status, setStatus] = useState<string>(
+    latestItem.status === "AVAILABLE" ? "IN_USE" : latestItem.status || STATUS_OPTIONS[0]
+  );
 
   useEffect(() => {
     setHouseId(latestItem.houseId);
@@ -99,7 +103,11 @@ export default function ItemEditScreen() {
     setNfcId(latestItem.nfcTag ?? "");
     setQrId(latestItem.qrTag ?? "");
     setConditionPercent(String(latestItem.conditionPercent));
-    setStatus(latestItem.status || STATUS_OPTIONS[0]);
+    setStatus(
+      latestItem.status === "AVAILABLE"
+        ? "IN_USE"
+        : latestItem.status || STATUS_OPTIONS[0]
+    );
   }, [latestItem]);
 
   // Tự động cập nhật status dựa trên conditionPercent
@@ -107,15 +115,14 @@ export default function ItemEditScreen() {
     const percent = parseInt(conditionPercent, 10);
     if (!Number.isNaN(percent)) {
       if (percent === 100) {
-        // Nếu 100% -> AVAILABLE
-        setStatus("AVAILABLE");
-      } else if (percent < 100 && status === "AVAILABLE") {
-        // Nếu < 100% và đang là AVAILABLE -> chuyển sang IN_USE
-        // (Giữ nguyên nếu đang là DISPOSED hoặc đã là IN_USE)
-        setStatus("IN_USE");
+        // percent=100: nếu đang ở IN_USE/ACTIVE thì giữ nguyên,
+        // còn lại normalize về IN_USE để tránh trạng thái không khớp.
+        if (status !== "IN_USE" && status !== "ACTIVE") setStatus("IN_USE");
+      } else if (percent < 100) {
+        // percent<100: không tự động ép status, tránh ghi đè status mới từ BE.
       }
     }
-  }, [conditionPercent]);
+  }, [conditionPercent, status]);
 
   const { data: housesData } = useHouses();
   const houses = housesData?.data ?? [];
@@ -184,18 +191,8 @@ export default function ItemEditScreen() {
       nfcTag: trimmedNfcId.length > 0 ? trimmedNfcId : null,
       qrTag: trimmedQrId.length > 0 ? trimmedQrId : null,
       conditionPercent: percent,
-      status: status || "AVAILABLE",
+      status: status || "IN_USE",
     };
-
-    // Validation logic mới: Chặn nếu 100% mà chọn IN_USE
-    if (percent === 100 && payload.status === "IN_USE") {
-      Alert.alert(
-        t("common.error"),
-        t("staff_item_edit.error_100_percent_in_use")
-      );
-      updateMutation.reset();
-      return;
-    }
 
     try {
       // Nếu user đổi nhà, gọi API transfer riêng trước.
@@ -241,7 +238,8 @@ export default function ItemEditScreen() {
               nfcTag: nfcId.trim() ? nfcId.trim() : null,
               qrTag: qrId.trim() ? qrId.trim() : null,
               conditionPercent: Number.isNaN(percent) ? item.conditionPercent : percent,
-              status: "DISPOSED",
+              // Xóa mềm theo enum mới: DELETED
+              status: "DELETED",
             };
             updateMutation.mutate(
               { id: item.id, payload },
@@ -267,7 +265,7 @@ export default function ItemEditScreen() {
     !Number.isNaN(parseInt(conditionPercent, 10));
 
   // Chỉ cho phép "xóa" khi thiết bị chưa ở trạng thái DISPOSED.
-  const canDelete = status !== "DISPOSED";
+  const canDelete = status !== "DELETED";
 
   const handleDetachNfc = () => {
     const trimmed = nfcId.trim();
@@ -577,10 +575,14 @@ export default function ItemEditScreen() {
                       status === s && itemScreenStyles.statusBtnTextSelected,
                     ]}
                   >
-                    {s === "AVAILABLE"
-                      ? t("staff_item_create.status_available")
-                      : s === "IN_USE"
+                    {s === "IN_USE"
                       ? t("staff_item_create.status_in_use")
+                      : s === "ACTIVE"
+                      ? t("staff_item_create.status_active")
+                      : s === "BROKEN"
+                      ? t("staff_item_create.status_broken")
+                      : s === "DELETED"
+                      ? t("staff_item_create.status_deleted")
                       : t("staff_item_create.status_disposed")}
                   </Text>
                   </TouchableOpacity>

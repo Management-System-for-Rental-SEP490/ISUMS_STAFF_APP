@@ -15,9 +15,14 @@ const gradientMaps: Record<HeaderVariant, [ColorValue, ColorValue]> = {
 
 type HeaderProps = {
   variant?: HeaderVariant;
-  /** Giá trị hiện tại của ô tìm kiếm (controlled). Nếu không truyền, ô search chỉ là trang trí. */
+  /**
+   * Chỉ bật trên màn Home: hiện ô tìm kiếm bên phải logo.
+   * Các màn khác để false — chỉ logo + tên ISUMS căn giữa.
+   */
+  showSearch?: boolean;
+  /** Giá trị hiện tại của ô tìm kiếm (controlled). */
   searchQuery?: string;
-  /** Callback khi người dùng gõ vào ô tìm kiếm. Truyền vào để kích hoạt chế độ search. */
+  /** Callback khi người dùng gõ vào ô tìm kiếm. */
   onSearchChange?: (text: string) => void;
   /** Placeholder tuỳ chỉnh theo ngữ cảnh của từng màn hình. */
   searchPlaceholder?: string;
@@ -25,6 +30,7 @@ type HeaderProps = {
 
 const Header = ({
   variant = "default",
+  showSearch = false,
   searchQuery,
   onSearchChange,
   searchPlaceholder,
@@ -33,7 +39,7 @@ const Header = ({
   const navigation = useNavigation<NavigationProp<MainTabParamList>>();
   const screenWidth = Dimensions.get("window").width;
   const isSmallScreen = screenWidth < 375;
-  const isSearchActive = !!onSearchChange;
+  const isSearchActive = showSearch && !!onSearchChange;
   const hasText = isSearchActive && !!searchQuery?.trim();
 
   return (
@@ -45,59 +51,70 @@ const Header = ({
         style={[
           headerStyles.gradient,
           { paddingTop: insets.top + 12 },
-          isSmallScreen && { paddingHorizontal: 12 }, // Giảm padding trên màn hình nhỏ
+          isSmallScreen && { paddingHorizontal: 12 },
         ]}
       >
-        <View style={[
-          headerStyles.headerRow,
-          isSmallScreen && { gap: 8 }, // Giảm gap trên màn hình nhỏ
-        ]}>
+        <View
+          style={[
+            headerStyles.headerRow,
+            !isSearchActive && headerStyles.headerRowCentered,
+            isSmallScreen && { gap: 8 },
+          ]}
+        >
           <TouchableOpacity
             style={headerStyles.brandRow}
             activeOpacity={0.75}
             onPress={() => navigation.navigate("Dashboard")}
           >
-            <View style={[
-              headerStyles.logoWrapper,
-              isSmallScreen && { width: 40, height: 40, marginRight: 6 }, // Giảm kích thước logo trên màn hình nhỏ
-            ]}>
+            <View
+              style={[
+                headerStyles.logoWrapper,
+                isSmallScreen && { width: 40, height: 40, marginRight: 6 },
+              ]}
+            >
               <Icons.logoHome size={isSmallScreen ? 32 : 40} />
             </View>
-            <Text style={[
-              headerStyles.brandTitle,
-              isSmallScreen && { fontSize: 16 }, // Giảm fontSize trên màn hình nhỏ
-            ]}>ISUMS</Text>
+            <Text
+              style={[
+                headerStyles.brandTitle,
+                isSmallScreen && { fontSize: 16 },
+              ]}
+            >
+              ISUMS
+            </Text>
           </TouchableOpacity>
 
-          <View style={[
-            headerStyles.searchContainer,
-            isSmallScreen && { paddingHorizontal: 10, paddingVertical: 8 }, // Giảm padding trên màn hình nhỏ
-          ]}>
-            <Icons.search size={isSmallScreen ? 18 : 20} color="#1e293b" />
-            <TextInput
+          {isSearchActive && (
+            <View
               style={[
-                headerStyles.searchInput,
-                isSmallScreen && { fontSize: 14, marginLeft: 8 }, // Giảm fontSize và margin trên màn hình nhỏ
+                headerStyles.searchContainer,
+                isSmallScreen && { paddingHorizontal: 10, paddingVertical: 8 },
               ]}
-              placeholder={searchPlaceholder ?? "Tìm kiếm ..."}
-              placeholderTextColor="rgba(15, 23, 42, 0.45)"
-              returnKeyType="search"
-              editable={isSearchActive}
-              value={isSearchActive ? (searchQuery ?? "") : undefined}
-              onChangeText={isSearchActive ? onSearchChange : undefined}
-            />
-            {/* Nút xóa text — chỉ hiện khi đang search và có nội dung */}
-            {hasText && (
-              <TouchableOpacity
-                onPress={() => onSearchChange?.("")}
-                style={headerStyles.clearBtn}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Icons.close size={14} color="#64748b" />
-              </TouchableOpacity>
-            )}
-          </View>
+            >
+              <Icons.search size={isSmallScreen ? 18 : 20} color="#1e293b" />
+              <TextInput
+                style={[
+                  headerStyles.searchInput,
+                  isSmallScreen && { fontSize: 14, marginLeft: 8 },
+                ]}
+                placeholder={searchPlaceholder ?? "Tìm kiếm ..."}
+                placeholderTextColor="rgba(15, 23, 42, 0.45)"
+                returnKeyType="search"
+                value={searchQuery ?? ""}
+                onChangeText={onSearchChange}
+              />
+              {hasText && (
+                <TouchableOpacity
+                  onPress={() => onSearchChange?.("")}
+                  style={headerStyles.clearBtn}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Icons.close size={14} color="#64748b" />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
       </LinearGradient>
     </View>

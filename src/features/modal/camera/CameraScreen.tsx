@@ -100,11 +100,16 @@ const CameraScreen = () => {
    * sang DeviceStatus để tái sử dụng màn DeviceDetail/Ticket cũ.
    */
   const mapApiStatusToDeviceStatus = (apiStatus: string): DeviceStatus => {
-    switch (apiStatus) {
-      case "AVAILABLE":
+    // AssetStatus: API có thể trả về "AVAILABLE" hoặc status mới ACTIVE/BROKEN/DELETED.
+    const normalized = apiStatus === "AVAILABLE" ? "IN_USE" : apiStatus;
+    switch (normalized) {
       case "IN_USE":
+      case "ACTIVE":
         return "active";
       case "DISPOSED":
+      case "BROKEN":
+      case "DELETED":
+      case "INACTIVE":
         return "inactive";
       case "MAINTENANCE":
         return "maintenance";
