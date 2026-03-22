@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Modal, Text, TouchableOpacity, View, ScrollView, RefreshControl } from "react-native";
+import { Text, TouchableOpacity, View, ScrollView, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -17,6 +17,7 @@ import {
 } from "../../../../shared/hooks";
 import { useTranslation } from "react-i18next";
 import { staffIotStyles as s } from "./staffIotStyles";
+import { IotAddDeviceMenuModal } from "./modals/IotAddDeviceMenuModal";
 import {
   BRAND_BLUE,
   BRAND_DANGER,
@@ -394,80 +395,22 @@ export default function StaffIotListScreen() {
           </TouchableOpacity>
         </View>
 
-        <Modal
+        <IotAddDeviceMenuModal
           visible={addMenuOpen}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setAddMenuOpen(false)}
-        >
-          {/* Backdrop: bấm ra ngoài để đóng */}
-          <TouchableOpacity
-            style={s.modalBackdrop}
-            activeOpacity={1}
-            onPress={() => setAddMenuOpen(false)}
-          >
-            {/* Chặn click xuyên xuống backdrop khi bấm vào sheet */}
-            <TouchableOpacity
-              style={[s.modalSheet, { paddingBottom: Math.max(insets.bottom, 12) }]}
-              activeOpacity={1}
-              onPress={() => {}}
-            >
-              <Text style={s.modalTitle}>{t("staff_iot.add_menu_title")}</Text>
-
-              <TouchableOpacity
-                style={s.modalItem}
-                activeOpacity={0.85}
-                onPress={() => {
-                  setAddMenuOpen(false);
-                  navigation.navigate("StaffIotProvision", { houseId, houseName, kind: "controller" });
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={t("staff_iot.add_controller")}
-              >
-                <View style={s.modalItemIcon}>
-                  <Icons.electric size={18} color={neutral.iconMuted} />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={s.modalItemTitle}>{t("staff_iot.add_controller")}</Text>
-                  <Text style={s.modalItemSub} numberOfLines={2}>
-                    {t("staff_iot.add_controller_sub")}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={s.modalItem}
-                activeOpacity={0.85}
-                onPress={() => {
-                  setAddMenuOpen(false);
-                  navigation.navigate("StaffIotProvision", { houseId, houseName, kind: "node" });
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={t("staff_iot.add_node")}
-              >
-                <View style={s.modalItemIcon}>
-                  <Icons.water size={18} color={neutral.iconMuted} />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={s.modalItemTitle}>{t("staff_iot.add_node")}</Text>
-                  <Text style={s.modalItemSub} numberOfLines={2}>
-                    {t("staff_iot.add_node_sub")}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={s.modalCancel}
-                activeOpacity={0.85}
-                onPress={() => setAddMenuOpen(false)}
-                accessibilityRole="button"
-                accessibilityLabel={t("common.cancel")}
-              >
-                <Text style={s.modalCancelText}>{t("common.cancel")}</Text>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </Modal>
+          onClose={() => setAddMenuOpen(false)}
+          onAddController={() => {
+            setAddMenuOpen(false);
+            navigation.navigate("StaffIotProvision", {
+              houseId,
+              houseName,
+              kind: "controller",
+            });
+          }}
+          onAddNode={() => {
+            setAddMenuOpen(false);
+            navigation.navigate("StaffIotProvision", { houseId, houseName, kind: "node" });
+          }}
+        />
 
         {iotLoading ? (
           <View style={s.loadingRow}>
