@@ -10,6 +10,7 @@ import loginStyles from "./loginStyles";
 import { RootStackParamList } from "../../../shared/types";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { getKeycloakAuthUrl, getKeycloakRedirectUri, handleKeycloakCallback, exchangeCodeForToken, logoutKeycloak } from "../../../shared/services/keycloakAuth";
+import { brandGradient, brandPrimary } from "../../../shared/theme/color";
 import { useTranslation } from "react-i18next";
 
 type LoginNavigationProp = NativeStackNavigationProp<RootStackParamList, "AuthLogin">; //đây là khai báo kiểu để useNavigation có type an toàn khi dùng trong LoginScreen.
@@ -157,7 +158,7 @@ const LoginScreen = () => {
       const redirectUri = getKeycloakRedirectUri();
       const currentUrl: string = request.url;
 
-      // Khi Keycloak redirect về redirectUri (isums://callback?code=...)
+      // Khi Keycloak redirect về redirectUri (ví dụ isumsstaff://callback?code=...)
       if (currentUrl.startsWith(redirectUri)) {
         // Tái sử dụng cùng logic xử lý deep link hiện tại
         handleDeepLink({ url: currentUrl });
@@ -174,7 +175,7 @@ const LoginScreen = () => {
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
-        <ActivityIndicator size="large" color="#3bb582" />
+        <ActivityIndicator size="large" color={brandPrimary} />
         <Text style={{ color: "#666", textAlign: "center", marginTop: 10 }}>
           {t("common.loading")}
         </Text>
@@ -190,7 +191,7 @@ const LoginScreen = () => {
 
   return (
     <LinearGradient
-      colors={["#3bb582", "rgba(12, 106, 181, 0.7)"]}
+      colors={[...brandGradient]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={[loginStyles.container, { paddingTop: insets.top }]}
@@ -264,7 +265,7 @@ const LoginScreen = () => {
               startInLoadingState
               renderLoading={() => (
                 <View style={loginStyles.webViewLoadingOverlay}>
-                  <ActivityIndicator size="large" color="#3bb582" />
+                  <ActivityIndicator size="large" color={brandPrimary} />
                   <Text style={{ color: "#666", textAlign: "center", marginTop: 10 }}>
                     {t("common.loading")}
                   </Text>

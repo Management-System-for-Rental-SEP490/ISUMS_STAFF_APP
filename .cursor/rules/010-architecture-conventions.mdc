@@ -1,0 +1,70 @@
+---
+description: Quy tắc kỹ thuật ISUMS Staff — kiến trúc, BE, UI (màu, chữ, list, form); ưu tiên file này để luôn nạp đủ trong ngữ cảnh AI.
+globs: **/*
+alwaysApply: true
+---
+
+# Quy tắc kỹ thuật & UI (ISUMS_STAFF_APP)
+
+**Mục đích:** Gom luật “phải làm đúng trong code” vào một file **ngắn hơn `000-user-preferences.mdc`** để Cursor/AI dễ nạp **đủ nội dung** mỗi lượt.  
+**Tương tác người dùng** (hỏi trước khi tạo file, giải thích siêu chi tiết, tiếng Việt): xem **`000-user-preferences.mdc`**.
+
+---
+
+## 1. Tầng dữ liệu & kiến trúc
+
+- **HTTP:** chỉ trong `src/shared/services/*Api.ts`. **Không** `axiosClient` / `fetch` / ghép URL BE trong `screens` hay `components`.
+- **React Query:** `useQuery` / `useInfiniteQuery` / `useMutation` trong `src/shared/hooks/*.ts`. Screen chỉ gọi hook.
+- **Types API / model dùng chung:** `src/shared/types/api.ts` (và re-export nếu cần). Không nhét type response lớn trong screen.
+- **Format (ngày, số, …):** `src/shared/utils/` — UI gọi util, không format rải rác.
+- **Zustand:** mọi store trong **`src/store/`**.
+- **Kết nối BE:** ưu tiên mở rộng file service/hook hiện có; có API trong repo thì **xóa mock** tương ứng. Chưa có API → mock + type gần BE; chuỗi demo qua i18n (vd. `staff_notification.demo_*`).
+- **File mới:** ưu tiên mở rộng module cùng domain; tạo file mới chỉ khi tách domain rõ **hoặc** user đã đồng ý (mục 1 trong `000`).
+- **Dead code:** file service không được import → xóa hoặc nối luồng thật.
+
+## 2. i18n
+
+- Mọi chuỗi user-facing qua `t()`. Thêm key vào **cả ba** `vietnamese.ts`, `english.ts`, `japanese.ts`. `index.ts` chỉ config, không nhét text.
+
+## 3. Alert
+
+- **Không** `Alert.alert` RN. Dùng **`CustomAlert`** từ `src/shared/components/alert` (alias `Alert` nếu cần). Store: `src/store/useAlertStore.ts`.
+
+## 4. Màu (`src/shared/theme/color.tsx`)
+
+- Chỉ dùng token export (`brandPrimary`, `neutral.*`, `BRAND_DANGER`, …). **Không** hex trong StyleSheet/component **trừ** trong `color.tsx`, asset cố định, hoặc user chỉ định rõ từng chỗ.
+- Thiếu semantic → **thêm token** trong `color.tsx`, không rải hex feature.
+
+## 5. Typography (`src/shared/utils/typography.ts`)
+
+- Ưu tiên `appTypography.<key>` + `lineHeightFor` khi viết/sửa UI. Màu chữ từ `color.tsx`, không hex trong typography.
+- Hai app Mobile + Staff: **cùng tên key** `appTypography` khi thêm key mới.
+
+## 6. Pull-to-refresh
+
+- List / ScrollView chính có dữ liệu động → `RefreshControl`; `refreshing` ưu tiên `isRefetching` từ React Query. `tintColor`/`colors` dùng `brandPrimary` (hoặc accent màn đã có trong `color.tsx`).
+
+## 7. Màn stack không header (`headerShown: false`)
+
+- Không lồng `SafeAreaProvider` trong từng màn. Root: `SafeAreaView` / `useSafeAreaInsets`; `ScrollView` cộng `paddingBottom` theo `insets.bottom`.
+- Thanh top gradient + badge: pattern **`StackScreenTitleHeaderStrip`** + `StackScreenTitleBadge` (`tone="onBrand"`), `brandGradient`, `StatusBar` `light-content` — xem `StackScreenTitleBadge.tsx` và màn Staff đã chuẩn.
+
+## 8. Chuỗi dài từ BE
+
+- Free-text từ API → **`ExpandableLongText`** + `truncateDisplayText` (`DEFAULT_BE_TEXT_MAX_CHARS`, `DEFAULT_BE_SHORT_TEXT_MAX_CHARS`). Key `common.read_more` / `common.show_less` đủ 3 ngôn ngữ. Ngoại lệ: định danh ngắn, enum đã map i18n, `TextInput` đang gõ.
+
+## 9. DropdownBox
+
+- Lọc / chọn từ danh sách (nhà, danh mục, trạng thái, …) → ưu tiên **`DropdownBox`** (`dropdown_box.*` i18n). `keyboardVerticalOffset`, `onSearchInputFocus` cuộn parent khi cần. Android: `softwareKeyboardLayoutMode: "resize"` trong `app.json`.
+
+## 10. Phân trang danh sách
+
+- **`PaginationBar`** + `CLIENT_LIST_PAGE_SIZE` (10), `getTotalPages`, `slicePage`, `buildPaginationSequence` từ `pagination.ts`. Đổi filter/nhà/ngày/search → reset `page` về 1. Đồng bộ pattern với ISUMS_MOBILE_APP.
+
+## 11. React Native
+
+- Tuân thủ skill `.agents/skills/vercel-react-native-skills` khi viết/sửa RN.
+
+## 12. File `.cursor/rules`
+
+- **Không** tự thêm file rule `.mdc` mới cho từng chủ đề nhỏ — trừ khi user **đồng ý** (mục 1 trong `000`).

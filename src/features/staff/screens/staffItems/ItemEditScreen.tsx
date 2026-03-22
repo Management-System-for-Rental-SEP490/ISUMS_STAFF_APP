@@ -4,7 +4,7 @@
  * - Form pre-fill; PUT /api/asset/items/:id qua useUpdateAssetItem.
  * - Nút "Xóa thiết bị": Alert xác nhận → cập nhật status từ "AVAILABLE" → "DISPOSED" (xóa mềm) → goBack.
  */
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -25,18 +25,39 @@ import type { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
 import {
+  StackScreenTitleBadge,
+  StackScreenTitleBarBalance,
+  StackScreenTitleHeaderStrip,
+  stackScreenTitleBackBtnOnBrand,
+  stackScreenTitleCenterSlotStyle,
+  stackScreenTitleOnBrandIconColor,
+  stackScreenTitleRowStyle,
+  stackScreenTitleSideSlotStyle,
+} from "../../../../shared/components/StackScreenTitleBadge";
+import {
   useUpdateAssetItem,
   useHouses,
   useAssetCategories,
   ASSET_ITEM_KEYS,
   useTransferAssetItemHouse,
   useDetachAssetTag,
+  useFunctionalAreasByHouseId,
 } from "../../../../shared/hooks";
 import { getAssetItemByNfcId, getAssetItemById } from "../../../../shared/services/assetItemApi";
 import { itemScreenStyles } from "./itemScreenStyles";
-import type { AssetCategoryFromApi, AssetItemFromApi } from "../../../../shared/types/api";
+import { brandPrimary } from "../../../../shared/theme/color";
+import {
+  DropdownBox,
+  type DropdownBoxSection,
+} from "../../../../shared/components/dropdownBox";
+import type {
+  AssetCategoryFromApi,
+  AssetItemFromApi,
+  FunctionalAreaFromApi,
+} from "../../../../shared/types/api";
 import type { HouseFromApi } from "../../../../shared/types/api";
 import type { UpdateAssetItemRequest } from "../../../../shared/types/api";
+import { mergeFunctionalAreasForHouse, sortFunctionalAreasForDisplay } from "../../../../shared/utils";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemEdit">;
 type ItemEditRouteProp = RouteProp<RootStackParamList, "ItemEdit">;
@@ -94,6 +115,19 @@ export default function ItemEditScreen() {
   const [status, setStatus] = useState<string>(
     latestItem.status === "AVAILABLE" ? "IN_USE" : latestItem.status || STATUS_OPTIONS[0]
   );
+  const [functionAreaId, setFunctionAreaId] = useState<string | null>(
+    latestItem.functionAreaId ?? null
+  );
+
+  /**
+   * Tránh GET lại item (focus/refetch) ghi đè `functionAreaId` đang chọn trước khi bấm Lưu
+   * — trường hợp BE trả null trong khi user đã chọn khu vực trên form.
+   */
+  const functionAreaUserTouchedRef = useRef(false);
+
+  useEffect(() => {
+    functionAreaUserTouchedRef.current = false;
+  }, [item.id]);
 
   useEffect(() => {
     setHouseId(latestItem.houseId);
@@ -108,6 +142,9 @@ export default function ItemEditScreen() {
         ? "IN_USE"
         : latestItem.status || STATUS_OPTIONS[0]
     );
+    if (!functionAreaUserTouchedRef.current) {
+      setFunctionAreaId(latestItem.functionAreaId ?? null);
+    }
   }, [latestItem]);
 
   // Tự động cập nhật status dựa trên conditionPercent
@@ -128,6 +165,144 @@ export default function ItemEditScreen() {
   const houses = housesData?.data ?? [];
   const { data: categoriesData } = useAssetCategories();
   const categories = categoriesData?.data ?? [];
+  const { data: functionalAreasResp } = useFunctionalAreasByHouseId(houseId.trim());
+  const selectedHouse = useMemo(
+    () => houses.find((h: HouseFromApi) => h.id === houseId),
+    [houses, houseId]
+  );
+  /** GET /api/houses/functionalAreas/{houseId} sau khi có houseId form; gộp nhúng trong house + sort. */
+  const functionalAreas: FunctionalAreaFromApi[] = useMemo(() => {
+    const merged = mergeFunctionalAreasForHouse(selectedHouse, functionalAreasResp?.data);
+    return sortFunctionalAreasForDisplay(merged);
+  }, [selectedHouse, functionalAreasResp?.data]);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollItemEditTop = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 56, animated: true }));
+    });
+  }, []);
+  const scrollItemEditMid = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 160, animated: true }));
+    });
+  }, []);
+  const scrollItemEditEnd = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    });
+  }, []);
+
+  const statusLabel = useCallback(
+    (s: string) => {
+      if (s === "IN_USE") return t("staff_item_create.status_in_use");
+      if (s === "ACTIVE") return t("staff_item_create.status_active");
+      if (s === "BROKEN") return t("staff_item_create.status_broken");
+      if (s === "DELETED") return t("staff_item_create.status_deleted");
+      return t("staff_item_create.status_disposed");
+    },
+    [t]
+  );
+
+  const houseDropdownSection = useMemo((): DropdownBoxSection | null => {
+    if (houses.length === 0) return null;
+    return {
+      id: "house",
+      title: t("dropdown_box.section_house"),
+      items: houses.map((h: HouseFromApi) => ({
+        id: h.id,
+        label: [h.name, h.address].filter(Boolean).join(" · "),
+      })),
+      selectedId: houseId,
+      showAllOption: false,
+    };
+  }, [houses, houseId, t]);
+
+  const categoryDropdownSection = useMemo((): DropdownBoxSection | null => {
+    if (categories.length === 0) return null;
+    return {
+      id: "category",
+      title: t("dropdown_box.section_category"),
+      items: categories.map((c: AssetCategoryFromApi) => ({ id: c.id, label: c.name })),
+      selectedId: categoryId,
+      showAllOption: false,
+    };
+  }, [categories, categoryId, t]);
+
+  const statusDropdownSection = useMemo((): DropdownBoxSection => {
+    return {
+      id: "status",
+      title: t("dropdown_box.section_status"),
+      items: STATUS_OPTIONS.map((s) => ({ id: s, label: statusLabel(s) })),
+      selectedId: status,
+      showAllOption: false,
+    };
+  }, [status, statusLabel, t]);
+
+  const houseDropdownSummary = useMemo(() => {
+    const h = houses.find((x: HouseFromApi) => x.id === houseId);
+    return `${t("dropdown_box.house_short")}: ${h?.name ?? houseId}`;
+  }, [houses, houseId, t]);
+
+  const formatAreaDropdownLabel = useCallback(
+    (a: FunctionalAreaFromApi) => {
+      const floorPart = (a.floorNo ?? "").trim()
+        ? t("staff_building_detail.functional_area_floor", { floor: a.floorNo })
+        : "";
+      return [a.name, floorPart].filter(Boolean).join(" · ");
+    },
+    [t]
+  );
+
+  const functionalAreaDropdownSection = useMemo((): DropdownBoxSection => {
+    return {
+      id: "functionalArea",
+      title: t("dropdown_box.section_functional_area"),
+      items: functionalAreas.map((a) => ({
+        id: a.id,
+        label: formatAreaDropdownLabel(a),
+      })),
+      selectedId: functionAreaId,
+      showAllOption: true,
+      allLabel: t("staff_item_create.function_area_none"),
+    };
+  }, [functionalAreas, functionAreaId, formatAreaDropdownLabel, t]);
+
+  const functionalAreaDropdownSummary = useMemo(() => {
+    if (!functionAreaId) {
+      return `${t("dropdown_box.functional_area_short")}: ${t("staff_item_create.function_area_none")}`;
+    }
+    const a = functionalAreas.find((x) => x.id === functionAreaId);
+    const label = a ? formatAreaDropdownLabel(a) : t("staff_item_create.function_area_unknown");
+    return `${t("dropdown_box.functional_area_short")}: ${label}`;
+  }, [functionAreaId, functionalAreas, formatAreaDropdownLabel, t]);
+
+  const categoryDropdownSummary = useMemo(() => {
+    const c = categories.find((x: AssetCategoryFromApi) => x.id === categoryId);
+    return `${t("dropdown_box.category_short")}: ${c?.name ?? categoryId}`;
+  }, [categories, categoryId, t]);
+
+  const statusDropdownSummary = useMemo(
+    () => `${t("dropdown_box.status_short")}: ${statusLabel(status)}`,
+    [status, statusLabel, t]
+  );
+
+  const onItemEditDropdownSelect = useCallback((sectionId: string, itemId: string | null) => {
+    if (sectionId === "functionalArea") {
+      functionAreaUserTouchedRef.current = true;
+      setFunctionAreaId(itemId);
+      return;
+    }
+    if (itemId == null) return;
+    if (sectionId === "house") {
+      setHouseId(itemId);
+      setFunctionAreaId(null);
+      functionAreaUserTouchedRef.current = true;
+      return;
+    }
+    if (sectionId === "category") setCategoryId(itemId);
+    if (sectionId === "status") setStatus(itemId);
+  }, []);
 
   const updateMutation = useUpdateAssetItem();
   const isPending = updateMutation.isPending;
@@ -189,9 +364,12 @@ export default function ItemEditScreen() {
       displayName: displayName.trim(),
       serialNumber: serialNumber.trim(),
       nfcTag: trimmedNfcId.length > 0 ? trimmedNfcId : null,
+      nfcId: trimmedNfcId.length > 0 ? trimmedNfcId : null,
       qrTag: trimmedQrId.length > 0 ? trimmedQrId : null,
+      qrId: trimmedQrId.length > 0 ? trimmedQrId : null,
       conditionPercent: percent,
       status: status || "IN_USE",
+      functionAreaId,
     };
 
     try {
@@ -204,17 +382,39 @@ export default function ItemEditScreen() {
         });
       }
 
-      await updateMutation.mutateAsync({
+      const updateRes = await updateMutation.mutateAsync({
         id: item.id,
         payload,
       });
 
-      // Refetch toàn bộ danh sách thiết bị (mọi nhà) trước khi goBack,
-      // để Staff Home / BuildingDetail hiển thị đúng sau khi đổi nhà.
-      await queryClient.refetchQueries({ queryKey: ASSET_ITEM_KEYS.base });
-      navigation.goBack();
-    } catch (e) {
-      console.log("Lỗi cập nhật thiết bị:", e);
+      const sentFaNorm =
+        payload.functionAreaId != null && String(payload.functionAreaId).trim() !== ""
+          ? String(payload.functionAreaId).trim()
+          : "";
+      const backRaw = updateRes?.data?.functionAreaId;
+      const backFaNorm =
+        backRaw != null && String(backRaw).trim() !== "" ? String(backRaw).trim() : "";
+      const msg = String(updateRes?.message ?? "");
+      const suspiciousBackend = /asset-images|asset images/i.test(msg);
+      const areaMismatch =
+        sentFaNorm !== "" && (backFaNorm === "" || backFaNorm !== sentFaNorm);
+
+      const finish = async () => {
+        await queryClient.refetchQueries({ queryKey: ASSET_ITEM_KEYS.base });
+        navigation.goBack();
+      };
+
+      if (suspiciousBackend || areaMismatch) {
+        Alert.alert(
+          t("staff_item_edit.area_not_saved_title"),
+          t("staff_item_edit.area_not_saved_message"),
+          [{ text: t("common.close"), onPress: () => void finish() }]
+        );
+      } else {
+        await finish();
+      }
+    } catch {
+      /* lỗi đã xử lý qua mutation onError / toast nếu có */
     }
   };
 
@@ -236,10 +436,13 @@ export default function ItemEditScreen() {
               displayName: displayName.trim(),
               serialNumber: serialNumber.trim(),
               nfcTag: nfcId.trim() ? nfcId.trim() : null,
+              nfcId: nfcId.trim() ? nfcId.trim() : null,
               qrTag: qrId.trim() ? qrId.trim() : null,
+              qrId: qrId.trim() ? qrId.trim() : null,
               conditionPercent: Number.isNaN(percent) ? item.conditionPercent : percent,
               // Xóa mềm theo enum mới: DELETED
               status: "DELETED",
+              functionAreaId,
             };
             updateMutation.mutate(
               { id: item.id, payload },
@@ -294,8 +497,7 @@ export default function ItemEditScreen() {
                   },
                 ]
               );
-            } catch (e) {
-              console.log("Lỗi gỡ NFC:", e);
+            } catch {
               Alert.alert(
                 t("camera.error_title"),
                 t("staff_item_edit.remove_nfc_error")
@@ -334,8 +536,7 @@ export default function ItemEditScreen() {
                   },
                 ]
               );
-            } catch (e) {
-              console.log("Lỗi gỡ QR:", e);
+            } catch {
               Alert.alert(
                 t("camera.error_title"),
                 t("staff_item_edit.remove_nfc_error")
@@ -347,28 +548,34 @@ export default function ItemEditScreen() {
     );
   };
 
-  const safeStyle = { paddingTop: insets.top, paddingBottom: insets.bottom };
-
   return (
-    <View style={[itemScreenStyles.container, safeStyle]}>
-      <View style={itemScreenStyles.topBar}>
-        <TouchableOpacity
-          style={itemScreenStyles.backBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Icons.chevronBack size={24} color="#1F2937" />
-        </TouchableOpacity>
-        <Text style={itemScreenStyles.topBarTitle} numberOfLines={1}>
-          {t("staff_item_edit.title")}
-        </Text>
-      </View>
+    <View style={itemScreenStyles.container}>
+      <StackScreenTitleHeaderStrip>
+        <View style={stackScreenTitleRowStyle}>
+          <View style={stackScreenTitleSideSlotStyle}>
+            <TouchableOpacity
+              style={stackScreenTitleBackBtnOnBrand}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <Icons.chevronBack size={24} color={stackScreenTitleOnBrandIconColor} />
+            </TouchableOpacity>
+          </View>
+          <View style={stackScreenTitleCenterSlotStyle}>
+            <StackScreenTitleBadge numberOfLines={1}>
+              {t("staff_item_edit.title")}
+            </StackScreenTitleBadge>
+          </View>
+          <StackScreenTitleBarBalance />
+        </View>
+      </StackScreenTitleHeaderStrip>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
             itemScreenStyles.scrollContent,
             itemScreenStyles.scrollContentWithKeyboard,
@@ -379,41 +586,41 @@ export default function ItemEditScreen() {
         >
           <View style={itemScreenStyles.formCard}>
             <Text style={itemScreenStyles.label}>{t("staff_item_create.house_label")}</Text>
-            <View style={itemScreenStyles.chipRow}>
-              {houses.map((h: HouseFromApi) => (
-                <TouchableOpacity
-                  key={h.id}
-                  onPress={() => setHouseId(h.id)}
-                  style={[itemScreenStyles.chip, houseId === h.id && itemScreenStyles.chipSelected]}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[itemScreenStyles.chipText, houseId === h.id && itemScreenStyles.chipTextSelected]}
-                    numberOfLines={1}
-                  >
-                    {h.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            {houseDropdownSection ? (
+              <DropdownBox
+                sections={[houseDropdownSection]}
+                summary={houseDropdownSummary}
+                onSelect={onItemEditDropdownSelect}
+                style={{ marginBottom: 4 }}
+                keyboardVerticalOffset={insets.top + 52}
+                onSearchInputFocus={scrollItemEditTop}
+              />
+            ) : null}
+
+            <View style={itemScreenStyles.fieldSpacer}>
+              <Text style={itemScreenStyles.label}>{t("staff_item_create.function_area_label")}</Text>
+              <DropdownBox
+                sections={[functionalAreaDropdownSection]}
+                summary={functionalAreaDropdownSummary}
+                onSelect={onItemEditDropdownSelect}
+                style={{ marginBottom: 4 }}
+                keyboardVerticalOffset={insets.top + 52}
+                onSearchInputFocus={scrollItemEditTop}
+              />
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.category_label")}</Text>
-              <View style={[itemScreenStyles.chipRow, { opacity: 0.7 }]} pointerEvents="none">
-                {categories.map((c: AssetCategoryFromApi) => (
-                  <View
-                    key={c.id}
-                    style={[itemScreenStyles.chip, categoryId === c.id && itemScreenStyles.chipSelected]}
-                  >
-                    <Text
-                      style={[itemScreenStyles.chipText, categoryId === c.id && itemScreenStyles.chipTextSelected]}
-                      numberOfLines={1}
-                    >
-                      {c.name}
-                    </Text>
-                  </View>
-                ))}
-              </View>
+              {categoryDropdownSection ? (
+                <DropdownBox
+                  sections={[categoryDropdownSection]}
+                  summary={categoryDropdownSummary}
+                  onSelect={onItemEditDropdownSelect}
+                  style={{ marginBottom: 4 }}
+                  keyboardVerticalOffset={insets.top + 52}
+                  onSearchInputFocus={scrollItemEditMid}
+                />
+              ) : null}
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
@@ -457,7 +664,7 @@ export default function ItemEditScreen() {
                 <TouchableOpacity
                   style={[
                     itemScreenStyles.detachNfcBtn,
-                    { backgroundColor: "#2563EB", borderColor: "#2563EB" }
+                    { backgroundColor: brandPrimary, borderColor: brandPrimary }
                   ]}
                   onPress={() => navigation.navigate("Camera", {
                     assignForDevice: latestItem,
@@ -508,7 +715,7 @@ export default function ItemEditScreen() {
                 <TouchableOpacity
                   style={[
                     itemScreenStyles.detachNfcBtn,
-                    { backgroundColor: "#2563EB", borderColor: "#2563EB" }
+                    { backgroundColor: brandPrimary, borderColor: brandPrimary }
                   ]}
                   onPress={() => navigation.navigate("Camera", {
                     assignForDevice: latestItem,
@@ -558,36 +765,14 @@ export default function ItemEditScreen() {
 
             <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.status_label")}</Text>
-              <View style={itemScreenStyles.statusRow}>
-                {STATUS_OPTIONS.map((s: string) => (
-                  <TouchableOpacity
-                    key={s}
-                    onPress={() => setStatus(s)}
-                    style={[
-                      itemScreenStyles.statusBtn,
-                      status === s && itemScreenStyles.statusBtnSelected,
-                    ]}
-                    activeOpacity={0.8}
-                  >
-                  <Text
-                    style={[
-                      itemScreenStyles.statusBtnText,
-                      status === s && itemScreenStyles.statusBtnTextSelected,
-                    ]}
-                  >
-                    {s === "IN_USE"
-                      ? t("staff_item_create.status_in_use")
-                      : s === "ACTIVE"
-                      ? t("staff_item_create.status_active")
-                      : s === "BROKEN"
-                      ? t("staff_item_create.status_broken")
-                      : s === "DELETED"
-                      ? t("staff_item_create.status_deleted")
-                      : t("staff_item_create.status_disposed")}
-                  </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <DropdownBox
+                sections={[statusDropdownSection]}
+                summary={statusDropdownSummary}
+                onSelect={onItemEditDropdownSelect}
+                style={{ marginBottom: 4 }}
+                keyboardVerticalOffset={insets.top + 52}
+                onSearchInputFocus={scrollItemEditEnd}
+              />
             </View>
 
             <View style={[itemScreenStyles.actionBtnRow]}>

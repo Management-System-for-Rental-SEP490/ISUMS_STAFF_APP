@@ -14,7 +14,9 @@ export default {
         "cancel": "キャンセル",
         "try_again": "再試行",
         "save": "保存",
-        "warning_different_house": "警告：このデバイスは{{houseName}}に属しており、現在選択されている家ではありません。"
+        "warning_different_house": "警告：このデバイスは{{houseName}}に属しており、現在選択されている家ではありません。",
+        "read_more": "もっと見る",
+        "show_less": "折りたたむ"
     },
     "device_detail": {
         "title": "デバイス詳細",
@@ -125,8 +127,9 @@ export default {
     },
     "staff_home": {
         "schedule_title": "今週の勤務表",
-        "schedule_summary_title": "勤務あり（まとめ）",
+        "schedule_summary_title": "今日・明日の予定",
         "schedule_no_slots": "今週の予定はありません",
+        "schedule_no_slots_today_tomorrow": "当日・翌日の勤務はありません。",
         "schedule_col_time": "時間",
         "schedule_col_building": "建物",
         "schedule_col_task": "作業",
@@ -158,7 +161,10 @@ export default {
         "add_menu_create_category": "カテゴリを作成",
         "add_menu_create_device": "デバイスを作成",
         "add_menu_assign_nfc": "NFCを割り当て",
-        "add_menu_assign_qr": "QRコードを割り当て"
+        "add_menu_assign_qr": "QRコードを割り当て",
+        "house_picker_collapsed": "建物一覧 · {{count}}件",
+        "house_picker_search_placeholder": "タップして名前・住所で検索…",
+        "house_picker_device_prefix": "デバイス数:"
     },
     "staff_category": {
         "title": "資産カテゴリを作成",
@@ -199,6 +205,9 @@ export default {
     "staff_item_create": {
         "title": "デバイスを追加",
         "house_label": "建物",
+        "function_area_label": "設置場所",
+        "function_area_none": "エリア未設定",
+        "function_area_unknown": "保存済みエリア（現在の一覧にありません）",
         "category_label": "カテゴリ",
         "display_name_label": "表示名",
         "display_name_placeholder": "例：リビングエアコン",
@@ -235,13 +244,18 @@ export default {
         "remove_nfc_confirm_message": "このNFCタグをデバイスから解除してもよろしいですか？",
         "remove_nfc_success": "NFCタグをデバイスから解除しました。",
         "remove_nfc_error": "NFCタグの解除に失敗しました。もう一度お試しください。",
-        "error_100_percent_in_use": "状態が100%のデバイスは「使用中」に設定できません。"
+        "error_100_percent_in_use": "状態が100%のデバイスは「使用中」に設定できません。",
+        "area_not_saved_title": "エリアが保存されていない可能性",
+        "area_not_saved_message": "アプリは機能エリアを送信しましたが、応答に functionAreaId が含まれないか、別APIのメッセージのようです。家別エリア一覧（GET functionalAreas）は問題ありません。利用中の環境の PUT（アイテム更新）を修正するか、Postmanで確認済みのサーバー向けに設定してください。"
     },
     "staff_item_description": {
         "title": "デバイス情報",
         "edit_btn": "編集"
     },
     "staff_notification": {
+        "demo_house_a": "物件A・棟1",
+        "demo_house_b": "物件B・棟2",
+        "demo_building_c": "物件C・棟3",
         "tenant_sent_ticket_title": "入居者からチケットが届きました",
         "tenant_sent_ticket_body": "{{house}}の入居者がチケット #{{id}} を送信しました。確認して対応してください。",
         "schedule_updated_title": "勤務表が更新されました",
@@ -271,6 +285,7 @@ export default {
         "status_cancelled": "キャンセル"
     },
     "staff_ticket_detail": {
+        "screen_title": "チケット詳細",
         "status": "ステータス",
         "priority": "優先度",
         "title_label": "タイトル",
@@ -364,6 +379,7 @@ export default {
         "cancel_already_processed": "この申請は既に処理済み（承認/却下）です。キャンセルできません。"
     },
     "staff_building_detail": {
+        "screen_title": "物件の詳細",
         "devices_title": "デバイス ({{count}})",
         "no_devices": "デバイスがありません",
         "devices_load_error": "デバイス一覧を読み込めませんでした。",
@@ -378,6 +394,8 @@ export default {
         "house_status_rented": "賃貸中",
         "house_status_other": "{{status}}",
         "functional_areas_title": "家内の機能エリア",
+        "area_filter_all": "すべてのエリア",
+        "areas_pick_hint": "エリアを選んでデバイスを絞り込み",
         "functional_areas_empty": "機能エリアがありません",
         "functional_area_floor": "{{floor}}階",
         "area_type_LIVINGROOM": "リビング",
@@ -402,6 +420,27 @@ export default {
         "kind_all": "すべて",
         "kind_controller": "Controller",
         "kind_node": "Node",
+        "list_hint_controller": "家内のNodeからデータを集約します。",
+        "list_hint_node": "計測・アラート用デバイス。Controllerへデータを送信します。",
+        "detail_title_controller": "Controllerの詳細",
+        "detail_title_node": "Nodeの詳細",
+        "detail_not_found": "デバイスが見つからないか、削除されています。",
+        "detail_field_id": "レコードID",
+        "detail_field_house_name": "建物",
+        "detail_field_thing_name": "Thing（Controller）",
+        "detail_field_device_id": "Device ID / MAC",
+        "detail_field_status": "ステータス",
+        "detail_field_area_name": "エリア",
+        "detail_field_created_at": "作成日時",
+        "detail_field_activated_at": "有効化日時",
+        "detail_field_nodes_count": "接続中のNode数",
+        "detail_field_display_name": "表示名",
+        "detail_field_asset_id": "資産ID（asset）",
+        "detail_field_category_code": "デバイス種別コード",
+        "detail_field_serial_number": "シリアル",
+        "detail_field_thing": "Thing（MQTT）",
+        "status_DEPROVISIONED": "プロビジョニング解除済み",
+        "node_status_IN_USE": "使用中",
         "areas_title": "家内の機能エリア",
         "areas_all": "すべて",
         "areas_floor": "{{floor}}階",
@@ -443,6 +482,12 @@ export default {
         "provision_connect_btn": "接続して登録",
         "provision_select_area_required": "先にエリアを選択してください。",
         "provision_qr_required": "QRをスキャンしてDevice IDを取得してください。",
+        "provision_qr_wrong_kind_need_controller":
+          "このQRはNode用です。Controllerではありません。Controller本体のQRをスキャンしてください。",
+        "provision_qr_wrong_kind_need_node":
+          "このQRはController用です。Nodeではありません。Node本体のQRをスキャンしてください。",
+        "provision_qr_type_unknown":
+          "QRのtypeが無効です（{{type}}）。システム形式のQRコードを使用してください。",
         "provision_wifi_required": "WiFi名（SSID）を入力してください。",
         "provision_wait_controller_title": "Controllerを登録中",
         "provision_wait_node_title": "Nodeを登録中",
@@ -476,8 +521,14 @@ export default {
         "wifi_password_show": "パスワードを表示",
         "wifi_password_hide": "パスワードを非表示",
         "wifi_continue": "続行",
-        "wifi_permission_required": "WiFiをスキャンするには位置情報の権限が必要です。",
+        "wifi_permission_required":
+          "位置情報の許可はQR読み取り後のWi‑Fi選択画面で求められます（カメラ画面ではありません）。\n\n以前拒否または「今後表示しない」を選んだ場合、Androidは再度ダイアログを出しません（アプリ側はエラー表示のみ）。対処: 設定 → アプリ → ISUMS Staff → 権限 → 位置情報をオン（正確な位置）。またはストレージを消去 / アプリを再インストールして最初から聞き直します。",
+        "wifi_open_app_settings": "設定を開く",
+        "wifi_location_services_required":
+          "端末の位置情報（GPS）をオンにしてください。AndroidではWiFi一覧取得に必要です。",
         "wifi_scan_failed": "WiFi一覧を取得できませんでした。もう一度お試しください。",
+        "wifi_native_module_missing":
+          "WiFiのネイティブが未リンクです（New Architectureが原因のことがあります）。newArchEnabled=falseでクリーンビルドし、アプリを再インストールしてください。",
         "ble_permission_required": "デバイスに接続するにはBluetoothの権限が必要です。",
         "ble_not_found": "Bluetoothデバイスが見つかりません。電源をご確認ください。",
         "ble_device_label": "BLEデバイス",
@@ -668,5 +719,21 @@ export default {
         "type_date": "日付",
         "no_result": "「{{query}}」の検索結果はありません",
         "viewing_date": "表示中: {{date}}"
+    },
+    "dropdown_box": {
+        "title": "絞り込み",
+        "search_placeholder": "名前・住所・階・カテゴリで検索…",
+        "no_results": "該当する項目がありません。",
+        "section_floor": "階",
+        "section_category": "機器カテゴリ",
+        "section_house": "物件",
+        "section_functional_area": "機能エリア",
+        "section_status": "状態",
+        "floor_short": "階",
+        "category_short": "カテゴリ",
+        "house_short": "物件",
+        "functional_area_short": "エリア",
+        "status_short": "状態",
+        "open_a11y": "絞り込みを開く"
     }
 }

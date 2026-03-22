@@ -1,7 +1,8 @@
 import React from 'react';
-import { Modal, Text, View, TouchableOpacity, Animated } from 'react-native';
+import { Modal, Text, View, TouchableOpacity, Animated, type TextStyle, type ViewStyle } from 'react-native';
 import { create } from 'zustand';
 import { alertStyles } from '../styles/alertStyles';
+import { BRAND_DANGER, neutral } from '../theme/color';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useAlertStore } from '../../store/useAlertStore';
 import { AlertButton, AlertType } from '../types';
@@ -41,25 +42,25 @@ export const GlobalAlert = () => {
       case 'success':
         return (
           <View style={[alertStyles.iconContainer, alertStyles.iconSuccess]}>
-            <Ionicons name="checkmark" size={32} color="#16A34A" />
+            <Ionicons name="checkmark" size={32} color={neutral.iconMuted} />
           </View>
         );
       case 'error':
         return (
           <View style={[alertStyles.iconContainer, alertStyles.iconError]}>
-            <MaterialIcons name="error-outline" size={32} color="#DC2626" />
+            <MaterialIcons name="error-outline" size={32} color={BRAND_DANGER} />
           </View>
         );
       case 'warning':
         return (
           <View style={[alertStyles.iconContainer, alertStyles.iconWarning]}>
-            <Ionicons name="warning-outline" size={32} color="#D97706" />
+            <Ionicons name="warning-outline" size={32} color={neutral.iconMuted} />
           </View>
         );
       default:
         return (
           <View style={[alertStyles.iconContainer, alertStyles.iconInfo]}>
-            <Ionicons name="information-circle-outline" size={32} color="#2563EB" />
+            <Ionicons name="information-circle-outline" size={32} color={neutral.iconMuted} />
           </View>
         );
     }
@@ -74,8 +75,8 @@ export const GlobalAlert = () => {
           {message ? <Text style={alertStyles.message}>{message}</Text> : null}
           <View style={alertStyles.buttonContainer}>
             {buttons.map((btn: AlertButton, index: number) => {
-              let btnStyle = alertStyles.buttonSecondary;
-              let textStyle = alertStyles.buttonTextSecondary;
+              let btnStyle: ViewStyle = alertStyles.buttonSecondary;
+              let textStyle: TextStyle = alertStyles.buttonTextSecondary;
 
               // Logic style:
               // - destructive -> buttonDanger (Red)

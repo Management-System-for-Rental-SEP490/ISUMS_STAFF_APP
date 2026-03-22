@@ -43,6 +43,14 @@ export interface UserProfileResponse {
 // Houses API (/api/houses)
 // =========================================================
 
+/** Tọa độ khu vực trong sơ đồ mặt bằng (viewBox 0 0 100 100). */
+export interface FunctionalAreaPosition {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /** Một khu vực chức năng trong nhà (phòng khách, bếp, phòng tắm, hành lang...) từ API GET /api/houses. */
 export interface FunctionalAreaFromApi {
   /** ID khu vực. */
@@ -59,6 +67,8 @@ export interface FunctionalAreaFromApi {
   description: string | null;
   /** Trạng thái (VD: NORMAL). */
   status?: string;
+  /** Vị trí trên sơ đồ mặt bằng (BE); thiếu thì dùng fallback theo areaType trong UI. */
+  position?: FunctionalAreaPosition;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -217,6 +227,11 @@ export interface AssetItemFromApi {
   conditionPercent: number;
   /** Trạng thái: VD "AVAILABLE", "DISPOSED", ... */
   status: string;
+  /**
+   * ID khu vực chức năng (phòng/bếp/…) trong nhà; null nếu chưa gán.
+   * BE có thể trả `functionAreaId` hoặc `functionalAreaId` — service chuẩn hóa về `functionAreaId`.
+   */
+  functionAreaId?: string | null;
 }
 
 /** Response body của API GET /api/asset/items. */
@@ -226,21 +241,26 @@ export interface AssetItemsApiResponse {
 }
 
 /**
- * Body gửi lên khi tạo thiết bị mới (POST /api/asset/items).
- * Khớp API: houseId, categoryId, displayName, serialNumber, nfcTag, conditionPercent, status.
+ * Body gửi lên khi tạo thiết bị mới (POST /api/assets/items).
+ * BE Postman: `nfcId`, `functionAreaId`, … (PUT có thể gửi tập trường tối thiểu).
  */
 export interface CreateAssetItemRequest {
   houseId: string;
   categoryId: string;
   displayName: string;
   serialNumber: string;
-  /** Có thể chuỗi hoặc null nếu chưa gán NFC. */
+  /** Gán NFC — nhiều BE nhận `nfcId` trên POST. */
   nfcTag: string | null;
-  /** Có thể chuỗi hoặc null nếu chưa gán QR. */
+  /** Gán QR — tương tự `qrId` trên POST nếu BE hỗ trợ. */
   qrTag: string | null;
+  /** Ưu tiên gửi lên POST dưới key `nfcId` (khớp Swagger/Postman). */
+  nfcId?: string | null;
+  qrId?: string | null;
   conditionPercent: number;
   /** VD "AVAILABLE", "DISPOSED". */
   status: string;
+  /** Gán thiết bị vào khu vực chức năng (tùy chọn). */
+  functionAreaId?: string | null;
 }
 
 /** Response body của API POST /api/asset/items (tạo thiết bị thành công). */
@@ -366,10 +386,10 @@ export interface IotProvisionNodeRequest {
 export type IotProvisionNodeApiResponse = ApiResponse<string>;
 
 // =========================================================
-// Asset Tags API (POST /api/asset/tags — gán NFC vào thiết bị)
+// Asset Tags API — POST /api/assets/tags (gán), PUT /api/assets/tags/detach/{tagValue} (gỡ)
 // =========================================================
 
-/** Body gửi lên khi gán tag NFC vào thiết bị (POST /api/asset/tags). */
+/** Body gửi lên khi gán tag vào thiết bị (POST /api/assets/tags). */
 export interface AttachAssetTagRequest {
   /** ID thiết bị (asset item) cần gán tag. */
   assetId: string;
@@ -379,7 +399,7 @@ export interface AttachAssetTagRequest {
   tagType: "NFC" | "QR_CODE";
 }
 
-/** Dữ liệu tag trả về từ POST /api/asset/tags khi gán thành công. */
+/** Dữ liệu tag trả về từ POST /api/assets/tags khi gán thành công. */
 export interface AssetTagFromApi {
   id: string;
   tagValue: string;
@@ -390,7 +410,7 @@ export interface AssetTagFromApi {
   isActive: boolean;
 }
 
-/** Response body của API POST /api/asset/tags (gán tag thành công, statusCode 201). */
+/** Response body của API POST /api/assets/tags. */
 export interface AttachAssetTagApiResponse {
   statusCode: number;
   success: boolean;
@@ -398,15 +418,15 @@ export interface AttachAssetTagApiResponse {
   data: AssetTagFromApi;
 }
 
-/** Response body của API PUT /api/asset/tags/detach/{tagValue} (gỡ tag NFC khỏi thiết bị). */
+/** Response body của API PUT /api/assets/tags/detach/{tagValue}. */
 export type DetachAssetTagApiResponse = AttachAssetTagApiResponse;
 
-/** Response body của API GET /api/asset/tags/asset/{tagValue} (lấy thiết bị từ mã NFC). */
+/** Response của GET /api/assets/tags/asset/{tagValue} (quét NFC/QR → thông tin item). */
 export interface GetAssetByTagValueApiResponse {
   statusCode: number;
   success: boolean;
   message: string;
-  /** BE trả về mảng (thường 1 phần tử) HOẶC 1 object thiết bị khớp với tagValue. */
+  /** Một object thiết bị (Postman) hoặc mảng (tương thích phiên bản cũ). */
   data: AssetItemFromApi[] | AssetItemFromApi;
 }
 
@@ -555,6 +575,27 @@ export interface JobApiResponse {
   message: string;
   statusCode: number;
   success: boolean;
+}
+
+// =========================================================
+// Staff notification (UI / mock — khi có API BE sẽ thay bằng response thật)
+// =========================================================
+
+export type StaffNotificationType =
+  | "ticket_from_tenant"
+  | "schedule_updated"
+  | "ticket_assigned"
+  | "inspection_reminder"
+  | "system";
+
+export interface StaffNotificationItem {
+  id: string;
+  type: StaffNotificationType;
+  titleKey: string;
+  bodyKey: string;
+  params?: Record<string, string | number>;
+  createdAt: Date;
+  read?: boolean;
 }
 
 // Sau này có thêm API khác thì định nghĩa tiếp ở dưới

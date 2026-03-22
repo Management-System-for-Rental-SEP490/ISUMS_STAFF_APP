@@ -2,7 +2,7 @@
   "expo": {
     "name": "ISUMS Staff",
     "slug": "isums-staff-app",
-    "scheme": "isums",
+    "scheme": "isumsstaff",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logob.png",
@@ -16,6 +16,7 @@
       "supportsTablet": true
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/logob.png"
@@ -23,8 +24,11 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.NFC",
-        "android.permission.CAMERA",
-        "android.permission.NFC"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_WIFI_STATE",
+        "android.permission.CHANGE_WIFI_STATE",
+        "android.permission.NEARBY_WIFI_DEVICES"
       ],
       "intentFilters": [
         {
@@ -32,20 +36,7 @@
           "autoVerify": true,
           "data": [
             {
-              "scheme": "isums"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
-        },
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
-            {
-              "scheme": "isums"
+              "scheme": "isumsstaff"
             }
           ],
           "category": [

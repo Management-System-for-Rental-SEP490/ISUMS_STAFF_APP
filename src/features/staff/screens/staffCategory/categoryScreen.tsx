@@ -20,6 +20,16 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
+import {
+  StackScreenTitleBadge,
+  StackScreenTitleBarBalance,
+  StackScreenTitleHeaderStrip,
+  stackScreenTitleBackBtnOnBrand,
+  stackScreenTitleCenterSlotStyle,
+  stackScreenTitleOnBrandIconColor,
+  stackScreenTitleRowStyle,
+  stackScreenTitleSideSlotStyle,
+} from "../../../../shared/components/StackScreenTitleBadge";
 import { useCreateAssetCategory } from "../../../../shared/hooks";
 import { categoryScreenStyles } from "./categoryScreenStyles";
 
@@ -75,19 +85,26 @@ export default function CategoryScreen() {
     !Number.isNaN(parseInt(compensationPercent, 10));
 
   return (
-    <View style={[categoryScreenStyles.container, { paddingTop: insets.top }]}>
-      <View style={categoryScreenStyles.topBar}>
-        <TouchableOpacity
-          style={categoryScreenStyles.backBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Icons.chevronBack size={24} color="#1F2937" />
-        </TouchableOpacity>
-        <Text style={categoryScreenStyles.topBarTitle} numberOfLines={1}>
-          {t("staff_category.title")}
-        </Text>
-      </View>
+    <View style={categoryScreenStyles.container}>
+      <StackScreenTitleHeaderStrip>
+        <View style={stackScreenTitleRowStyle}>
+          <View style={stackScreenTitleSideSlotStyle}>
+            <TouchableOpacity
+              style={stackScreenTitleBackBtnOnBrand}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <Icons.chevronBack size={24} color={stackScreenTitleOnBrandIconColor} />
+            </TouchableOpacity>
+          </View>
+          <View style={stackScreenTitleCenterSlotStyle}>
+            <StackScreenTitleBadge numberOfLines={1}>
+              {t("staff_category.title")}
+            </StackScreenTitleBadge>
+          </View>
+          <StackScreenTitleBarBalance />
+        </View>
+      </StackScreenTitleHeaderStrip>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -95,7 +112,10 @@ export default function CategoryScreen() {
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <ScrollView
-          contentContainerStyle={categoryScreenStyles.scrollContent}
+          contentContainerStyle={[
+            categoryScreenStyles.scrollContent,
+            { paddingBottom: 24 + insets.bottom },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >

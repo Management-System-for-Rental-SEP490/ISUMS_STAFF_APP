@@ -2,11 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, PermissionsAndroid, Platform, Text, TouchableOpacity, View } from "react-native";
 import { RouteProp, StackActions, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { Buffer } from "buffer";
 import { BleManager, Device } from "react-native-ble-plx";
-import Icons from "../../../../shared/theme/icon";
 import type { RootStackParamList } from "../../../../shared/types";
 import {
   useIotControllerByHouseId,
@@ -16,13 +14,15 @@ import {
 } from "../../../../shared/hooks";
 import { CustomAlert } from "../../../../shared/components/alert";
 import { staffIotStyles as s } from "./staffIotStyles";
+import { StaffIotFlowScreenHeader } from "./staffIotFlowScreenHeader";
+import { brandPrimary } from "../../../../shared/theme/color";
+import { iotProvSeqFail, iotProvSeqLog } from "./iotProvisionSequenceLog";
 
 type RouteT = RouteProp<RootStackParamList, "StaffIotProvisionWaiting">;
 type NavT = NativeStackNavigationProp<RootStackParamList, "StaffIotProvisionWaiting">;
 
 export default function StaffIotProvisionWaitingScreen() {
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavT>();
   const route = useRoute<RouteT>();
   const { houseId, houseName, kind, areaId, areaName, deviceId, wifiSsid, wifiPass } = route.params;
@@ -189,41 +189,75 @@ export default function StaffIotProvisionWaitingScreen() {
     }
 
     let lastPhase: typeof phase = "starting";
+    /** Bước log (1-based) để map lỗi — controller 5 bước chính, node 6 bước */
+    let seqStep = 0;
+    const CTRL_STEPS = 5;
+    const NODE_STEPS = 6;
 
     try {
       if (kind === "controller") {
-        if (!wifiSsid) throw new Error(t("staff_iot.wifi_required"));
+        const ssid = typeof wifiSsid === "string" ? wifiSsid.trim() : "";
+        const pass = typeof wifiPass === "string" ? wifiPass : "";
+        if (!ssid) throw new Error(t("staff_iot.wifi_required"));
+        if (!String(deviceId ?? "").trim()) throw new Error(t("staff_iot.provision_qr_required"));
 
+        seqStep = 1;
         lastPhase = "scanning_ble";
         setPhase("scanning_ble");
+        iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 1: ĐK đủ — đã có SSID/pass từ màn WiFi; quét BLE tìm ISUMS-CTRL-*", {
+          ssid,
+          passLength: pass.length,
+          deviceId: String(deviceId).slice(0, 12),
+        });
         const dev = await scanForDevice((d) => Boolean(d?.name?.startsWith("ISUMS-CTRL-")));
         setBleDeviceName(dev.name ?? null);
+        iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 1 xong: đã tìm thấy controller", { name: dev.name });
 
+        seqStep = 2;
         lastPhase = "connecting";
         setPhase("connecting");
-        const connected = await dev.connect();
-        await connected.discoverAllServicesAndCharacteristics();
+        iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 2: kết nối BLE + discover services/characteristics");
+        const bleHandle = await dev.connect();
+        await bleHandle.discoverAllServicesAndCharacteristics();
+        const bleOk = await bleHandle.isConnected();
+        if (!bleOk) {
+          throw new Error(t("staff_iot.wait_error_ble_connect"));
+        }
+        iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 2 xong: BLE đã kết nối (isConnected=true)");
 
-        lastPhase = "provisioning_aws";
-        setPhase("provisioning_aws");
-        const res = await provisionCtrlMutation.mutateAsync({ deviceId, areaId });
-        const { thingName, certificatePem, privateKey } = res.data;
-        if (!thingName || !certificatePem || !privateKey) throw new Error(t("staff_iot.provision_invalid_response"));
+        try {
+          seqStep = 3;
+          lastPhase = "provisioning_aws";
+          setPhase("provisioning_aws");
+          iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 3: CHỈ BÂY GIỜ mới gọi API AWS provision — sau bước 1–2 và đã có SSID/pass", {
+            ssid,
+          });
+          const res = await provisionCtrlMutation.mutateAsync({ deviceId, areaId });
+          const { thingName, certificatePem, privateKey } = res.data;
+          if (!thingName || !certificatePem || !privateKey) throw new Error(t("staff_iot.provision_invalid_response"));
+          iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 3 xong: AWS đã trả thing_name + cert + private_key");
 
-        lastPhase = "sending";
-        setPhase("sending");
-        const payload = JSON.stringify({
-          wifi_ssid: wifiSsid,
-          wifi_pass: wifiPass ?? "",
-          thing_name: thingName,
-          cert: String(certificatePem).replace(/\n/g, "\\n"),
-          private_key: String(privateKey).replace(/\n/g, "\\n"),
-        });
-        await sendChunked(connected, payload);
-        await connected.cancelConnection().catch(() => {});
+          seqStep = 4;
+          lastPhase = "sending";
+          setPhase("sending");
+          iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 4: gửi payload (wifi + cert) xuống thiết bị qua BLE");
+          const payload = JSON.stringify({
+            wifi_ssid: ssid,
+            wifi_pass: pass,
+            thing_name: thingName,
+            cert: String(certificatePem).replace(/\n/g, "\\n"),
+            private_key: String(privateKey).replace(/\n/g, "\\n"),
+          });
+          await sendChunked(bleHandle, payload);
+          iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 4 xong: đã gửi xong payload BLE");
+        } finally {
+          await bleHandle.cancelConnection().catch(() => {});
+        }
 
+        seqStep = 5;
         lastPhase = "finalizing";
         setPhase("finalizing");
+        iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 5: hoàn tất UI / quay lại danh sách");
         CustomAlert.alert(
           t("staff_iot.provision_success_title"),
           t("staff_iot.provision_success_message"),
@@ -234,29 +268,49 @@ export default function StaffIotProvisionWaitingScreen() {
         return;
       }
 
-      // kind === "node"
+      // kind === "node" — token + ctrl_mac cần trước để build payload BLE; API đăng ký node chỉ sau khi gửi BLE xong
+      if (!String(deviceId ?? "").trim()) throw new Error(t("staff_iot.provision_qr_required"));
+
+      seqStep = 1;
+      iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 1: kiểm tra serial/nodeId, quyền BLE đã có");
       lastPhase = "fetching_token";
       setPhase("fetching_token");
+      seqStep = 2;
+      iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 2: lấy token từ server (chuẩn bị payload — CHƯA đăng ký node lên AWS/backend)");
       const tokenRes = await tokenMutation.mutateAsync({ serial: deviceId });
       const token = tokenRes.data.token;
       if (!token) throw new Error(t("staff_iot.node_token_missing"));
+      iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 2 xong: đã có token");
 
+      seqStep = 3;
+      iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 3: lấy deviceId controller (ctrl_mac) từ server");
       const ctrlRes = await controllerMutation.mutateAsync();
       const ctrlMac = ctrlRes.data.deviceId;
       if (!ctrlMac) throw new Error(t("staff_iot.node_controller_missing"));
+      iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 3 xong: đã có ctrl_mac", { ctrlMac: String(ctrlMac).slice(0, 12) });
 
+      seqStep = 4;
       lastPhase = "scanning_ble";
       setPhase("scanning_ble");
+      iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 4: quét BLE, tìm node ISUMS-* (không phải CTRL)");
       const dev = await scanForDevice((d) => Boolean(d?.name?.startsWith("ISUMS-") && !d.name?.startsWith("ISUMS-CTRL-")));
       setBleDeviceName(dev.name ?? null);
+      iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 4 xong: đã tìm thấy node", { name: dev.name });
 
+      seqStep = 5;
       lastPhase = "connecting";
       setPhase("connecting");
+      iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 5: kết nối BLE + discover");
       const connected = await dev.connect();
       await connected.discoverAllServicesAndCharacteristics();
+      if (!(await connected.isConnected())) {
+        throw new Error(t("staff_iot.wait_error_ble_connect"));
+      }
+      iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 5 xong: BLE đã kết nối");
 
       lastPhase = "sending";
       setPhase("sending");
+      iotProvSeqLog("node", 6, NODE_STEPS, "Bước 6a: ghi payload (serial, token, ctrl_mac) xuống thiết bị qua BLE");
       const payload = JSON.stringify({
         serial: deviceId,
         token,
@@ -264,21 +318,32 @@ export default function StaffIotProvisionWaitingScreen() {
         ap_ssid: "isums-ctrl",
       });
       const encoded = Buffer.from(payload).toString("base64");
+      let bleWriteOk = false;
       try {
-        await connected.writeCharacteristicWithResponseForService(SERVICE_UUID, CHAR_UUID, encoded);
-      } catch (e: any) {
-        // TestApp: node có thể reboot khiến write fail, coi như OK
-        if (e?.message?.includes("write failed") || e?.message?.includes("disconnect")) {
-          console.log("[PROV] node rebooting, assumed OK");
-        } else {
-          throw e;
+        try {
+          await connected.writeCharacteristicWithResponseForService(SERVICE_UUID, CHAR_UUID, encoded);
+          bleWriteOk = true;
+        } catch (e: any) {
+          if (e?.message?.includes("write failed") || e?.message?.includes("disconnect")) {
+            console.log("[IOT_PROV_SEQ] [node] Bước 6a: write lỗi do reboot — coi như đã gửi xong");
+            bleWriteOk = true;
+          } else {
+            throw e;
+          }
         }
+        if (!bleWriteOk) {
+          throw new Error(t("staff_iot.wait_error_send"));
+        }
+        iotProvSeqLog("node", 6, NODE_STEPS, "Bước 6a xong: payload BLE đã xử lý xong");
+      } finally {
+        await connected.cancelConnection().catch(() => {});
       }
-      await connected.cancelConnection().catch(() => {});
 
       lastPhase = "finalizing";
       setPhase("finalizing");
+      iotProvSeqLog("node", 6, NODE_STEPS, "Bước 6b: CHỈ BÂY GIỜ mới gọi API đăng ký / đồng bộ node lên server (sau BLE)");
       await provisionNodeMutation.mutateAsync({ serial: deviceId, token, areaId });
+      iotProvSeqLog("node", 6, NODE_STEPS, "Bước 6b xong: server đã nhận provision node");
 
       CustomAlert.alert(
         t("staff_iot.provision_success_title"),
@@ -289,6 +354,11 @@ export default function StaffIotProvisionWaitingScreen() {
       navigation.dispatch(StackActions.pop(2));
     } catch (err: any) {
       console.log("[StaffIotProvisionWaiting] error:", err);
+      if (kind === "controller") {
+        iotProvSeqFail("controller", seqStep, CTRL_STEPS, lastPhase, err);
+      } else {
+        iotProvSeqFail("node", seqStep, NODE_STEPS, lastPhase, err);
+      }
       const msg = describeError(lastPhase, err);
       CustomAlert.alert(
         t("staff_iot.provision_failed_title"),
@@ -306,20 +376,7 @@ export default function StaffIotProvisionWaitingScreen() {
 
   return (
     <View style={s.container}>
-      <View style={[s.flowTopBar, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={s.flowBackBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t("common.back")}
-        >
-          <Icons.chevronBack size={28} color="#374151" />
-        </TouchableOpacity>
-        <Text style={s.flowTopTitle} numberOfLines={1}>
-          {title}
-        </Text>
-      </View>
+      <StaffIotFlowScreenHeader title={title} onBack={() => navigation.goBack()} />
 
       <View style={s.waitInfoCard}>
         <View style={s.waitRowBetween}>
@@ -345,7 +402,7 @@ export default function StaffIotProvisionWaitingScreen() {
       </View>
 
       <View style={s.waitWrap}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color={brandPrimary} />
         <Text style={s.waitTitle}>{getPhaseUi(phase).title}</Text>
         <Text style={s.waitSub}>{getPhaseUi(phase).sub}</Text>
 
@@ -360,8 +417,8 @@ export default function StaffIotProvisionWaitingScreen() {
                 <View
                   style={[
                     s.waitStepDot,
-                    done && { backgroundColor: "#16A34A" },
-                    active && { backgroundColor: "#2563EB" },
+                    done && { backgroundColor: brandPrimary },
+                    active && { backgroundColor: brandPrimary },
                   ]}
                 />
                 <Text style={[s.waitStepText, (done || active) && s.waitStepTextActive]}>

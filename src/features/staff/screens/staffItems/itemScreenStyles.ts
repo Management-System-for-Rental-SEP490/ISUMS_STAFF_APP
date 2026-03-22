@@ -1,4 +1,12 @@
 import { StyleSheet } from "react-native";
+import {
+  BRAND_DANGER,
+  brandDangerBorder,
+  brandPrimary,
+  brandSecondary,
+  brandTintBg,
+  neutral,
+} from "../../../../shared/theme/color";
 
 /**
  * Styles dùng chung cho các màn hình thiết bị (Item): ItemListScreen, ItemCreateScreen, ItemEditScreen.
@@ -23,13 +31,6 @@ export const itemScreenStyles = StyleSheet.create({
     height: 40,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 8,
-  },
-  topBarTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1F2937",
-    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -87,7 +88,7 @@ export const itemScreenStyles = StyleSheet.create({
     backgroundColor: "#E5E7EB",
   },
   chipSelected: {
-    backgroundColor: "#2563EB",
+    backgroundColor: brandPrimary,
   },
   chipText: {
     fontSize: 13,
@@ -110,7 +111,7 @@ export const itemScreenStyles = StyleSheet.create({
     backgroundColor: "#E5E7EB",
   },
   statusBtnSelected: {
-    backgroundColor: "#2563EB",
+    backgroundColor: brandPrimary,
   },
   statusBtnText: {
     fontSize: 14,
@@ -121,7 +122,7 @@ export const itemScreenStyles = StyleSheet.create({
   },
   submitBtn: {
     marginTop: 24,
-    backgroundColor: "#2563EB",
+    backgroundColor: brandPrimary,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: "center",
@@ -146,16 +147,16 @@ export const itemScreenStyles = StyleSheet.create({
     flex: 1,
     marginTop: 0,
   },
-  /** Nút xóa (xóa mềm) - màu danger */
+  /** Nút xóa (xóa mềm) — đỏ */
   deleteBtn: {
     marginTop: 16,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#DC2626",
+    backgroundColor: BRAND_DANGER,
     borderWidth: 1,
-    borderColor: "#B91C1C",
+    borderColor: brandDangerBorder,
   },
   deleteBtnDisabled: {
     backgroundColor: "#9CA3AF",
@@ -187,13 +188,13 @@ export const itemScreenStyles = StyleSheet.create({
   successText: {
     marginTop: 12,
     fontSize: 14,
-    color: "#059669",
+    color: brandPrimary,
     textAlign: "center",
   },
   errorText: {
     marginTop: 12,
     fontSize: 14,
-    color: "#DC2626",
+    color: brandSecondary,
     textAlign: "center",
   },
   // ---------- ItemListScreen ----------
@@ -210,7 +211,7 @@ export const itemScreenStyles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: "#2563EB",
+    backgroundColor: brandPrimary,
   },
   tryAgainBtnText: {
     color: "#fff",
@@ -233,6 +234,12 @@ export const itemScreenStyles = StyleSheet.create({
   },
   itemCard: {
     marginBottom: 10,
+  },
+  itemCardCategory: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: neutral.textSecondary,
+    marginBottom: 4,
   },
   itemCardName: {
     fontSize: 16,
@@ -301,20 +308,20 @@ export const itemScreenStyles = StyleSheet.create({
     alignSelf: "flex-end",
   },
   descriptionStatusAvailable: {
-    backgroundColor: "#D1FAE5",
+    backgroundColor: brandTintBg,
   },
   descriptionStatusInUse: {
-    backgroundColor: "#FEF3C7",
+    backgroundColor: brandTintBg,
   },
   descriptionStatusDisposed: {
-    backgroundColor: "#FEE2E2",
+    backgroundColor: brandTintBg,
   },
   descriptionStatusOther: {
     backgroundColor: "#F3F4F6",
   },
   descriptionEditBtn: {
     marginTop: 24,
-    backgroundColor: "#2563EB",
+    backgroundColor: brandPrimary,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: "center",

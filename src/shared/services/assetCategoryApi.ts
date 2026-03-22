@@ -3,7 +3,7 @@
  * GET /api/assets/categories, POST, PUT /api/assets/categories/:id.
  */
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE } from "../api/config";
+import { ASSETS_API_BASE } from "../api/config";
 import type {
   AssetCategoriesApiResponse,
   CreateAssetCategoryRequest,
@@ -19,7 +19,7 @@ import type {
  */
 export const getAssetCategories = async (): Promise<AssetCategoriesApiResponse> => {
   const response = await axiosClient.get<AssetCategoriesApiResponse>(
-    `${BACKEND_API_BASE}/assets/categories`
+    `${ASSETS_API_BASE}/assets/categories`
   );
   return response.data;
 };
@@ -34,7 +34,7 @@ export const createAssetCategory = async (
   payload: CreateAssetCategoryRequest
 ): Promise<CreateAssetCategoryApiResponse> => {
   const response = await axiosClient.post<CreateAssetCategoryApiResponse>(
-    `${BACKEND_API_BASE}/assets/categories`,
+    `${ASSETS_API_BASE}/assets/categories`,
     payload
   );
   return response.data;
@@ -50,7 +50,7 @@ export const updateAssetCategory = async (
   payload: UpdateAssetCategoryRequest
 ): Promise<UpdateAssetCategoryApiResponse> => {
   const response = await axiosClient.put<UpdateAssetCategoryApiResponse>(
-    `${BACKEND_API_BASE}/assets/categories/${id}`,
+    `${ASSETS_API_BASE}/assets/categories/${id}`,
     payload
   );
   return response.data;

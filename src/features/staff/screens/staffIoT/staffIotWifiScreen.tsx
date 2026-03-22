@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   PermissionsAndroid,
   Platform,
   ScrollView,
@@ -8,21 +9,124 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type Permission,
 } from "react-native";
 import WifiManager from "react-native-wifi-reborn";
-import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { RouteProp, useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import Icons from "../../../../shared/theme/icon";
 import type { RootStackParamList } from "../../../../shared/types";
 import { staffIotStyles as s } from "./staffIotStyles";
+import { StaffIotFlowScreenHeader } from "./staffIotFlowScreenHeader";
+import { brandPrimary } from "../../../../shared/theme/color";
 import { CustomAlert } from "../../../../shared/components/alert";
 
 type RouteT = RouteProp<RootStackParamList, "StaffIotWifi">;
 type NavT = NativeStackNavigationProp<RootStackParamList, "StaffIotWifi">;
 
 type WifiNetwork = { SSID: string; level: number };
+
+function isAndroidWifiNativeLinked(): boolean {
+  if (Platform.OS !== "android") return false;
+  return (
+    WifiManager != null &&
+    typeof WifiManager.reScanAndLoadWifiList === "function" &&
+    typeof WifiManager.loadWifiList === "function"
+  );
+}
+
+function isAndroidWifiNativeBridgeError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return /reScanAndLoadWifiList/.test(msg) || /Cannot read propert(?:y|ies).*of null/i.test(msg);
+}
+
+function dedupeSortNetworks(list: WifiNetwork[]): WifiNetwork[] {
+  const seen = new Set<string>();
+  return list
+    .filter((n) => {
+      const id = n.SSID?.trim();
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
+    .sort((a, b) => b.level - a.level);
+}
+
+/**
+ * Android: quét WiFi bắt buộc ACCESS_FINE_LOCATION (thư viện native kiểm tra fine, không đủ coarse).
+ * Xin kèm COARSE (Android 12+) để hộp thoại hệ thống đầy đủ; xác nhận bằng `check(FINE)` vì `requestMultiple` đôi khi lệch OEM.
+ * API 33+: thêm NEARBY_WIFI_DEVICES (từ chối nearby vẫn có thể quét nếu đã có fine).
+ */
+async function ensureAndroidWifiScanPermissions(): Promise<boolean> {
+  const api =
+    typeof Platform.Version === "number"
+      ? Platform.Version
+      : parseInt(String(Platform.Version), 10) || 0;
+
+  const fineP = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
+  const coarseP = PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION;
+  const nearbyP = PermissionsAndroid.PERMISSIONS.NEARBY_WIFI_DEVICES;
+
+  if (await PermissionsAndroid.check(fineP)) {
+    if (api >= 33) {
+      await PermissionsAndroid.request(nearbyP);
+    }
+    return true;
+  }
+
+  const perms: Permission[] = [fineP, coarseP];
+  if (api >= 33) {
+    perms.push(nearbyP);
+  }
+
+  await PermissionsAndroid.requestMultiple(perms);
+
+  if (await PermissionsAndroid.check(fineP)) {
+    return true;
+  }
+
+  const second = await PermissionsAndroid.request(fineP);
+  if (second === PermissionsAndroid.RESULTS.GRANTED || (await PermissionsAndroid.check(fineP))) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Android: `reScanAndLoadWifiList` gọi startScan() rồi đợi kết quả — phù hợp khi SSID đổi tên.
+ * Nếu hệ thống từ chối quét mới (giới hạn Android 9+), fallback `loadWifiList` (cache).
+ */
+async function androidFetchWifiList(): Promise<WifiNetwork[]> {
+  const rawUnknown: unknown = await WifiManager.reScanAndLoadWifiList();
+  if (typeof rawUnknown === "string") {
+    const cached = (await WifiManager.loadWifiList()) as WifiNetwork[];
+    return dedupeSortNetworks(cached);
+  }
+  return dedupeSortNetworks(rawUnknown as WifiNetwork[]);
+}
+
+function isAndroidLocationServicesOffError(e: unknown): boolean {
+  const code =
+    e && typeof e === "object" && "code" in e ? String((e as { code?: string }).code ?? "") : "";
+  const msg = e instanceof Error ? e.message : String(e);
+  return (
+    code === "locationServicesOff" ||
+    /location service/i.test(msg) ||
+    /turned off/i.test(msg)
+  );
+}
+
+function isAndroidLocationPermissionMissingError(e: unknown): boolean {
+  const code =
+    e && typeof e === "object" && "code" in e ? String((e as { code?: string }).code ?? "") : "";
+  const msg = e instanceof Error ? e.message : String(e);
+  return (
+    code === "locationPermissionMissing" ||
+    /ACCESS_FINE_LOCATION|not granted|location permission/i.test(msg)
+  );
+}
 
 function SignalBars({ level }: { level: number }) {
   const strength = level >= -50 ? 4 : level >= -65 ? 3 : level >= -75 ? 2 : 1;
@@ -35,7 +139,7 @@ function SignalBars({ level }: { level: number }) {
             width: 4,
             height: 4 + bar * 3,
             borderRadius: 1,
-            backgroundColor: bar <= strength ? "#2563EB" : "rgba(100,116,139,0.35)",
+            backgroundColor: bar <= strength ? brandPrimary : "rgba(100,116,139,0.35)",
           }}
         />
       ))}
@@ -56,39 +160,96 @@ export default function StaffIotWifiScreen() {
   const [manualSsid, setManualSsid] = useState("");
   const [showManual, setShowManual] = useState(false);
 
-  useEffect(() => {
-    scanWifi();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  /** Mỗi lần vào màn (kể cả instance cũ trong stack) đều quét lại → SSID đổi tên (ABC→DEF) dễ thấy đúng. */
+  useFocusEffect(
+    useCallback(() => {
+      scanWifi();
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- scanWifi dùng setter + t ổn định cho màn này
+    }, [])
+  );
 
   async function scanWifi() {
     setLoading(true);
     try {
       if (Platform.OS === "android") {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        if (!isAndroidWifiNativeLinked()) {
           setLoading(false);
-          CustomAlert.alert(t("common.error"), t("staff_iot.wifi_permission_required"), [{ text: t("common.close") }], {
-            type: "warning",
-          });
+          CustomAlert.alert(
+            t("common.error"),
+            t("staff_iot.wifi_native_module_missing"),
+            [{ text: t("common.close") }],
+            { type: "error" }
+          );
           return;
         }
+        const granted = await ensureAndroidWifiScanPermissions();
+        if (!granted) {
+          /**
+           * Đôi khi Cài đặt đã bật "Vị trí chính xác" nhưng PermissionsAndroid.check/request vẫn báo chưa đủ.
+           * Thử quét qua native (cùng kiểm tra với react-native-wifi-reborn) — nếu thành công thì không hiện lỗi giả.
+           */
+          try {
+            const deduped = await androidFetchWifiList();
+            setNetworks(deduped);
+            setSelected((prev) => {
+              if (prev == null) return null;
+              return deduped.some((n) => n.SSID === prev) ? prev : null;
+            });
+          } catch (e) {
+            console.log("[StaffIotWifi] scan after JS permission check failed:", e);
+            setLoading(false);
+            if (isAndroidLocationServicesOffError(e)) {
+              CustomAlert.alert(
+                t("common.error"),
+                t("staff_iot.wifi_location_services_required"),
+                [{ text: t("common.close") }],
+                { type: "error" }
+              );
+            } else if (isAndroidLocationPermissionMissingError(e)) {
+              CustomAlert.alert(
+                t("common.error"),
+                t("staff_iot.wifi_permission_required"),
+                [
+                  { text: t("common.close") },
+                  {
+                    text: t("staff_iot.wifi_open_app_settings"),
+                    onPress: () => {
+                      void Linking.openSettings();
+                    },
+                  },
+                ],
+                { type: "warning" }
+              );
+            } else {
+              CustomAlert.alert(
+                t("common.error"),
+                t("staff_iot.wifi_scan_failed"),
+                [{ text: t("common.close") }],
+                { type: "error" }
+              );
+            }
+            return;
+          }
+          setLoading(false);
+          return;
+        }
+        const deduped = await androidFetchWifiList();
+        setNetworks(deduped);
+        setSelected((prev) => {
+          if (prev == null) return null;
+          return deduped.some((n) => n.SSID === prev) ? prev : null;
+        });
+      } else {
+        setNetworks([]);
       }
-      const list = await WifiManager.loadWifiList();
-      const seen = new Set<string>();
-      const deduped = (list as WifiNetwork[])
-        .filter((n) => {
-          if (!n.SSID || seen.has(n.SSID)) return false;
-          seen.add(n.SSID);
-          return true;
-        })
-        .sort((a, b) => b.level - a.level);
-      setNetworks(deduped);
     } catch (e) {
       console.log("[StaffIotWifi] scan failed:", e);
-      CustomAlert.alert(t("common.error"), t("staff_iot.wifi_scan_failed"), [{ text: t("common.close") }], { type: "error" });
+      const body = isAndroidLocationServicesOffError(e)
+        ? t("staff_iot.wifi_location_services_required")
+        : Platform.OS === "android" && isAndroidWifiNativeBridgeError(e)
+          ? t("staff_iot.wifi_native_module_missing")
+          : t("staff_iot.wifi_scan_failed");
+      CustomAlert.alert(t("common.error"), body, [{ text: t("common.close") }], { type: "error" });
     }
     setLoading(false);
   }
@@ -117,20 +278,10 @@ export default function StaffIotWifiScreen() {
 
   return (
     <View style={s.container}>
-      <View style={[s.flowTopBar, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={s.flowBackBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t("common.back")}
-        >
-          <Icons.chevronBack size={28} color="#374151" />
-        </TouchableOpacity>
-        <Text style={s.flowTopTitle} numberOfLines={1}>
-          {t("staff_iot.wifi_title")}
-        </Text>
-      </View>
+      <StaffIotFlowScreenHeader
+        title={t("staff_iot.wifi_title")}
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView
         contentContainerStyle={[
@@ -141,7 +292,7 @@ export default function StaffIotWifiScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={s.flowHouseCard}>
-          <Text style={s.flowHouseLabel}>{t("staff_iot.house_label")}</Text>
+          
           <Text style={s.flowHouseName} numberOfLines={2}>
             {houseName}
           </Text>
@@ -160,13 +311,13 @@ export default function StaffIotWifiScreen() {
               accessibilityRole="button"
               accessibilityLabel={t("staff_iot.wifi_rescan")}
             >
-              <Text style={[s.chipText, { color: "#2563EB" }]}>{loading ? "..." : t("staff_iot.wifi_rescan")}</Text>
+              <Text style={[s.chipText, { color: brandPrimary }]}>{loading ? "..." : t("staff_iot.wifi_rescan")}</Text>
             </TouchableOpacity>
           </View>
 
           {loading ? (
             <View style={s.flowLoadingRow}>
-              <ActivityIndicator size="small" color="#2563EB" />
+              <ActivityIndicator size="small" color={brandPrimary} />
               <Text style={s.flowLoadingText}>{t("staff_iot.wifi_scanning")}</Text>
             </View>
           ) : (
@@ -180,7 +331,7 @@ export default function StaffIotWifiScreen() {
                   key={net.SSID}
                   style={[
                     s.deviceCard,
-                    selected === net.SSID && !showManual && { borderColor: "#2563EB" },
+                    selected === net.SSID && !showManual && { borderColor: brandPrimary },
                   ]}
                   onPress={() => {
                     setSelected(net.SSID);
@@ -196,14 +347,14 @@ export default function StaffIotWifiScreen() {
                   <View style={[s.deviceRight, { gap: 12 }]}>
                     <SignalBars level={net.level} />
                     {selected === net.SSID && !showManual ? (
-                      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: "#2563EB" }} />
+                      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: brandPrimary }} />
                     ) : null}
                   </View>
                 </TouchableOpacity>
               ))}
 
               <TouchableOpacity
-                style={[s.deviceCard, showManual && { borderColor: "#2563EB" }]}
+                style={[s.deviceCard, showManual && { borderColor: brandPrimary }]}
                 onPress={() => {
                   setShowManual(true);
                   setSelected(null);

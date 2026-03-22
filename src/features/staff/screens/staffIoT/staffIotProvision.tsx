@@ -4,12 +4,13 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import Icons from "../../../../shared/theme/icon";
 import type { RootStackParamList } from "../../../../shared/types";
 import type { FunctionalAreaFromApi } from "../../../../shared/types/api";
 import { useFunctionalAreasByHouseId, useIotDevicesByHouseId } from "../../../../shared/hooks";
 import { CustomAlert } from "../../../../shared/components/alert";
 import { staffIotStyles as s } from "./staffIotStyles";
+import { StaffIotFlowScreenHeader } from "./staffIotFlowScreenHeader";
+import { brandPrimary } from "../../../../shared/theme/color";
 
 type RouteT = RouteProp<RootStackParamList, "StaffIotProvision">;
 type NavT = NativeStackNavigationProp<RootStackParamList, "StaffIotProvision">;
@@ -65,20 +66,7 @@ export default function StaffIotProvisionScreen() {
 
   return (
     <View style={s.container}>
-      <View style={[s.flowTopBar, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={s.flowBackBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t("common.back")}
-        >
-          <Icons.chevronBack size={28} color="#374151" />
-        </TouchableOpacity>
-        <Text style={s.flowTopTitle} numberOfLines={1}>
-          {title}
-        </Text>
-      </View>
+      <StaffIotFlowScreenHeader title={title} onBack={() => navigation.goBack()} />
       <ScrollView
         contentContainerStyle={[
           s.flowScroll,
@@ -87,7 +75,7 @@ export default function StaffIotProvisionScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={s.flowHouseCard}>
-          <Text style={s.flowHouseLabel}>{t("staff_iot.house_label")}</Text>
+          
           <Text style={s.flowHouseName} numberOfLines={2}>
             {houseName}
           </Text>
@@ -95,11 +83,11 @@ export default function StaffIotProvisionScreen() {
 
         <View style={s.flowSection}>
           <Text style={s.flowSectionTitle}>{t("staff_iot.provision_step_area_title")}</Text>
-          <Text style={s.flowSectionSub}>{t("staff_iot.provision_step_area_sub")}</Text>
+          {/* <Text style={s.flowSectionSub}>{t("staff_iot.provision_step_area_sub")}</Text> */}
 
           {areasLoading ? (
             <View style={s.flowLoadingRow}>
-              <ActivityIndicator size="small" color="#2563EB" />
+              <ActivityIndicator size="small" color={brandPrimary} />
               <Text style={s.flowLoadingText}>{t("common.loading")}</Text>
             </View>
           ) : sortedAreas.length === 0 ? (

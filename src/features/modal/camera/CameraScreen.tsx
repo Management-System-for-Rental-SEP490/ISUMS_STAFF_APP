@@ -49,7 +49,7 @@ const CameraScreen = () => {
 
   const nfcTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  /** Gán NFC/QR vào thiết bị qua POST /api/asset/tags. */
+  /** Gán NFC/QR vào thiết bị qua POST /api/assets/tags. */
   const { mutateAsync: attachAssetTag } = useAttachAssetTag();
 
   const isMounted = useRef(true);

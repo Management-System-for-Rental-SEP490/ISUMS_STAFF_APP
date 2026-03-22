@@ -1,57 +1,53 @@
-// Cấu hình chung cho Backend API (base URL).
-// Mục đích: chỉ khai báo 1 lần rồi dùng lại ở các service (houses, asset,...)
-// để sau này nếu đổi domain/ngrok chỉ cần sửa ở đây.
+// PRIMARY = API chung (users, houses, schedules…). FALLBACK/ngrok = bản dev cục bộ.
+// Module asset (/assets/*) mặc định gọi ASSETS_API_BASE (= fallback) khi asset chưa merge lên primary.
 
-/** URL ưu tiên (api-dev) — dùng trước. Một vài dữ liệu có thể chưa có trên api-dev. */
-export const PRIMARY_BACKEND_URL = "https://api-dev.isums.pro/api";
-/** URL dự phòng (ngrok) — khi primary thất bại (lỗi mạng, 5xx, 404...) thì thử ngrok. */
-export const FALLBACK_BACKEND_URL = "https://unrestrictable-lan-syzygial.ngrok-free.dev/api";
+const DEFAULT_PRIMARY = "https://api-dev.isums.pro/api";
+const DEFAULT_FALLBACK = "https://unrestrictable-lan-syzygial.ngrok-free.dev/api";
 
-/** Axios interceptor dùng để biết request đang gọi primary hay fallback. */
+function readEnvTrimmed(envKey: string, fallback: string): string {
+  const v =
+    typeof process !== "undefined" && process.env?.[envKey]
+      ? String(process.env[envKey]).trim()
+      : "";
+  return v || fallback;
+}
+
+export const PRIMARY_BACKEND_URL = readEnvTrimmed(
+  "EXPO_PUBLIC_BACKEND_API_PRIMARY",
+  DEFAULT_PRIMARY
+);
+
+export const FALLBACK_BACKEND_URL = readEnvTrimmed(
+  "EXPO_PUBLIC_BACKEND_API_FALLBACK",
+  DEFAULT_FALLBACK
+);
+
 export const BACKEND_URL_PRIMARY = PRIMARY_BACKEND_URL;
 export const BACKEND_URL_FALLBACK = FALLBACK_BACKEND_URL;
 
-/**
- * Base URL của Backend API — luôn dùng PRIMARY trước.
- * AxiosClient sẽ tự động retry với FALLBACK khi request tới PRIMARY thất bại.
- */
 export const BACKEND_API_BASE = PRIMARY_BACKEND_URL;
 
 /**
- * Base URL của API User (do dev khác làm, đường dẫn khác).
- * Dùng chung logic primary/fallback với houses.
+ * Base cho mọi route `/assets/*` (items, tags, categories, iot trong asset module).
+ * Mặc định = FALLBACK (ngrok) vì asset thường chưa deploy cùng primary.
+ * Khi đã merge: đặt `EXPO_PUBLIC_ASSETS_API_BASE` = URL primary hoặc để trống và đổi default bên dưới.
  */
-export const USER_API_BASE = PRIMARY_BACKEND_URL;
+export const ASSETS_API_BASE = readEnvTrimmed(
+  "EXPO_PUBLIC_ASSETS_API_BASE",
+  FALLBACK_BACKEND_URL
+);
 
-/**
- * Base URL cho Schedule API (work slot, template) và Maintenance Job API.
- * Ưu tiên dùng ngrok trước để đồng bộ dữ liệu: work slot trả jobId, job API cũng gọi cùng server.
- */
-export const SCHEDULE_API_BASE = FALLBACK_BACKEND_URL;
+const DEFAULT_IOT_WS =
+  "wss://a98erfaotg.execute-api.ap-southeast-1.amazonaws.com/production/";
+const DEFAULT_IOT_REST =
+  "https://m0etrbg5l2.execute-api.ap-southeast-1.amazonaws.com/dev";
 
-/** true = gửi body PUT /api/asset/items/:id dạng snake_case (house_id, category_id...) để BE map được. */
+export const IOT_WS_URL = readEnvTrimmed("EXPO_PUBLIC_IOT_WS_URL", DEFAULT_IOT_WS);
+
+export const IOT_REST_BASE = readEnvTrimmed(
+  "EXPO_PUBLIC_IOT_REST_BASE",
+  DEFAULT_IOT_REST
+);
+
 export const ASSET_PUT_BODY_SNAKE_CASE =
   typeof process !== "undefined" && process.env?.EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE === "true";
-
-// =========================================================
-// AWS IoT API (telemetry WebSocket + usage REST)
-// =========================================================
-
-/**
- * URL WebSocket AWS API Gateway – nhận telemetry điện/nước realtime.
- * Ưu tiên biến môi trường EXPO_PUBLIC_IOT_WS_URL; không có thì dùng production.
- */
-export const IOT_WS_URL =
-  typeof process !== "undefined" && process.env?.EXPO_PUBLIC_IOT_WS_URL
-    ? process.env.EXPO_PUBLIC_IOT_WS_URL
-    : "wss://a98erfaotg.execute-api.ap-southeast-1.amazonaws.com/production/";
-
-/**
- * Base URL REST API AWS – endpoint usage (day/week/month) cho điện/nước.
- * Ưu tiên biến môi trường EXPO_PUBLIC_IOT_REST_BASE; không có thì dùng dev.
- */
-export const IOT_REST_BASE =
-  typeof process !== "undefined" && process.env?.EXPO_PUBLIC_IOT_REST_BASE
-    ? process.env.EXPO_PUBLIC_IOT_REST_BASE
-    : "https://m0etrbg5l2.execute-api.ap-southeast-1.amazonaws.com/dev";
-

@@ -1,16 +1,23 @@
-import { StyleSheet, Dimensions } from "react-native";
-
-const { width } = Dimensions.get("window");
+import { StyleSheet } from "react-native";
+import {
+  BRAND_DANGER,
+  brandDangerBg,
+  brandDangerBorder,
+  brandPrimary,
+  brandSecondary,
+  brandTintBg,
+  neutral,
+} from "../../../shared/theme/color";
+import { appTypography } from "../../../shared/utils/typography";
 
 const userProfileStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: neutral.canvasMuted,
   },
   contentContainer: {
-    paddingBottom: 100, // Để không bị Footer che mất
+    paddingBottom: 100,
   },
-  // Phần Header nền màu
   headerBackground: {
     height: 180,
     borderBottomLeftRadius: 30,
@@ -20,21 +27,18 @@ const userProfileStyles = StyleSheet.create({
     paddingTop: 40,
   },
   headerTitle: {
-    color: "#fff",
-    fontSize: 20,
-    fontWeight: "bold",
+    ...appTypography.dialogTitle,
+    color: neutral.surface,
     marginBottom: 10,
   },
-  
-  // Card thông tin cá nhân (nổi lên trên header)
   profileCard: {
-    backgroundColor: "#fff",
+    backgroundColor: neutral.surface,
     marginHorizontal: 20,
     marginTop: -50,
     borderRadius: 20,
     padding: 20,
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: neutral.slate900,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
@@ -44,67 +48,63 @@ const userProfileStyles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: "#E1E8ED",
+    backgroundColor: neutral.avatarPlaceholder,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 15,
     borderWidth: 4,
-    borderColor: "#fff",
-    shadowColor: "#000",
+    borderColor: neutral.surface,
+    shadowColor: neutral.slate900,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
   avatarText: {
-    fontSize: 40,
-    color: "#3bb582",
-    fontWeight: "bold",
+    ...appTypography.displayLarge,
+    color: brandPrimary,
   },
   userName: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#333",
+    ...appTypography.profileName,
+    color: neutral.textBody,
     marginBottom: 5,
   },
   userEmail: {
-    fontSize: 14,
-    color: "#666",
+    ...appTypography.body,
+    color: neutral.textSecondary,
     marginBottom: 10,
   },
   userRoleContainer: {
-    backgroundColor: "#E8F5E9",
+    backgroundColor: brandTintBg,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 15,
   },
   userRole: {
-    color: "#2E7D32",
+    ...appTypography.body,
+    color: brandSecondary,
     fontWeight: "600",
-    fontSize: 14,
   },
-
-  // Phần thông tin chi tiết
   sectionContainer: {
     marginTop: 25,
     paddingHorizontal: 20,
   },
   sectionTitle: {
-    fontSize: 16,
+    ...appTypography.sectionHeading,
     fontWeight: "600",
-    color: "#666",
+    color: neutral.textSecondary,
     marginBottom: 10,
     marginLeft: 10,
     textTransform: "uppercase",
   },
   menuItem: {
-    backgroundColor: "#fff",
+    backgroundColor: neutral.surface,
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
     borderRadius: 12,
     marginBottom: 10,
-    shadowColor: "#000",
+    shadowColor: neutral.slate900,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -114,7 +114,7 @@ const userProfileStyles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F0F4F8",
+    backgroundColor: neutral.tileMuted,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 15,
@@ -123,31 +123,29 @@ const userProfileStyles = StyleSheet.create({
     flex: 1,
   },
   menuLabel: {
-    fontSize: 16,
+    ...appTypography.modalListItem,
     fontWeight: "500",
-    color: "#333",
+    color: neutral.textBody,
   },
   menuDescription: {
-    fontSize: 13,
-    color: "#999",
+    ...appTypography.secondary,
+    color: neutral.textMuted,
     marginTop: 2,
   },
-  
-  // Nút đăng xuất
   logoutButton: {
     marginTop: 30,
     marginHorizontal: 20,
-    backgroundColor: "#FFEBEE",
+    backgroundColor: brandDangerBg,
     paddingVertical: 15,
     borderRadius: 12,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#FFCDD2",
+    borderColor: brandDangerBorder,
   },
   logoutText: {
-    color: "#D32F2F",
-    fontSize: 16,
-    fontWeight: "bold",
+    ...appTypography.dialogButton,
+    color: BRAND_DANGER,
+    fontWeight: "700",
   },
   infoItem: {
     flexDirection: "row",
@@ -158,7 +156,7 @@ const userProfileStyles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F0F4F8",
+    backgroundColor: neutral.tileMuted,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 15,
@@ -167,14 +165,13 @@ const userProfileStyles = StyleSheet.create({
     flex: 1,
   },
   infoLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
+    ...appTypography.itemTitle,
+    color: neutral.textBody,
     marginBottom: 5,
   },
   infoValue: {
-    fontSize: 14,
-    color: "#666",
+    ...appTypography.body,
+    color: neutral.textSecondary,
   },
 });
 

@@ -1,4 +1,5 @@
 import { StyleSheet } from "react-native";
+import { brandPrimary } from "../../../../shared/theme/color";
 
 /**
  * Styles cho màn hình Chi tiết Ticket của Staff.
@@ -23,13 +24,6 @@ export const staffTicketDetailStyles = StyleSheet.create({
   },
   backBtn: {
     padding: 8,
-    marginRight: 8,
-  },
-  topBarTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#1F2937",
-    flex: 1,
   },
   card: {
     backgroundColor: "#fff",
@@ -83,7 +77,7 @@ export const staffTicketDetailStyles = StyleSheet.create({
     marginTop: 24,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: "#2563EB",
+    backgroundColor: brandPrimary,
     alignItems: "center",
   },
   acceptBtnText: {

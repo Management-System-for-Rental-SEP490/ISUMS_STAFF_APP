@@ -24,6 +24,23 @@ import { useStaffSchedule } from "../../context/StaffScheduleContext";
 import Icons from "../../../../shared/theme/icon";
 import { staffTicketDetailStyles } from "./staffTicketDetailStyles";
 import ChooseScheduleSlotModal from "../staffCalendar/modals/ChooseScheduleSlotModal";
+import {
+  brandPrimary,
+  brandSecondary,
+  brandTintBg,
+  neutral,
+} from "../../../../shared/theme/color";
+import { appTypography } from "../../../../shared/utils";
+import {
+  StackScreenTitleBadge,
+  StackScreenTitleBarBalance,
+  StackScreenTitleHeaderStrip,
+  stackScreenTitleBackBtnOnBrand,
+  stackScreenTitleCenterSlotStyle,
+  stackScreenTitleOnBrandIconColor,
+  stackScreenTitleRowStyle,
+  stackScreenTitleSideSlotStyle,
+} from "../../../../shared/components/StackScreenTitleBadge";
 
 type TicketDetailRouteProp = RouteProp<RootStackParamList, "TicketDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "TicketDetail">;
@@ -31,30 +48,30 @@ type NavProp = NativeStackNavigationProp<RootStackParamList, "TicketDetail">;
 function getStatusStyle(status: string) {
   switch (status) {
     case "pending":
-      return { bg: "#FEF3C7", color: "#92400E" };
+      return { bg: brandTintBg, color: brandPrimary };
     case "assigned":
-      return { bg: "#DBEAFE", color: "#1D4ED8" };
+      return { bg: brandTintBg, color: brandSecondary };
     case "scheduled":
-      return { bg: "#E0E7FF", color: "#4338CA" };
+      return { bg: brandTintBg, color: brandSecondary };
     case "in_progress":
-      return { bg: "#D1FAE5", color: "#059669" };
+      return { bg: brandTintBg, color: brandPrimary };
     case "completed":
-      return { bg: "#D1FAE5", color: "#047857" };
+      return { bg: brandTintBg, color: brandPrimary };
     case "cancelled":
-      return { bg: "#F3F4F6", color: "#6B7280" };
+      return { bg: neutral.background, color: neutral.textSecondary };
     default:
-      return { bg: "#F3F4F6", color: "#6B7280" };
+      return { bg: neutral.background, color: neutral.textSecondary };
   }
 }
 
 function getPriorityStyle(priority: string) {
   switch (priority) {
     case "high":
-      return { bg: "#FEE2E2", color: "#DC2626" };
+      return { bg: brandTintBg, color: brandPrimary };
     case "medium":
-      return { bg: "#FEF3C7", color: "#D97706" };
+      return { bg: brandTintBg, color: brandSecondary };
     default:
-      return { bg: "#F3F4F6", color: "#6B7280" };
+      return { bg: neutral.background, color: neutral.textSecondary };
   }
 }
 
@@ -92,10 +109,15 @@ export default function TicketDetailScreen() {
 
   if (!ticket) { // nếu ticket không tồn tại thì hiển thị thông báo
     return (
-      <View style={[staffTicketDetailStyles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <Text style={{ color: "#6B7280" }}>{t("common.no_data")}</Text>
+      <View
+        style={[
+          staffTicketDetailStyles.container,
+          { justifyContent: "center", alignItems: "center", paddingTop: insets.top },
+        ]}
+      >
+        <Text style={{ color: neutral.textSecondary }}>{t("common.no_data")}</Text>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 12 }}>
-          <Text style={{ color: "#2563EB", fontWeight: "600" }}>{t("common.back")}</Text>
+          <Text style={[appTypography.chip, { color: brandPrimary }]}>{t("common.back")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -124,17 +146,31 @@ export default function TicketDetailScreen() {
 
   return (
     <View style={staffTicketDetailStyles.container}>
-      <View style={[staffTicketDetailStyles.topBar, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={staffTicketDetailStyles.backBtn} onPress={() => navigation.goBack()}>
-          <Icons.chevronBack size={28} color="#374151" />
-        </TouchableOpacity>
-        <Text style={staffTicketDetailStyles.topBarTitle} numberOfLines={1}>
-          #{ticket.id} {ticket.title}
-        </Text>
-      </View>
+      <StackScreenTitleHeaderStrip>
+        <View style={stackScreenTitleRowStyle}>
+          <View style={stackScreenTitleSideSlotStyle}>
+            <TouchableOpacity
+              style={stackScreenTitleBackBtnOnBrand}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <Icons.chevronBack size={28} color={stackScreenTitleOnBrandIconColor} />
+            </TouchableOpacity>
+          </View>
+          <View style={stackScreenTitleCenterSlotStyle}>
+            <StackScreenTitleBadge numberOfLines={1}>
+              {t("staff_ticket_detail.screen_title")}
+            </StackScreenTitleBadge>
+          </View>
+          <StackScreenTitleBarBalance />
+        </View>
+      </StackScreenTitleHeaderStrip>
 
       <ScrollView
-        contentContainerStyle={staffTicketDetailStyles.scrollContent}
+        contentContainerStyle={[
+          staffTicketDetailStyles.scrollContent,
+          { paddingBottom: 24 + insets.bottom },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={staffTicketDetailStyles.card}>

@@ -1,15 +1,15 @@
 /**
- * Màn hình danh sách thiết bị (Staff), xếp theo category.
- * - useAssetCategories + useAssetItems({}) để lấy tất cả items, nhóm theo category.
- * - Header: Back, title, nút "+" → mở ItemCreateScreen.
+ * Màn hình danh sách thiết bị (Staff).
+ * - Gom thiết bị theo danh mục, hiển thị phân trang client (PaginationBar).
  */
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -19,29 +19,59 @@ import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
 import { useAssetCategories, useAssetItemsAllHouses, useHouses } from "../../../../shared/hooks";
 import { itemScreenStyles } from "./itemScreenStyles";
+import { brandPrimary } from "../../../../shared/theme/color";
+import {
+  StackScreenTitleBadge,
+  StackScreenTitleHeaderStrip,
+  stackScreenTitleBackBtnOnBrand,
+  stackScreenTitleCenterSlotStyle,
+  stackScreenTitleOnBrandIconColor,
+  stackScreenTitleRowStyle,
+  stackScreenTitleSideSlotStyle,
+} from "../../../../shared/components/StackScreenTitleBadge";
+import { PaginationBar } from "../../../../shared/components/PaginationBar";
+import { getTotalPages, slicePage } from "../../../../shared/utils";
 import type { AssetItemFromApi, HouseFromApi } from "../../../../shared/types/api";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemList">;
+
+type ItemListRow = { item: AssetItemFromApi; categoryName: string };
 
 export default function ItemListScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavProp>();
 
-  const { data: categoriesData, refetch: refetchCategories } = useAssetCategories();
+  const {
+    data: categoriesData,
+    refetch: refetchCategories,
+    isRefetching: categoriesRefetching,
+  } = useAssetCategories();
   const categories = categoriesData?.data ?? [];
 
-  const { data: housesData } = useHouses();
+  const {
+    data: housesData,
+    refetch: refetchHouses,
+    isRefetching: housesRefetching,
+  } = useHouses();
   const houses = housesData?.data ?? [];
   const houseIds = useMemo(() => houses.map((h: HouseFromApi) => h.id), [houses]);
-  const { data: itemsData, isLoading, isError, refetch } = useAssetItemsAllHouses(houseIds, null);
+  const {
+    data: itemsData,
+    isLoading,
+    isError,
+    refetch,
+    isRefetching: itemsRefetching,
+  } = useAssetItemsAllHouses(houseIds, null);
   const rawItems: AssetItemFromApi[] = itemsData?.data ?? [];
+
+  const [listPage, setListPage] = useState(1);
 
   const openCreateItem = () => {
     navigation.navigate("ItemCreate");
   };
 
-  /** Nhóm thiết bị theo category (giống BuildingDetailScreen). Trong mỗi nhóm, sắp xếp theo tên nhà rồi tên thiết bị. */
+  /** Nhóm thiết bị theo category; trong mỗi nhóm sắp theo tên nhà rồi tên thiết bị. */
   const itemsByCategory = useMemo(() => {
     const map = new Map<string, AssetItemFromApi[]>();
     for (const item of rawItems) {
@@ -79,7 +109,58 @@ export default function ItemListScreen() {
     return result;
   }, [rawItems, categories, houses, t]);
 
-  const safeStyle = { paddingTop: insets.top, paddingBottom: insets.bottom };
+  /** Danh sách phẳng (giữ thứ tự nhóm + đã sort trong nhóm) để phân trang. */
+  const flatRows: ItemListRow[] = useMemo(() => {
+    const rows: ItemListRow[] = [];
+    for (const g of itemsByCategory) {
+      for (const item of g.items) {
+        rows.push({ item, categoryName: g.categoryName });
+      }
+    }
+    return rows;
+  }, [itemsByCategory]);
+
+  const listTotalPages = getTotalPages(flatRows.length);
+  const pagedRows = useMemo(() => slicePage(flatRows, listPage), [flatRows, listPage]);
+
+  useEffect(() => {
+    setListPage(1);
+  }, [flatRows.length]);
+
+  const itemListTopBar = (
+    <StackScreenTitleHeaderStrip>
+      <View style={stackScreenTitleRowStyle}>
+        <View style={stackScreenTitleSideSlotStyle}>
+          <TouchableOpacity
+            style={stackScreenTitleBackBtnOnBrand}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <Icons.chevronBack size={24} color={stackScreenTitleOnBrandIconColor} />
+          </TouchableOpacity>
+        </View>
+        <View style={stackScreenTitleCenterSlotStyle}>
+          <StackScreenTitleBadge numberOfLines={1}>
+            {t("staff_item_list.title")}
+          </StackScreenTitleBadge>
+        </View>
+        <View style={stackScreenTitleSideSlotStyle}>
+          <TouchableOpacity
+            style={stackScreenTitleBackBtnOnBrand}
+            onPress={openCreateItem}
+            activeOpacity={0.7}
+          >
+            <Icons.plus size={22} color={stackScreenTitleOnBrandIconColor} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </StackScreenTitleHeaderStrip>
+  );
+
+  const listRefreshing = housesRefetching || categoriesRefetching || itemsRefetching;
+  const onPullRefresh = useCallback(() => {
+    return Promise.all([refetchHouses(), refetchCategories(), refetch()]);
+  }, [refetchHouses, refetchCategories, refetch]);
 
   useFocusEffect(
     useCallback(() => {
@@ -103,81 +184,90 @@ export default function ItemListScreen() {
 
   if (isLoading) {
     return (
-      <View style={[itemScreenStyles.container, itemScreenStyles.loadingCenter, safeStyle]}>
-        <ActivityIndicator size="large" color="#2563EB" />
+      <View style={itemScreenStyles.container}>
+        {itemListTopBar}
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={brandPrimary} />
+        </View>
       </View>
     );
   }
 
   if (isError) {
     return (
-      <View style={[itemScreenStyles.container, safeStyle]}>
-        <View style={itemScreenStyles.topBar}>
-          <TouchableOpacity style={itemScreenStyles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Icons.chevronBack size={24} color="#1F2937" />
-          </TouchableOpacity>
-          <Text style={itemScreenStyles.topBarTitle} numberOfLines={1}>
-            {t("staff_item_list.title")}
-          </Text>
-          <TouchableOpacity style={itemScreenStyles.backBtn} onPress={openCreateItem} activeOpacity={0.7}>
-            <Icons.plus size={22} color="#2563EB" />
-          </TouchableOpacity>
-        </View>
-        <View style={[itemScreenStyles.scrollContent, { flex: 1, justifyContent: "center", alignItems: "center" }]}>
+      <View style={itemScreenStyles.container}>
+        {itemListTopBar}
+        <ScrollView
+          contentContainerStyle={[
+            itemScreenStyles.scrollContent,
+            { flexGrow: 1, justifyContent: "center", alignItems: "center" },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={listRefreshing}
+              onRefresh={onPullRefresh}
+              tintColor={brandPrimary}
+              colors={[brandPrimary]}
+            />
+          }
+        >
           <Text style={itemScreenStyles.errorMessage}>{t("staff_item_list.error")}</Text>
           <TouchableOpacity onPress={() => refetch()} style={itemScreenStyles.tryAgainBtn}>
             <Text style={itemScreenStyles.tryAgainBtnText}>{t("common.try_again")}</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
     );
   }
 
   return (
-    <View style={[itemScreenStyles.container, safeStyle]}>
-      <View style={itemScreenStyles.topBar}>
-        <TouchableOpacity style={itemScreenStyles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-          <Icons.chevronBack size={24} color="#1F2937" />
-        </TouchableOpacity>
-        <Text style={itemScreenStyles.topBarTitle} numberOfLines={1}>
-          {t("staff_item_list.title")}
-        </Text>
-        <TouchableOpacity style={itemScreenStyles.backBtn} onPress={openCreateItem} activeOpacity={0.7}>
-          <Icons.plus size={22} color="#2563EB" />
-        </TouchableOpacity>
-      </View>
+    <View style={itemScreenStyles.container}>
+      {itemListTopBar}
 
       <ScrollView
         contentContainerStyle={[itemScreenStyles.scrollContent, { paddingBottom: 24 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={listRefreshing}
+            onRefresh={onPullRefresh}
+            tintColor={brandPrimary}
+            colors={[brandPrimary]}
+          />
+        }
       >
-        {itemsByCategory.length === 0 ? (
+        {flatRows.length === 0 ? (
           <Text style={itemScreenStyles.emptyText}>{t("staff_item_list.empty")}</Text>
         ) : (
-          itemsByCategory.map(({ categoryId, categoryName, items }) => (
-            <View key={categoryId} style={itemScreenStyles.sectionBlock}>
-              <Text style={itemScreenStyles.sectionTitle}>{categoryName}</Text>
-              {items.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[itemScreenStyles.formCard, itemScreenStyles.itemCard]}
-                  onPress={() => navigation.navigate("ItemEdit", { item })}
-                  activeOpacity={0.8}
-                >
-                  <Text style={itemScreenStyles.itemCardName} numberOfLines={1}>
-                    {item.displayName}
-                  </Text>
-                  <Text style={itemScreenStyles.itemCardMeta} numberOfLines={1}>
-                    {item.serialNumber} • {getHouseName(item.houseId)}
-                  </Text>
-                  <Text style={itemScreenStyles.itemCardCondition}>
-                    {t("staff_item_list.condition", { percent: item.conditionPercent })} •{" "}
-                    {getStatusLabel(item.status)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ))
+          <>
+            {pagedRows.map(({ item, categoryName }) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[itemScreenStyles.formCard, itemScreenStyles.itemCard]}
+                onPress={() => navigation.navigate("ItemEdit", { item })}
+                activeOpacity={0.8}
+              >
+                <Text style={itemScreenStyles.itemCardCategory} numberOfLines={1}>
+                  {categoryName}
+                </Text>
+                <Text style={itemScreenStyles.itemCardName} numberOfLines={1}>
+                  {item.displayName}
+                </Text>
+                <Text style={itemScreenStyles.itemCardMeta} numberOfLines={1}>
+                  {item.serialNumber} • {getHouseName(item.houseId)}
+                </Text>
+                <Text style={itemScreenStyles.itemCardCondition}>
+                  {t("staff_item_list.condition", { percent: item.conditionPercent })} •{" "}
+                  {getStatusLabel(item.status)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <PaginationBar
+              currentPage={listPage}
+              totalPages={listTotalPages}
+              onPageChange={setListPage}
+            />
+          </>
         )}
       </ScrollView>
     </View>

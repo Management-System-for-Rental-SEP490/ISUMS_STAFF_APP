@@ -61,6 +61,7 @@ export type RootStackParamList = AuthStackParamList & {
       slotType?: string;
       ticketId?: string;
       status?: string;
+      houseId?: string;
     };
   };
   /** Màn form tạo danh mục thiết bị (Staff). Không tham số. */
@@ -84,6 +85,14 @@ export type RootStackParamList = AuthStackParamList & {
 
   /** Staff: Quản lý thiết bị IoT theo nhà (controller/node). */
   StaffIotList: { houseId: string; houseName: string };
+  /** Staff: Chi tiết controller hoặc node IoT (dữ liệu tải lại theo houseId). */
+  StaffIotDetail: {
+    houseId: string;
+    houseName: string;
+    kind: "controller" | "node";
+    /** Bắt buộc khi kind === "node". */
+    nodeId?: string;
+  };
 
   /** Staff: Luồng gắn IoT (chọn khu vực -> quét QR -> nhập WiFi). */
   StaffIotProvision: { houseId: string; houseName: string; kind: "controller" | "node" };

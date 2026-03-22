@@ -1,8 +1,9 @@
 import { StyleSheet } from "react-native";
+import { brandPrimary } from "../../../../shared/theme/color";
 
 /**
  * Styles cho màn hình Tạo danh mục thiết bị (CategoryScreen).
- * Đồng bộ với hệ thống: nền #F3F4F6, card trắng, accent #2563EB, chữ #1F2937 / #6B7280.
+ * Accent theo theme thương hiệu (shared/theme/color).
  */
 export const categoryScreenStyles = StyleSheet.create({
   container: {
@@ -24,13 +25,6 @@ export const categoryScreenStyles = StyleSheet.create({
     height: 40,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 8,
-  },
-  topBarTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1F2937",
-    flex: 1,
   },
   /** Vùng cuộn chứa form */
   scrollContent: {
@@ -82,7 +76,7 @@ export const categoryScreenStyles = StyleSheet.create({
   /** Nút Gửi */
   submitBtn: {
     marginTop: 24,
-    backgroundColor: "#2563EB",
+    backgroundColor: brandPrimary,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: "center",
@@ -107,7 +101,7 @@ export const categoryScreenStyles = StyleSheet.create({
   successText: {
     marginTop: 12,
     fontSize: 14,
-    color: "#059669",
+    color: brandPrimary,
     textAlign: "center",
   },
 });

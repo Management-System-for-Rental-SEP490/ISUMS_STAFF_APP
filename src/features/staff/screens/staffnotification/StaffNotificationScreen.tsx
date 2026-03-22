@@ -3,87 +3,24 @@
  * Mock: thông báo kiểu "người thuê căn X đã gửi ticket", "lịch làm việc đã cập nhật", ...
  * Khi có API sẽ thay bằng dữ liệu thật.
  */
-import React, { useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity,
   ListRenderItem,
+  RefreshControl,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import Header from "../../../../shared/components/header";
 import Icons from "../../../../shared/theme/icon";
 import { staffNotificationStyles } from "./staffNotificationStyles";
-
-/** Loại thông báo dành cho Staff */
-export type StaffNotificationType = "ticket_from_tenant" | "schedule_updated" | "ticket_assigned" | "inspection_reminder" | "system";
-
-/** Một thông báo mock cho Staff */
-export interface StaffNotificationItem {
-  id: string;
-  type: StaffNotificationType;
-  titleKey: string;
-  bodyKey: string;
-  params?: Record<string, string | number>;
-  createdAt: Date;
-  read?: boolean;
-}
-
-const MOCK_STAFF_NOTIFICATIONS: StaffNotificationItem[] = [
-  {
-    id: "sn1",
-    type: "ticket_from_tenant",
-    titleKey: "staff_notification.tenant_sent_ticket_title",
-    bodyKey: "staff_notification.tenant_sent_ticket_body",
-    params: { house: "Nhà A - Tòa 1", id: "T002" },
-    createdAt: new Date(Date.now() - 30 * 60 * 1000),
-    read: false,
-  },
-  {
-    id: "sn2",
-    type: "schedule_updated",
-    titleKey: "staff_notification.schedule_updated_title",
-    bodyKey: "staff_notification.schedule_updated_body",
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    read: false,
-  },
-  {
-    id: "sn3",
-    type: "ticket_assigned",
-    titleKey: "staff_notification.ticket_assigned_title",
-    bodyKey: "staff_notification.ticket_assigned_body",
-    params: { id: "T001" },
-    createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000),
-    read: true,
-  },
-  {
-    id: "sn4",
-    type: "inspection_reminder",
-    titleKey: "staff_notification.inspection_reminder_title",
-    bodyKey: "staff_notification.inspection_reminder_body",
-    params: { building: "Nhà C - Tòa 3" },
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-    read: true,
-  },
-  {
-    id: "sn5",
-    type: "ticket_from_tenant",
-    titleKey: "staff_notification.tenant_sent_ticket_title",
-    bodyKey: "staff_notification.tenant_sent_ticket_body",
-    params: { house: "Nhà B - Tòa 2", id: "T003" },
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    read: true,
-  },
-  {
-    id: "sn6",
-    type: "system",
-    titleKey: "staff_notification.system_maintenance_title",
-    bodyKey: "staff_notification.system_maintenance_body",
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-    read: true,
-  },
-];
+import { brandPrimary } from "../../../../shared/theme/color";
+import { PaginationBar } from "../../../../shared/components/PaginationBar";
+import { getTotalPages, slicePage } from "../../../../shared/utils";
+import type { StaffNotificationItem } from "../../../../shared/types/api";
 
 function formatTimeAgo(
   date: Date,
@@ -101,7 +38,88 @@ function formatTimeAgo(
 
 export default function StaffNotificationScreen() {
   const { t } = useTranslation();
-  const notifications = useMemo(() => MOCK_STAFF_NOTIFICATIONS, []);
+  const insets = useSafeAreaInsets();
+  const notifications = useMemo((): StaffNotificationItem[] => {
+    const base: StaffNotificationItem[] = [
+      {
+        id: "sn1",
+        type: "ticket_from_tenant",
+        titleKey: "staff_notification.tenant_sent_ticket_title",
+        bodyKey: "staff_notification.tenant_sent_ticket_body",
+        params: { house: t("staff_notification.demo_house_a"), id: "T002" },
+        createdAt: new Date(Date.now() - 30 * 60 * 1000),
+        read: false,
+      },
+      {
+        id: "sn2",
+        type: "schedule_updated",
+        titleKey: "staff_notification.schedule_updated_title",
+        bodyKey: "staff_notification.schedule_updated_body",
+        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        read: false,
+      },
+      {
+        id: "sn3",
+        type: "ticket_assigned",
+        titleKey: "staff_notification.ticket_assigned_title",
+        bodyKey: "staff_notification.ticket_assigned_body",
+        params: { id: "T001" },
+        createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000),
+        read: true,
+      },
+      {
+        id: "sn4",
+        type: "inspection_reminder",
+        titleKey: "staff_notification.inspection_reminder_title",
+        bodyKey: "staff_notification.inspection_reminder_body",
+        params: { building: t("staff_notification.demo_building_c") },
+        createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        read: true,
+      },
+      {
+        id: "sn5",
+        type: "ticket_from_tenant",
+        titleKey: "staff_notification.tenant_sent_ticket_title",
+        bodyKey: "staff_notification.tenant_sent_ticket_body",
+        params: { house: t("staff_notification.demo_house_b"), id: "T003" },
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        read: true,
+      },
+      {
+        id: "sn6",
+        type: "system",
+        titleKey: "staff_notification.system_maintenance_title",
+        bodyKey: "staff_notification.system_maintenance_body",
+        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        read: true,
+      },
+    ];
+    const extra: StaffNotificationItem[] = Array.from({ length: 14 }, (_, i) => ({
+      id: `sn-demo-${i}`,
+      type: "system",
+      titleKey: "staff_notification.system_maintenance_title",
+      bodyKey: "staff_notification.system_maintenance_body",
+      createdAt: new Date(Date.now() - (i + 8) * 3600 * 1000),
+      read: i % 3 !== 0,
+    }));
+    return [...base, ...extra];
+  }, [t]);
+  const [listPage, setListPage] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const notifTotalPages = getTotalPages(notifications.length);
+  const pagedNotifications = useMemo(
+    () => slicePage(notifications, listPage),
+    [notifications, listPage]
+  );
+
+  useEffect(() => {
+    setListPage(1);
+  }, [notifications.length]);
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 450);
+  }, []);
 
   const renderItem: ListRenderItem<StaffNotificationItem> = ({ item }) => {
     const title = t(item.titleKey, item.params as Record<string, string>);
@@ -110,19 +128,19 @@ export default function StaffNotificationScreen() {
 
     let iconWrapperStyle = staffNotificationStyles.iconWrapperTicket;
     let IconComponent = Icons.ticket;
-    let iconColor = "#2563EB";
+    let iconColor = brandPrimary;
     if (item.type === "schedule_updated" || item.type === "inspection_reminder") {
       iconWrapperStyle = staffNotificationStyles.iconWrapperSchedule;
       IconComponent = Icons.calendar;
-      iconColor = "#2E7D32";
+      iconColor = brandPrimary;
     } else if (item.type === "ticket_assigned") {
       iconWrapperStyle = staffNotificationStyles.iconWrapperTicket;
       IconComponent = Icons.contract;
-      iconColor = "#2563EB";
+      iconColor = brandPrimary;
     } else if (item.type === "system") {
       iconWrapperStyle = staffNotificationStyles.iconWrapperSystem;
       IconComponent = Icons.shield;
-      iconColor = "#E65100";
+      iconColor = brandPrimary;
     }
 
     return (
@@ -167,17 +185,33 @@ export default function StaffNotificationScreen() {
     <View style={staffNotificationStyles.container}>
       <Header variant="default" />
       <FlatList
-        data={notifications}
+        data={pagedNotifications}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={listEmpty}
+        ListFooterComponent={() => (
+          <PaginationBar
+            currentPage={listPage}
+            totalPages={notifTotalPages}
+            onPageChange={setListPage}
+            style={{ paddingBottom: Math.max(8, insets.bottom) }}
+          />
+        )}
         contentContainerStyle={
           notifications.length === 0
             ? [staffNotificationStyles.listContent, { flex: 1 }]
             : staffNotificationStyles.listContent
         }
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={brandPrimary}
+            colors={[brandPrimary]}
+          />
+        }
       />
     </View>
   );

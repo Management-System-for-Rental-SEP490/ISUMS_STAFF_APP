@@ -1,10 +1,14 @@
-import React, { useMemo, useState } from "react";
-import { Modal, Text, TouchableOpacity, View, ScrollView } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { Modal, Text, TouchableOpacity, View, ScrollView, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
-import type { FunctionalAreaFromApi, IotNodeDeviceFromApi } from "../../../../shared/types/api";
+import type {
+  FunctionalAreaFromApi,
+  IotControllerHouseDataFromApi,
+  IotNodeDeviceFromApi,
+} from "../../../../shared/types/api";
 import Icons from "../../../../shared/theme/icon";
 import {
   useFunctionalAreasByHouseId,
@@ -13,12 +17,137 @@ import {
 } from "../../../../shared/hooks";
 import { useTranslation } from "react-i18next";
 import { staffIotStyles as s } from "./staffIotStyles";
+import {
+  BRAND_BLUE,
+  BRAND_DANGER,
+  BRAND_GREEN,
+  brandPrimary,
+  brandSecondary,
+  iotOfflineLabelColor,
+  neutral,
+} from "../../../../shared/theme/color";
 import { CustomAlert } from "../../../../shared/components/alert";
+import {
+  StackScreenTitleBadge,
+  StackScreenTitleBarBalance,
+  StackScreenTitleHeaderStrip,
+  stackScreenTitleBackBtnOnBrand,
+  stackScreenTitleCenterSlotStyle,
+  stackScreenTitleOnBrandIconColor,
+  stackScreenTitleRowStyle,
+  stackScreenTitleSideSlotStyle,
+} from "../../../../shared/components/StackScreenTitleBadge";
 
 type StaffIotListRouteProp = RouteProp<RootStackParamList, "StaffIotList">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "StaffIotList">;
 
 type IotDeviceKind = "all" | "controller" | "node";
+
+type StatusUiStrip = { dot: string; cardBg: string; cardBorder: string };
+
+function StaffIotControllerCard({
+  controller,
+  t,
+  ui,
+  onPress,
+  onDetach,
+}: {
+  controller: IotControllerHouseDataFromApi;
+  t: (key: string, opts?: Record<string, string | number>) => string;
+  ui: StatusUiStrip;
+  onPress: () => void;
+  onDetach: () => void;
+}) {
+  const title =
+    controller.thingName?.trim() || controller.deviceId?.trim() || "—";
+  return (
+    <View
+      style={[
+        s.deviceCard,
+        { backgroundColor: ui.cardBg, borderColor: ui.cardBorder },
+      ]}
+    >
+      <View style={[s.deviceLeftAccent, { backgroundColor: ui.dot }]} />
+      <TouchableOpacity
+        style={s.deviceRowPressable}
+        onPress={onPress}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+      >
+        <View style={s.deviceInfo}>
+          <Text style={s.deviceName} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={s.deviceHint} numberOfLines={2}>
+            {t("staff_iot.list_hint_controller")}
+          </Text>
+        </View>
+      </TouchableOpacity>
+      <View style={s.deviceRight}>
+        <TouchableOpacity
+          style={s.detachBtn}
+          activeOpacity={0.85}
+          onPress={onDetach}
+          accessibilityRole="button"
+          accessibilityLabel={t("staff_iot.detach_btn")}
+        >
+          <Text style={s.detachBtnText}>{t("staff_iot.detach_btn")}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function StaffIotNodeCard({
+  node: d,
+  t,
+  ui,
+  onPress,
+  onDetach,
+}: {
+  node: IotNodeDeviceFromApi;
+  t: (key: string, opts?: Record<string, string | number>) => string;
+  ui: StatusUiStrip;
+  onPress: () => void;
+  onDetach: () => void;
+}) {
+  return (
+    <View
+      style={[
+        s.deviceCard,
+        { backgroundColor: ui.cardBg, borderColor: ui.cardBorder },
+      ]}
+    >
+      <View style={[s.deviceLeftAccent, { backgroundColor: ui.dot }]} />
+      <TouchableOpacity
+        style={s.deviceRowPressable}
+        onPress={onPress}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+      >
+        <View style={s.deviceInfo}>
+          <Text style={s.deviceName} numberOfLines={1}>
+            {d.displayName}
+          </Text>
+          <Text style={s.deviceHint} numberOfLines={2}>
+            {t("staff_iot.list_hint_node")}
+          </Text>
+        </View>
+      </TouchableOpacity>
+      <View style={s.deviceRight}>
+        <TouchableOpacity
+          style={s.detachBtn}
+          activeOpacity={0.85}
+          onPress={onDetach}
+          accessibilityRole="button"
+          accessibilityLabel={t("staff_iot.detach_btn")}
+        >
+          <Text style={s.detachBtnText}>{t("staff_iot.detach_btn")}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
 
 export default function StaffIotListScreen() {
   const { t } = useTranslation();
@@ -30,10 +159,20 @@ export default function StaffIotListScreen() {
   const [activeKind, setActiveKind] = useState<IotDeviceKind>("all");
   const [addMenuOpen, setAddMenuOpen] = useState(false);
 
-  const { data: areasResp, isLoading: areasLoading } = useFunctionalAreasByHouseId(houseId);
+  const {
+    data: areasResp,
+    isLoading: areasLoading,
+    refetch: refetchAreas,
+    isRefetching: areasRefetching,
+  } = useFunctionalAreasByHouseId(houseId);
   const areas: FunctionalAreaFromApi[] = areasResp?.data ?? [];
 
-  const { data: iotResp, isLoading: iotLoading, refetch: refetchIot } = useIotDevicesByHouseId(houseId);
+  const {
+    data: iotResp,
+    isLoading: iotLoading,
+    refetch: refetchIot,
+    isRefetching: iotRefetching,
+  } = useIotDevicesByHouseId(houseId);
   const controller = iotResp?.data;
   const activeController =
     controller && controller.status !== "DEPROVISIONED" ? controller : null;
@@ -64,33 +203,33 @@ export default function StaffIotListScreen() {
       case "ACTIVE":
         return {
           label: t("staff_iot.status_ACTIVE"),
-          dot: "#16A34A",
-          cardBg: "rgba(22,163,74,0.06)",
-          cardBorder: "rgba(22,163,74,0.25)",
-          badgeBg: "rgba(22,163,74,0.10)",
-          badgeBorder: "rgba(22,163,74,0.35)",
-          text: "#166534",
+          dot: brandPrimary,
+          cardBg: "rgba(59,181,130,0.08)",
+          cardBorder: "rgba(59,181,130,0.28)",
+          badgeBg: "rgba(59,181,130,0.12)",
+          badgeBorder: "rgba(59,181,130,0.38)",
+          text: BRAND_GREEN,
         };
       case "OFFLINE":
         return {
           label: t("staff_iot.status_OFFLINE"),
-          dot: "#DC2626",
+          dot: BRAND_DANGER,
           cardBg: "rgba(220,38,38,0.06)",
           cardBorder: "rgba(220,38,38,0.25)",
           badgeBg: "rgba(220,38,38,0.10)",
           badgeBorder: "rgba(220,38,38,0.35)",
-          text: "#991B1B",
+          text: iotOfflineLabelColor,
         };
       case "PENDING":
       default:
         return {
           label: status === "PENDING" ? t("staff_iot.status_PENDING") : statusRaw,
-          dot: "#D97706",
-          cardBg: "rgba(217,119,6,0.06)",
-          cardBorder: "rgba(217,119,6,0.25)",
-          badgeBg: "rgba(217,119,6,0.10)",
-          badgeBorder: "rgba(217,119,6,0.35)",
-          text: "#92400E",
+          dot: brandSecondary,
+          cardBg: "rgba(32,150,216,0.08)",
+          cardBorder: "rgba(32,150,216,0.28)",
+          badgeBg: "rgba(32,150,216,0.12)",
+          badgeBorder: "rgba(32,150,216,0.38)",
+          text: BRAND_BLUE,
         };
     }
   };
@@ -104,6 +243,11 @@ export default function StaffIotListScreen() {
     if (status === "IN_USE") return getControllerStatusUi("ACTIVE");
     return getControllerStatusUi(statusRaw);
   };
+
+  const listRefreshing = areasRefetching || iotRefetching;
+  const onPullRefresh = useCallback(() => {
+    return Promise.all([refetchAreas(), refetchIot()]);
+  }, [refetchAreas, refetchIot]);
 
   const confirmDetach = (params: { kind: "controller" | "node"; name: string }) => {
     // Dùng CustomAlert theo rule (không dùng Alert.alert mặc định).
@@ -158,18 +302,25 @@ export default function StaffIotListScreen() {
 
   return (
     <View style={s.container}>
-      <View style={[s.topBar, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={s.backBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Icons.chevronBack size={28} color="#374151" />
-        </TouchableOpacity>
-        <Text style={s.topTitle} numberOfLines={1}>
-          {t("staff_iot.title")}
-        </Text>
-      </View>
+      <StackScreenTitleHeaderStrip>
+        <View style={stackScreenTitleRowStyle}>
+          <View style={stackScreenTitleSideSlotStyle}>
+            <TouchableOpacity
+              style={stackScreenTitleBackBtnOnBrand}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <Icons.chevronBack size={28} color={stackScreenTitleOnBrandIconColor} />
+            </TouchableOpacity>
+          </View>
+          <View style={stackScreenTitleCenterSlotStyle}>
+            <StackScreenTitleBadge numberOfLines={1}>
+              {t("staff_iot.title")}
+            </StackScreenTitleBadge>
+          </View>
+          <StackScreenTitleBarBalance />
+        </View>
+      </StackScreenTitleHeaderStrip>
 
       <ScrollView
         contentContainerStyle={[
@@ -177,15 +328,20 @@ export default function StaffIotListScreen() {
           { paddingBottom: Math.max(insets.bottom, 16) + 16 },
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={listRefreshing}
+            onRefresh={onPullRefresh}
+            tintColor={brandPrimary}
+            colors={[brandPrimary]}
+          />
+        }
       >
         <View style={s.houseCard}>
-          <Text style={s.houseLabel}>{t("staff_iot.house_label")}</Text>
           <Text style={s.houseName} numberOfLines={2}>
             {houseName}
           </Text>
         </View>
-
-       
 
         <Text style={s.sectionTitlePlain}>{t("staff_iot.devices_title")}</Text>
 
@@ -234,7 +390,7 @@ export default function StaffIotListScreen() {
             accessibilityRole="button"
             accessibilityLabel={t("staff_iot.add_btn")}
           >
-            <Icons.plus size={18} color="#fff" />
+            <Icons.plus size={18} color={neutral.surface} />
           </TouchableOpacity>
         </View>
 
@@ -269,7 +425,7 @@ export default function StaffIotListScreen() {
                 accessibilityLabel={t("staff_iot.add_controller")}
               >
                 <View style={s.modalItemIcon}>
-                  <Icons.electric size={18} color="#2563EB" />
+                  <Icons.electric size={18} color={neutral.iconMuted} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={s.modalItemTitle}>{t("staff_iot.add_controller")}</Text>
@@ -290,7 +446,7 @@ export default function StaffIotListScreen() {
                 accessibilityLabel={t("staff_iot.add_node")}
               >
                 <View style={s.modalItemIcon}>
-                  <Icons.water size={18} color="#2563EB" />
+                  <Icons.water size={18} color={neutral.iconMuted} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={s.modalItemTitle}>{t("staff_iot.add_node")}</Text>
@@ -320,53 +476,21 @@ export default function StaffIotListScreen() {
         ) : activeKind === "all" ? (
           <>
             {activeController ? (
-              <View
-                style={[
-                  s.deviceCard,
-                  {
-                    backgroundColor: getControllerStatusUi(activeController.status).cardBg,
-                    borderColor: getControllerStatusUi(activeController.status).cardBorder,
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    s.deviceLeftAccent,
-                    { backgroundColor: getControllerStatusUi(activeController.status).dot },
-                  ]}
-                />
-                <View style={s.deviceInfo}>
-                  <Text style={s.deviceName} numberOfLines={1}>
-                    {activeController.houseName}
-                  </Text>
-                  <Text style={s.deviceMeta} numberOfLines={1}>
-                    {t("staff_iot.controller_thing_label", { thingName: activeController.thingName })}
-                  </Text>
-                  <Text style={s.deviceMeta} numberOfLines={1}>
-                    {t("staff_iot.controller_device_id_label", { deviceId: activeController.deviceId })}
-                  </Text>
-                  <Text style={s.deviceMeta} numberOfLines={1}>
-                    {t("staff_iot.area_label", {
-                      areaName: activeController.areaName ?? t("staff_iot.area_unassigned"),
-                    })}
-                  </Text>
-                  <Text style={s.deviceMeta} numberOfLines={1}>
-                    {t("staff_iot.status_label", { status: getControllerStatusUi(activeController.status).label })}
-                  </Text>
-                </View>
-                <View style={s.deviceRight}>
-                  <TouchableOpacity
-                    style={s.detachBtn}
-                    activeOpacity={0.85}
-                    onPress={() => confirmDetach({ kind: "controller", name: t("staff_iot.kind_controller") })}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("staff_iot.detach_btn")}
-                  >
-                    <Text style={s.detachBtnText}>{t("staff_iot.detach_btn")}</Text>
-                  </TouchableOpacity>
-                  <Icons.chevronForward size={20} color="#64748b" />
-                </View>
-              </View>
+              <StaffIotControllerCard
+                controller={activeController}
+                t={t}
+                ui={getControllerStatusUi(activeController.status)}
+                onPress={() =>
+                  navigation.navigate("StaffIotDetail", {
+                    houseId,
+                    houseName,
+                    kind: "controller",
+                  })
+                }
+                onDetach={() =>
+                  confirmDetach({ kind: "controller", name: t("staff_iot.kind_controller") })
+                }
+              />
             ) : null}
 
             {nodes.length === 0 ? (
@@ -386,49 +510,21 @@ export default function StaffIotListScreen() {
                     </Text>
                   </View>
                   {g.devices.map((d) => (
-                    <View
+                    <StaffIotNodeCard
                       key={d.id}
-                      style={[
-                        s.deviceCard,
-                        {
-                          backgroundColor: getNodeStatusUi(d.status).cardBg,
-                          borderColor: getNodeStatusUi(d.status).cardBorder,
-                        },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          s.deviceLeftAccent,
-                          { backgroundColor: getNodeStatusUi(d.status).dot },
-                        ]}
-                      />
-                      <View style={s.deviceInfo}>
-                        <Text style={s.deviceName} numberOfLines={1}>
-                          {d.displayName}
-                        </Text>
-                        <Text style={s.deviceMeta} numberOfLines={1}>
-                          {t("staff_iot.node_thing_label", { thing: d.thing })}
-                        </Text>
-                        <Text style={s.deviceMeta} numberOfLines={1}>
-                          {t("staff_iot.node_serial_label", { serialNumber: d.serialNumber })}
-                        </Text>
-                        <Text style={s.deviceMeta} numberOfLines={1}>
-                          {t("staff_iot.status_label", { status: d.status })}
-                        </Text>
-                      </View>
-                      <View style={s.deviceRight}>
-                        <TouchableOpacity
-                          style={s.detachBtn}
-                          activeOpacity={0.85}
-                          onPress={() => confirmDetach({ kind: "node", name: d.displayName })}
-                          accessibilityRole="button"
-                          accessibilityLabel={t("staff_iot.detach_btn")}
-                        >
-                          <Text style={s.detachBtnText}>{t("staff_iot.detach_btn")}</Text>
-                        </TouchableOpacity>
-                        <Icons.chevronForward size={20} color="#64748b" />
-                      </View>
-                    </View>
+                      node={d}
+                      t={t}
+                      ui={getNodeStatusUi(d.status)}
+                      onPress={() =>
+                        navigation.navigate("StaffIotDetail", {
+                          houseId,
+                          houseName,
+                          kind: "node",
+                          nodeId: d.id,
+                        })
+                      }
+                      onDetach={() => confirmDetach({ kind: "node", name: d.displayName })}
+                    />
                   ))}
                 </View>
               ))
@@ -436,51 +532,21 @@ export default function StaffIotListScreen() {
           </>
         ) : activeKind === "controller" ? (
           activeController ? (
-            <View
-              style={[
-                s.deviceCard,
-                {
-                  backgroundColor: getControllerStatusUi(activeController.status).cardBg,
-                  borderColor: getControllerStatusUi(activeController.status).cardBorder,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  s.deviceLeftAccent,
-                  { backgroundColor: getControllerStatusUi(activeController.status).dot },
-                ]}
-              />
-              <View style={s.deviceInfo}>
-                <Text style={s.deviceName} numberOfLines={1}>
-                  {activeController.houseName}
-                </Text>
-                <Text style={s.deviceMeta} numberOfLines={1}>
-                  {t("staff_iot.controller_thing_label", { thingName: activeController.thingName })}
-                </Text>
-                <Text style={s.deviceMeta} numberOfLines={1}>
-                  {t("staff_iot.controller_device_id_label", { deviceId: activeController.deviceId })}
-                </Text>
-                <Text style={s.deviceMeta} numberOfLines={1}>
-                  {t("staff_iot.area_label", { areaName: activeController.areaName ?? t("staff_iot.area_unassigned") })}
-                </Text>
-                <Text style={s.deviceMeta} numberOfLines={1}>
-                  {t("staff_iot.status_label", { status: getControllerStatusUi(activeController.status).label })}
-                </Text>
-              </View>
-              <View style={s.deviceRight}>
-                <TouchableOpacity
-                  style={s.detachBtn}
-                  activeOpacity={0.85}
-                  onPress={() => confirmDetach({ kind: "controller", name: t("staff_iot.kind_controller") })}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("staff_iot.detach_btn")}
-                >
-                  <Text style={s.detachBtnText}>{t("staff_iot.detach_btn")}</Text>
-                </TouchableOpacity>
-                <Icons.chevronForward size={20} color="#64748b" />
-              </View>
-            </View>
+            <StaffIotControllerCard
+              controller={activeController}
+              t={t}
+              ui={getControllerStatusUi(activeController.status)}
+              onPress={() =>
+                navigation.navigate("StaffIotDetail", {
+                  houseId,
+                  houseName,
+                  kind: "controller",
+                })
+              }
+              onDetach={() =>
+                confirmDetach({ kind: "controller", name: t("staff_iot.kind_controller") })
+              }
+            />
           ) : (
             <View style={s.empty}>
               <Text style={s.emptyTitle}>
@@ -508,49 +574,21 @@ export default function StaffIotListScreen() {
                 </Text>
               </View>
               {g.devices.map((d) => (
-                <View
+                <StaffIotNodeCard
                   key={d.id}
-                  style={[
-                    s.deviceCard,
-                    {
-                      backgroundColor: getNodeStatusUi(d.status).cardBg,
-                      borderColor: getNodeStatusUi(d.status).cardBorder,
-                    },
-                  ]}
-                >
-                  <View
-                    style={[
-                      s.deviceLeftAccent,
-                      { backgroundColor: getNodeStatusUi(d.status).dot },
-                    ]}
-                  />
-                  <View style={s.deviceInfo}>
-                    <Text style={s.deviceName} numberOfLines={1}>
-                      {d.displayName}
-                    </Text>
-                    <Text style={s.deviceMeta} numberOfLines={1}>
-                      {t("staff_iot.node_thing_label", { thing: d.thing })}
-                    </Text>
-                    <Text style={s.deviceMeta} numberOfLines={1}>
-                      {t("staff_iot.node_serial_label", { serialNumber: d.serialNumber })}
-                    </Text>
-                    <Text style={s.deviceMeta} numberOfLines={1}>
-                      {t("staff_iot.status_label", { status: d.status })}
-                    </Text>
-                  </View>
-                  <View style={s.deviceRight}>
-                    <TouchableOpacity
-                      style={s.detachBtn}
-                      activeOpacity={0.85}
-                      onPress={() => confirmDetach({ kind: "node", name: d.displayName })}
-                      accessibilityRole="button"
-                      accessibilityLabel={t("staff_iot.detach_btn")}
-                    >
-                      <Text style={s.detachBtnText}>{t("staff_iot.detach_btn")}</Text>
-                    </TouchableOpacity>
-                    <Icons.chevronForward size={20} color="#64748b" />
-                  </View>
-                </View>
+                  node={d}
+                  t={t}
+                  ui={getNodeStatusUi(d.status)}
+                  onPress={() =>
+                    navigation.navigate("StaffIotDetail", {
+                      houseId,
+                      houseName,
+                      kind: "node",
+                      nodeId: d.id,
+                    })
+                  }
+                  onDetach={() => confirmDetach({ kind: "node", name: d.displayName })}
+                />
               ))}
             </View>
           ))

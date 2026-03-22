@@ -3,7 +3,7 @@
  * GET /api/assets/items, POST, PUT, DELETE /api/assets/items/:id.
  */
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE } from "../api/config";
+import { ASSETS_API_BASE, BACKEND_API_BASE } from "../api/config";
 import type {
   AssetItemFromApi,
   AssetItemsApiResponse,
@@ -44,19 +44,59 @@ const normalizeTagValueForCompare = (raw: string) =>
   raw.replace(/\s+/g, "").toUpperCase();
 
 /**
+ * Lấy tagValue đang active từ mảng `tags` (POST /api/assets/tags tạo bản ghi có isActive).
+ * Dùng khi BE trả `tags` nhưng chưa đồng bộ `nfcTag`/`qrTag` trên item.
+ */
+function pickActiveTagValueFromTags(
+  tags: AssetItemFromApi["tags"],
+  tagType: "NFC" | "QR_CODE"
+): string | null {
+  if (!tags?.length) return null;
+  for (const t of tags) {
+    if (t.tagType !== tagType) continue;
+    if (t.isActive === false) continue;
+    const v = t.tagValue;
+    if (v != null && String(v).trim() !== "") return String(v).trim();
+  }
+  return null;
+}
+
+/**
  * Chuẩn hóa một item từ BE: đảm bảo nfcTag, qrTag có giá trị dù BE trả về camelCase hay snake_case.
  * API GET /api/assets/items/house/:houseId đã được cập nhật trả về đầy đủ nfcTag, qrTag;
  * nếu BE trả snake_case (nfc_tag, qr_tag) thì map sang camelCase để màn danh sách & chi tiết hiển thị đúng.
  */
 function normalizeAssetItemFromResponse(
-  raw: AssetItemFromApi & { nfc_tag?: string | null; qr_tag?: string | null }
+  raw: AssetItemFromApi & {
+    nfc_tag?: string | null;
+    qr_tag?: string | null;
+    function_area_id?: string | null;
+    functionalAreaId?: string | null;
+    functional_area_id?: string | null;
+  }
 ): AssetItemFromApi {
   const nfc = raw.nfcTag ?? raw.nfc_tag ?? null;
   const qr = raw.qrTag ?? raw.qr_tag ?? null;
+  let nfcStr = nfc != null ? String(nfc).trim() : "";
+  let qrStr = qr != null ? String(qr).trim() : "";
+  const fromTagsNfc = pickActiveTagValueFromTags(raw.tags, "NFC");
+  const fromTagsQr = pickActiveTagValueFromTags(raw.tags, "QR_CODE");
+  if (!nfcStr && fromTagsNfc) nfcStr = fromTagsNfc;
+  if (!qrStr && fromTagsQr) qrStr = fromTagsQr;
+  const functionAreaId =
+    raw.functionAreaId ??
+    raw.functionalAreaId ??
+    raw.function_area_id ??
+    raw.functional_area_id ??
+    null;
   return {
     ...raw,
-    nfcTag: nfc != null ? String(nfc) : null,
-    qrTag: qr != null ? String(qr) : null,
+    nfcTag: nfcStr !== "" ? nfcStr : null,
+    qrTag: qrStr !== "" ? qrStr : null,
+    functionAreaId:
+      functionAreaId != null && String(functionAreaId).trim() !== ""
+        ? String(functionAreaId).trim()
+        : null,
   };
 }
 
@@ -75,11 +115,20 @@ export const getAssetItems = async (
 
   const query = searchParams.toString();
   const url = query
-    ? `${BACKEND_API_BASE}/assets/items?${query}`
-    : `${BACKEND_API_BASE}/assets/items`;
+    ? `${ASSETS_API_BASE}/assets/items?${query}`
+    : `${ASSETS_API_BASE}/assets/items`;
 
   const response = await axiosClient.get<AssetItemsApiResponse>(url);
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data.data)) {
+    return {
+      ...data,
+      data: data.data.map((i) =>
+        normalizeAssetItemFromResponse(i as AssetItemFromApi & { nfc_tag?: string | null; qr_tag?: string | null })
+      ),
+    };
+  }
+  return data;
 };
 
 /**
@@ -92,7 +141,7 @@ export const getAssetItemsByHouseId = async (
   houseId: string
 ): Promise<AssetItemsApiResponse> => {
   const response = await axiosClient.get<AssetItemsApiResponse>(
-    `${BACKEND_API_BASE}/assets/items/house/${encodeURIComponent(houseId)}`
+    `${ASSETS_API_BASE}/assets/items/house/${encodeURIComponent(houseId)}`
   );
   const data = response.data;
   if (Array.isArray(data.data)) {
@@ -124,61 +173,98 @@ export const getIotDevicesByHouseId = async (
  */
 export const getAssetItemById = async (id: string): Promise<AssetItemFromApi | undefined> => {
   try {
-    const response = await axiosClient.get<UpdateAssetItemApiResponse>(
-      `${BACKEND_API_BASE}/assets/items/${id}`
+    const response = await axiosClient.get<UpdateAssetItemApiResponse | AssetItemFromApi>(
+      `${ASSETS_API_BASE}/assets/items/${id}`
     );
-    return response.data.data;
-  } catch (error) {
-    console.log("Lỗi lấy chi tiết thiết bị:", error);
+    const envelope = response.data as unknown;
+    let rawUnknown: unknown;
+    if (
+      envelope &&
+      typeof envelope === "object" &&
+      "data" in envelope &&
+      (envelope as { data: unknown }).data != null &&
+      typeof (envelope as { data: unknown }).data === "object"
+    ) {
+      rawUnknown = (envelope as { data: AssetItemFromApi }).data;
+    } else if (envelope && typeof envelope === "object" && "id" in (envelope as object)) {
+      rawUnknown = envelope;
+    } else {
+      return undefined;
+    }
+    const raw = rawUnknown as AssetItemFromApi & {
+      nfc_tag?: string | null;
+      qr_tag?: string | null;
+      function_area_id?: string | null;
+      functionalAreaId?: string | null;
+      functional_area_id?: string | null;
+    };
+    return normalizeAssetItemFromResponse(raw);
+  } catch {
     return undefined;
   }
 };
 
 
+/**
+ * Tra cứu thiết bị sau khi quét NFC hoặc QR (GET /api/assets/tags/asset/{tagValue}).
+ * `data` trong response có thể là một object (Postman) hoặc mảng (tương thích cũ).
+ */
 export const getAssetItemByTag = async (
   tagValue: string
 ): Promise<AssetItemFromApi | undefined> => {
-  const normalized = tagValue.trim(); 
+  const normalized = tagValue.trim();
   if (!normalized) return undefined;
   const apiTagValue = normalizeTagValueForApi(normalized);
 
-  try {
-    // Gọi API mới: GET /api/asset/tags/asset/{tagValue}
-    const response = await axiosClient.get<GetAssetByTagValueApiResponse>(
-      `${BACKEND_API_BASE}/assets/tags/asset/${encodeURIComponent(apiTagValue)}`
+  const tagMatchesScanned = (val: string | null | undefined) => {
+    if (val == null || String(val).trim() === "") return false;
+    return (
+      normalizeTagValueForCompare(String(val)) === normalizeTagValueForCompare(apiTagValue)
     );
-    
-    // Xử lý response.data.data có thể là Object (theo Postman) hoặc Array (theo code cũ)
+  };
+
+  try {
+    const response = await axiosClient.get<GetAssetByTagValueApiResponse>(
+      `${ASSETS_API_BASE}/assets/tags/asset/${encodeURIComponent(apiTagValue)}`
+    );
+
     const responseData = response.data.data;
-    
+
     let raw: AssetItemFromApi | undefined;
 
     if (Array.isArray(responseData)) {
       raw = responseData[0];
     } else if (responseData && typeof responseData === "object") {
-      // BE trả về object
       raw = responseData as AssetItemFromApi;
     }
 
     if (!raw) return undefined;
 
-    // Trả nguyên object từ BE để giữ đúng cặp nfcTag / qrTag.
-    // BE đã đảm bảo rằng:
-    // - Nếu quét NFC: nfcTag chứa ID thẻ NFC, qrTag (nếu có) chứa ID QR của cùng thiết bị.
-    // - Nếu quét QR: qrTag chứa ID QR, nfcTag (nếu có) chứa ID NFC của cùng thiết bị.
-    return raw;
-  } catch (error) {
-    console.log("Lỗi gọi GET /assets/tags/asset/{tagValue}, fallback getAssetItems:", error);
+    return normalizeAssetItemFromResponse(
+      raw as AssetItemFromApi & {
+        nfc_tag?: string | null;
+        qr_tag?: string | null;
+        function_area_id?: string | null;
+      }
+    );
+  } catch {
     try {
       const res = await getAssetItems();
-      const found = res.data.find(
-        (d) =>
-          normalizeTagValueForCompare(d.nfcTag || "") ===
-          normalizeTagValueForCompare(apiTagValue)
-      );
-      return found ?? undefined;
-    } catch (e2) {
-      console.log("Lỗi fallback GET /assets/items khi tìm theo NFC:", e2);
+      const found = res.data.find((d) => {
+        const item = normalizeAssetItemFromResponse(
+          d as AssetItemFromApi & {
+            nfc_tag?: string | null;
+            qr_tag?: string | null;
+            function_area_id?: string | null;
+          }
+        );
+        if (tagMatchesScanned(item.nfcTag) || tagMatchesScanned(item.qrTag)) return true;
+        return item.tags?.some(
+          (t) => t.isActive !== false && tagMatchesScanned(t.tagValue)
+        );
+      });
+      return found ? normalizeAssetItemFromResponse(found as AssetItemFromApi & { nfc_tag?: string | null; qr_tag?: string | null }) : undefined;
+    } catch {
       return undefined;
     }
   }
@@ -187,22 +273,77 @@ export const getAssetItemByTag = async (
 /** Alias cho backward compatibility nếu cần, hoặc dùng trực tiếp getAssetItemByTag */
 export const getAssetItemByNfcId = getAssetItemByTag;
 
+/** Gửi body POST/PUT asset item dạng snake_case — bật bằng EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE=true */
+const useSnakeCasePutBody =
+  typeof process !== "undefined" && process.env?.EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE === "true";
+
 /**
- * Tạo thiết bị mới (POST /api/asset/items).
+ * Tạo thiết bị mới (POST /api/assets/items).
+ * Body camelCase hoặc snake_case (cùng cờ EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE như PUT); gửi cả functionAreaId/functionalAreaId.
  */
+function pickFirstNonEmptyString(
+  ...candidates: Array<string | null | undefined>
+): string | null {
+  for (const c of candidates) {
+    if (c == null) continue;
+    const s = String(c).trim();
+    if (s !== "") return s;
+  }
+  return null;
+}
+
 export const createAssetItem = async (
   payload: CreateAssetItemRequest
 ): Promise<CreateAssetItemApiResponse> => {
-  const response = await axiosClient.post<CreateAssetItemApiResponse>(
-    `${BACKEND_API_BASE}/assets/items`,
-    payload
-  );
-  return response.data;
-};
+  const functionAreaId = pickFirstNonEmptyString(payload.functionAreaId);
+  const nfcForPost = pickFirstNonEmptyString(payload.nfcId, payload.nfcTag);
+  const qrForPost = pickFirstNonEmptyString(payload.qrId, payload.qrTag);
 
-/** Gửi body PUT asset item dạng snake_case (house_id, category_id...) — bật bằng EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE=true */
-const useSnakeCasePutBody =
-  typeof process !== "undefined" && process.env?.EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE === "true";
+  const body = useSnakeCasePutBody
+    ? {
+        house_id: payload.houseId,
+        category_id: payload.categoryId,
+        display_name: payload.displayName,
+        serial_number: payload.serialNumber,
+        nfc_id: nfcForPost,
+        qr_id: qrForPost,
+        condition_percent: payload.conditionPercent,
+        status: payload.status,
+        function_area_id: functionAreaId,
+      }
+    : {
+        houseId: payload.houseId,
+        categoryId: payload.categoryId,
+        displayName: payload.displayName,
+        serialNumber: payload.serialNumber,
+        ...(nfcForPost ? { nfcId: nfcForPost } : {}),
+        ...(qrForPost ? { qrId: qrForPost } : {}),
+        conditionPercent: payload.conditionPercent,
+        status: payload.status,
+        ...(functionAreaId ? { functionAreaId } : {}),
+      };
+
+  const response = await axiosClient.post<CreateAssetItemApiResponse>(
+    `${ASSETS_API_BASE}/assets/items`,
+    body
+  );
+  const res = response.data;
+  if (res?.data && typeof res.data === "object") {
+    return {
+      ...res,
+      data: normalizeAssetItemFromResponse(
+        res.data as AssetItemFromApi & {
+          nfc_tag?: string | null;
+          qr_tag?: string | null;
+          function_area_id?: string | null;
+          functionalAreaId?: string | null;
+          functional_area_id?: string | null;
+        }
+      ),
+    };
+  }
+  return res;
+};
 
 /**
  * Cập nhật thiết bị (PUT /api/asset/items/:id).
@@ -213,32 +354,63 @@ export const updateAssetItem = async (
   id: string,
   payload: UpdateAssetItemRequest
 ): Promise<UpdateAssetItemApiResponse> => {
+  const functionAreaId = pickFirstNonEmptyString(payload.functionAreaId);
+  const nfcForPut = pickFirstNonEmptyString(payload.nfcId, payload.nfcTag);
+  const qrForPut = pickFirstNonEmptyString(payload.qrId, payload.qrTag);
+
   const body = useSnakeCasePutBody
     ? {
         house_id: payload.houseId,
         category_id: payload.categoryId,
         display_name: payload.displayName,
         serial_number: payload.serialNumber,
-        nfc_tag: payload.nfcTag,
-        qr_tag: payload.qrTag,
+        nfc_tag: nfcForPut,
+        nfc_id: nfcForPut,
+        qr_tag: qrForPut,
+        qr_id: qrForPut,
         condition_percent: payload.conditionPercent,
         status: payload.status,
+        function_area_id: functionAreaId,
+        functional_area_id: functionAreaId,
       }
     : {
         houseId: payload.houseId,
         categoryId: payload.categoryId,
         displayName: payload.displayName,
         serialNumber: payload.serialNumber,
-        nfcTag: payload.nfcTag,
-        qrTag: payload.qrTag,
+        nfcTag: nfcForPut,
+        nfcId: nfcForPut,
+        qrTag: qrForPut,
+        qrId: qrForPut,
         conditionPercent: payload.conditionPercent,
         status: payload.status,
+        functionAreaId,
+        functionalAreaId: functionAreaId,
+        /** Một số BE chỉ map snake_case vào DTO — gửi kèm camel để tránh mất khu vực. */
+        function_area_id: functionAreaId,
+        functional_area_id: functionAreaId,
       };
-  const response = await axiosClient.put<UpdateAssetItemApiResponse>(
-    `${BACKEND_API_BASE}/assets/items/${id}`,
-    body
-  );
-  return response.data;
+
+  const putUrl = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(id)}`;
+
+  const response = await axiosClient.put<UpdateAssetItemApiResponse>(putUrl, body);
+  const res = response.data;
+
+  if (res?.data && typeof res.data === "object") {
+    return {
+      ...res,
+      data: normalizeAssetItemFromResponse(
+        res.data as AssetItemFromApi & {
+          nfc_tag?: string | null;
+          qr_tag?: string | null;
+          function_area_id?: string | null;
+          functionalAreaId?: string | null;
+          functional_area_id?: string | null;
+        }
+      ),
+    };
+  }
+  return res;
 };
 
 /**
@@ -250,10 +422,25 @@ export const transferAssetItemHouse = async (
   newHouseId: string
 ): Promise<UpdateAssetItemApiResponse> => {
   const response = await axiosClient.put<UpdateAssetItemApiResponse>(
-    `${BACKEND_API_BASE}/assets/items/${id}/transfer`,
+    `${ASSETS_API_BASE}/assets/items/${id}/transfer`,
     { newHouseId }
   );
-  return response.data;
+  const res = response.data;
+  if (res?.data && typeof res.data === "object") {
+    return {
+      ...res,
+      data: normalizeAssetItemFromResponse(
+        res.data as AssetItemFromApi & {
+          nfc_tag?: string | null;
+          qr_tag?: string | null;
+          function_area_id?: string | null;
+          functionalAreaId?: string | null;
+          functional_area_id?: string | null;
+        }
+      ),
+    };
+  }
+  return res;
 };
 
 /**
@@ -261,39 +448,40 @@ export const transferAssetItemHouse = async (
  */
 export const deleteAssetItem = async (id: string): Promise<{ success: boolean; message?: string }> => {
   const response = await axiosClient.delete<{ success: boolean; message?: string }>(
-    `${BACKEND_API_BASE}/assets/items/${id}`
+    `${ASSETS_API_BASE}/assets/items/${id}`
   );
   return response.data;
 };
 
 /**
- * Gán một tag NFC vào thiết bị (POST /api/asset/tags).
- * BE tạo bản ghi tag và liên kết với asset item; response 201 khi thành công.
- * @param payload - assetId (ID thiết bị), tagValue (mã NFC đọc từ thẻ), tagType: "NFC".
+ * Gán tag NFC hoặc QR vào thiết bị (POST /api/assets/tags).
+ * Body: `{ assetId, tagValue, tagType }` với `tagType`: `"NFC"` | `"QR_CODE"`.
  */
 export const attachAssetTag = async (
   payload: AttachAssetTagRequest
 ): Promise<AttachAssetTagApiResponse> => {
+  const body: AttachAssetTagRequest = {
+    assetId: payload.assetId,
+    tagValue: normalizeTagValueForApi(payload.tagValue),
+    tagType: payload.tagType,
+  };
   const response = await axiosClient.post<AttachAssetTagApiResponse>(
-    `${BACKEND_API_BASE}/assets/tags`,
-    {
-      ...payload,
-      tagValue: normalizeTagValueForApi(payload.tagValue),
-    }
+    `${ASSETS_API_BASE}/assets/tags`,
+    body
   );
   return response.data;
 };
 
 /**
- * Gỡ tag NFC khỏi thiết bị (PUT /api/asset/tags/detach/{tagValue}).
- * @param tagValue - Giá trị mã NFC (tagValue) cần gỡ.
+ * Gỡ tag NFC hoặc QR khỏi thiết bị (PUT /api/assets/tags/detach/{tagValue}, không body).
+ * `tagValue` là đúng chuỗi đã gán (vd. `ISUMS-TAG-001`).
  */
 export const detachAssetTag = async (
   tagValue: string
 ): Promise<DetachAssetTagApiResponse> => {
   const normalized = normalizeTagValueForApi(tagValue.trim());
   const response = await axiosClient.put<DetachAssetTagApiResponse>(
-    `${BACKEND_API_BASE}/assets/tags/detach/${encodeURIComponent(normalized)}`
+    `${ASSETS_API_BASE}/assets/tags/detach/${encodeURIComponent(normalized)}`
   );
   return response.data;
 };
@@ -306,7 +494,7 @@ export const deprovisionIotControllerByHouseId = async (
   houseId: string
 ): Promise<ApiResponse<string>> => {
   const response = await axiosClient.delete<ApiResponse<string>>(
-    `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
+    `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
   );
   return response.data;
 };
@@ -321,7 +509,7 @@ export const provisionIotControllerByHouseId = async (
   payload: IotProvisionRequest
 ): Promise<IotProvisionApiResponse> => {
   const response = await axiosClient.post<IotProvisionApiResponse>(
-    `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
+    `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
     payload
   );
   return response.data;
@@ -332,7 +520,7 @@ export const getIotProvisionTokenBySerial = async (
   payload: IotProvisionTokenRequest
 ): Promise<IotProvisionTokenApiResponse> => {
   const response = await axiosClient.post<IotProvisionTokenApiResponse>(
-    `${BACKEND_API_BASE}/assets/iot/provision-token`,
+    `${ASSETS_API_BASE}/assets/iot/provision-token`,
     payload
   );
   return response.data;
@@ -343,7 +531,7 @@ export const getIotControllerByHouseId = async (
   houseId: string
 ): Promise<IotControllerByHouseApiResponse> => {
   const response = await axiosClient.get<IotControllerByHouseApiResponse>(
-    `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
+    `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
   );
   return response.data;
 };
@@ -354,7 +542,7 @@ export const provisionIotNodeByHouseId = async (
   payload: IotProvisionNodeRequest
 ): Promise<IotProvisionNodeApiResponse> => {
   const response = await axiosClient.post<IotProvisionNodeApiResponse>(
-    `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
+    `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
     payload
   );
   return response.data;

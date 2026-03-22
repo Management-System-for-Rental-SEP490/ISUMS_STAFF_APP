@@ -23,6 +23,16 @@ import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
 import { useUpdateAssetCategory } from "../../../../shared/hooks";
 import { categoryScreenStyles } from "./categoryScreenStyles";
+import {
+  StackScreenTitleBadge,
+  StackScreenTitleBarBalance,
+  StackScreenTitleHeaderStrip,
+  stackScreenTitleBackBtnOnBrand,
+  stackScreenTitleCenterSlotStyle,
+  stackScreenTitleOnBrandIconColor,
+  stackScreenTitleRowStyle,
+  stackScreenTitleSideSlotStyle,
+} from "../../../../shared/components/StackScreenTitleBadge";
 
 type CategoryEditNavProp = NativeStackNavigationProp<RootStackParamList, "CategoryEdit">;
 type CategoryEditRouteProp = RouteProp<RootStackParamList, "CategoryEdit">;
@@ -85,25 +95,27 @@ export default function CategoryEditScreen() {
     compensationPercent.length > 0 &&
     !Number.isNaN(parseInt(compensationPercent, 10));
 
-  const safeStyle = {
-    paddingTop: insets.top,
-    paddingBottom: insets.bottom,
-  };
-
   return (
-    <View style={[categoryScreenStyles.container, safeStyle]}>
-      <View style={categoryScreenStyles.topBar}>
-        <TouchableOpacity
-          style={categoryScreenStyles.backBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Icons.chevronBack size={24} color="#1F2937" />
-        </TouchableOpacity>
-        <Text style={categoryScreenStyles.topBarTitle} numberOfLines={1}>
-          {t("staff_category_edit.title")}
-        </Text>
-      </View>
+    <View style={categoryScreenStyles.container}>
+      <StackScreenTitleHeaderStrip>
+        <View style={stackScreenTitleRowStyle}>
+          <View style={stackScreenTitleSideSlotStyle}>
+            <TouchableOpacity
+              style={stackScreenTitleBackBtnOnBrand}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <Icons.chevronBack size={24} color={stackScreenTitleOnBrandIconColor} />
+            </TouchableOpacity>
+          </View>
+          <View style={stackScreenTitleCenterSlotStyle}>
+            <StackScreenTitleBadge numberOfLines={1}>
+              {t("staff_category_edit.title")}
+            </StackScreenTitleBadge>
+          </View>
+          <StackScreenTitleBarBalance />
+        </View>
+      </StackScreenTitleHeaderStrip>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -111,7 +123,10 @@ export default function CategoryEditScreen() {
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <ScrollView
-          contentContainerStyle={categoryScreenStyles.scrollContent}
+          contentContainerStyle={[
+            categoryScreenStyles.scrollContent,
+            { paddingBottom: 24 + insets.bottom },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >

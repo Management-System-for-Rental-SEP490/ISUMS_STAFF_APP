@@ -1,7 +1,7 @@
 /**
  * Màn danh sách yêu cầu nghỉ của staff. Dữ liệu lấy từ API GET /api/schedules/leave/staff/{staffId}.
  */
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -12,12 +12,16 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Header from "../../../../shared/components/header";
 import { CustomAlert } from "../../../../shared/components/alert";
 import { getStaffIdForSchedule } from "../../../../shared/services/scheduleApi";
 import type { LeaveRequestFromApi } from "../../../../shared/types/api";
 import { useLeaveRequests, useUpdateLeaveRequestStatus } from "../../../../shared/hooks";
 import { staffDayOffStyles } from "./staffDayOffStyles";
+import { brandPrimary } from "../../../../shared/theme/color";
+import { PaginationBar } from "../../../../shared/components/PaginationBar";
+import { getTotalPages, slicePage } from "../../../../shared/utils";
 
 function formatLeaveDate(leaveDate: string): string {
   const d = new Date(leaveDate);
@@ -35,6 +39,8 @@ function getStatusStyle(status: string) {
 
 export default function StaffDayOffListScreen() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+  const [listPage, setListPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -80,6 +86,16 @@ export default function StaffDayOffListScreen() {
     setRefreshing(true);
     fetchData();
   };
+
+  const leaveTotalPages = getTotalPages(items.length);
+  const pagedItems = useMemo(
+    () => slicePage(items, listPage),
+    [items, listPage]
+  );
+
+  useEffect(() => {
+    setListPage(1);
+  }, [items.length]);
 
   const handleCancelRequest = (item: LeaveRequestFromApi) => {
     CustomAlert.alert(
@@ -151,7 +167,7 @@ export default function StaffDayOffListScreen() {
       <View style={staffDayOffStyles.container}>
         <Header variant="default" />
         <View style={staffDayOffStyles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366f1" />
+          <ActivityIndicator size="large" color={brandPrimary} />
         </View>
       </View>
     );
@@ -161,17 +177,25 @@ export default function StaffDayOffListScreen() {
     <View style={staffDayOffStyles.container}>
       <Header variant="default" />
       <FlatList
-        data={items}
+        data={pagedItems}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[
           staffDayOffStyles.list,
           items.length === 0 && { flex: 1 },
         ]}
+        ListFooterComponent={() => (
+          <PaginationBar
+            currentPage={listPage}
+            totalPages={leaveTotalPages}
+            onPageChange={setListPage}
+            style={{ paddingBottom: Math.max(8, insets.bottom) }}
+          />
+        )}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#6366f1"]}
+            colors={[brandPrimary]}
           />
         }
         ListEmptyComponent={
@@ -182,7 +206,7 @@ export default function StaffDayOffListScreen() {
                 onPress={onRefresh}
                 style={{ marginTop: 12, paddingVertical: 8, paddingHorizontal: 16 }}
               >
-                <Text style={{ color: "#6366f1", fontWeight: "600" }}>
+                <Text style={{ color: brandPrimary, fontWeight: "600" }}>
                   {t("common.try_again")}
                 </Text>
               </TouchableOpacity>

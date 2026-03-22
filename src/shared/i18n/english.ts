@@ -14,7 +14,9 @@ export default {
         "cancel": "Cancel",
         "try_again": "Try again",
         "save": "Save",
-        "warning_different_house": "Warning: This device belongs to {{houseName}}, not the currently selected house."
+        "warning_different_house": "Warning: This device belongs to {{houseName}}, not the currently selected house.",
+        "read_more": "Read more",
+        "show_less": "Show less"
     },
     "device_detail": {
         "title": "Device Details",
@@ -124,13 +126,14 @@ export default {
     },
     "staff_home": {
         "schedule_title": "This week's work schedule",
-        "schedule_summary_title": "When you have work (summary)",
+        "schedule_summary_title": "Today & tomorrow",
         "schedule_no_slots": "No slots this week",
+        "schedule_no_slots_today_tomorrow": "No work scheduled for today or tomorrow.",
         "schedule_col_time": "Time",
         "schedule_col_building": "Building",
         "schedule_col_task": "Task",
         "assets_by_building_title": "Assets by building",
-        "buildings_title": "Buildings",
+        "buildings_title": "Building list",
         "buildings_error": "Could not load buildings. Please try again.",
         "all_devices_title": "All devices",
         "all_devices_category_all": "All",
@@ -157,7 +160,10 @@ export default {
         "add_menu_create_category": "Create category",
         "add_menu_create_device": "Create device",
         "add_menu_assign_nfc": "Assign NFC",
-        "add_menu_assign_qr": "Assign QR Code"
+        "add_menu_assign_qr": "Assign QR Code",
+        "house_picker_collapsed": "Building list · {{count}}",
+        "house_picker_search_placeholder": "Tap to search by name or address…",
+        "house_picker_device_prefix": "Devices:"
     },
     "staff_category": {
         "title": "Create asset category",
@@ -198,6 +204,9 @@ export default {
     "staff_item_create": {
         "title": "Add device",
         "house_label": "House",
+        "function_area_label": "Placement location",
+        "function_area_none": "No functional area",
+        "function_area_unknown": "Saved area (not in current list)",
         "category_label": "Category",
         "display_name_label": "Display name",
         "display_name_placeholder": "e.g. Living room AC",
@@ -234,13 +243,18 @@ export default {
         "remove_nfc_confirm_message": "Are you sure you want to detach this NFC tag from the device?",
         "remove_nfc_success": "NFC tag detached from device.",
         "remove_nfc_error": "Failed to detach NFC tag. Please try again.",
-        "error_100_percent_in_use": "Device with 100% condition cannot be set to In Use status."
+        "error_100_percent_in_use": "Device with 100% condition cannot be set to In Use status.",
+        "area_not_saved_title": "Placement area may not be saved",
+        "area_not_saved_message": "The app sent a functional area, but the server response is missing functionAreaId or looks like a different API (e.g. asset-images). Loading areas by house (GET functionalAreas) is fine — the problem is the PUT update item on your current backend. Fix the API or point the app to the server you verified in Postman."
     },
     "staff_item_description": {
         "title": "Device information",
         "edit_btn": "Edit"
     },
     "staff_notification": {
+        "demo_house_a": "House A — Block 1",
+        "demo_house_b": "House B — Block 2",
+        "demo_building_c": "House C — Block 3",
         "tenant_sent_ticket_title": "New ticket from tenant",
         "tenant_sent_ticket_body": "A tenant at {{house}} submitted ticket #{{id}}. Please review and handle.",
         "schedule_updated_title": "Work schedule updated",
@@ -270,6 +284,7 @@ export default {
         "status_cancelled": "Cancelled"
     },
     "staff_ticket_detail": {
+        "screen_title": "Ticket details",
         "status": "Status",
         "priority": "Priority",
         "title_label": "Title",
@@ -363,6 +378,7 @@ export default {
         "cancel_already_processed": "This request has already been processed (approved/rejected). Cannot cancel."
     },
     "staff_building_detail": {
+        "screen_title": "House details",
         "devices_title": "Devices ({{count}})",
         "no_devices": "No devices yet",
         "devices_load_error": "Could not load devices.",
@@ -377,6 +393,8 @@ export default {
         "house_status_rented": "Rented",
         "house_status_other": "{{status}}",
         "functional_areas_title": "Functional areas",
+        "area_filter_all": "All areas",
+        "areas_pick_hint": "Pick an area to filter devices",
         "functional_areas_empty": "No functional areas",
         "functional_area_floor": "Floor {{floor}}",
         "area_type_LIVINGROOM": "Living room",
@@ -401,6 +419,27 @@ export default {
         "kind_all": "All",
         "kind_controller": "Controller",
         "kind_node": "Node",
+        "list_hint_controller": "Aggregates data from all nodes in the home.",
+        "list_hint_node": "Sensor/alert device that sends data to the controller.",
+        "detail_title_controller": "Controller details",
+        "detail_title_node": "Node details",
+        "detail_not_found": "Device not found or has been removed.",
+        "detail_field_id": "Record ID",
+        "detail_field_house_name": "House",
+        "detail_field_thing_name": "Thing (controller)",
+        "detail_field_device_id": "Device ID / MAC",
+        "detail_field_status": "Status",
+        "detail_field_area_name": "Area",
+        "detail_field_created_at": "Created at",
+        "detail_field_activated_at": "Activated at",
+        "detail_field_nodes_count": "Attached nodes",
+        "detail_field_display_name": "Display name",
+        "detail_field_asset_id": "Asset ID",
+        "detail_field_category_code": "Device type code",
+        "detail_field_serial_number": "Serial number",
+        "detail_field_thing": "Thing (MQTT)",
+        "status_DEPROVISIONED": "Deprovisioned",
+        "node_status_IN_USE": "In use",
         "areas_title": "Functional areas",
         "areas_all": "All",
         "areas_floor": "Floor {{floor}}",
@@ -442,6 +481,12 @@ export default {
         "provision_connect_btn": "Connect & provision",
         "provision_select_area_required": "Please select an area first.",
         "provision_qr_required": "Please scan the QR code to get the Device ID.",
+        "provision_qr_wrong_kind_need_controller":
+          "This QR is for a Node, not a Controller. Please scan the QR on the Controller device.",
+        "provision_qr_wrong_kind_need_node":
+          "This QR is for a Controller, not a Node. Please scan the QR on the Node device.",
+        "provision_qr_type_unknown":
+          "The QR has an invalid type value ({{type}}). Please use a QR code in the system format.",
         "provision_wifi_required": "Please enter the WiFi name (SSID).",
         "provision_wait_controller_title": "Provisioning Controller",
         "provision_wait_node_title": "Provisioning Node",
@@ -475,8 +520,14 @@ export default {
         "wifi_password_show": "Show password",
         "wifi_password_hide": "Hide password",
         "wifi_continue": "Continue",
-        "wifi_permission_required": "Location permission is required to scan WiFi.",
+        "wifi_permission_required":
+          "Location is requested on the Choose Wi‑Fi screen (after QR scan), not on the camera screen.\n\nIf you previously tapped Deny (or “Don’t ask again”), Android won’t show the system dialog again—the app can only show this message. Fix it: Settings → Apps → ISUMS Staff → Permissions → enable Location with Precise on (not approximate only). Or Clear storage / reinstall to be prompted again.",
+        "wifi_open_app_settings": "Open settings",
+        "wifi_location_services_required":
+          "Turn on Location (GPS) on your phone — Android requires it to scan for Wi-Fi networks.",
         "wifi_scan_failed": "Unable to scan WiFi list. Please try again.",
+        "wifi_native_module_missing":
+          "WiFi native is not linked (often New Architecture). This project uses newArchEnabled=false — clean-rebuild Android and reinstall the app.",
         "ble_permission_required": "Bluetooth permission is required to connect to the device.",
         "ble_not_found": "Bluetooth device not found — please check power.",
         "ble_device_label": "BLE device",
@@ -667,5 +718,21 @@ export default {
         "type_date": "Date",
         "no_result": "No results for \"{{query}}\"",
         "viewing_date": "Viewing: {{date}}"
+    },
+    "dropdown_box": {
+        "title": "Filters & selection",
+        "search_placeholder": "Search name, address, floor, category…",
+        "no_results": "No matching items.",
+        "section_floor": "Floor",
+        "section_category": "Device category",
+        "section_house": "House",
+        "section_functional_area": "Functional area",
+        "section_status": "Status",
+        "floor_short": "Floor",
+        "category_short": "Category",
+        "house_short": "House",
+        "functional_area_short": "Area",
+        "status_short": "Status",
+        "open_a11y": "Open filters"
     }
 }

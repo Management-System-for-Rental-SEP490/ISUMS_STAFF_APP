@@ -3,7 +3,7 @@
  * Nhận `item` từ route params; hiển thị đầy đủ thông tin (nhà, danh mục, tên, serial, NFC, tình trạng, trạng thái).
  * Có nút "Chỉnh sửa" để chuyển sang ItemEdit nếu cần cập nhật.
  */
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { CustomAlert as Alert } from "../../../../shared/components/alert";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,11 +13,28 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
-import { useHouses, useAssetCategories, useDetachAssetTag } from "../../../../shared/hooks";
+import {
+  useHouses,
+  useAssetCategories,
+  useDetachAssetTag,
+  useFunctionalAreasByHouseId,
+} from "../../../../shared/hooks";
 import { itemScreenStyles } from "./itemScreenStyles";
 import type { AssetItemFromApi } from "../../../../shared/types/api";
 import { getAssetItemById } from "../../../../shared/services/assetItemApi";
+import { brandPrimary } from "../../../../shared/theme/color";
+import {
+  StackScreenTitleBadge,
+  StackScreenTitleBarBalance,
+  StackScreenTitleHeaderStrip,
+  stackScreenTitleBackBtnOnBrand,
+  stackScreenTitleCenterSlotStyle,
+  stackScreenTitleOnBrandIconColor,
+  stackScreenTitleRowStyle,
+  stackScreenTitleSideSlotStyle,
+} from "../../../../shared/components/StackScreenTitleBadge";
 import { useQueryClient } from "@tanstack/react-query";
+import { mergeFunctionalAreasForHouse } from "../../../../shared/utils";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemDescription">;
 type ItemDescriptionRouteProp = RouteProp<RootStackParamList, "ItemDescription">;
@@ -40,6 +57,15 @@ export default function ItemDescriptionScreen() {
   const houses = housesData?.data ?? [];
   const { data: categoriesData } = useAssetCategories();
   const categories = categoriesData?.data ?? [];
+  const { data: functionalAreasResp } = useFunctionalAreasByHouseId(item.houseId);
+  const selectedHouse = useMemo(
+    () => houses.find((h) => h.id === item.houseId),
+    [houses, item.houseId]
+  );
+  const functionalAreas = useMemo(
+    () => mergeFunctionalAreasForHouse(selectedHouse, functionalAreasResp?.data),
+    [selectedHouse, functionalAreasResp?.data]
+  );
 
   const detachNfcMutation = useDetachAssetTag();
 
@@ -62,8 +88,8 @@ export default function ItemDescriptionScreen() {
             }
             setItem(latest);
           }
-        } catch (error) {
-          console.log("Error fetching latest item:", error);
+        } catch {
+          /* giữ dữ liệu initialItem */
         } finally {
           if (isActive) setLoading(false);
         }
@@ -95,8 +121,7 @@ export default function ItemDescriptionScreen() {
               // Refresh lại item sau khi gỡ
               const latest = await getAssetItemById(item.id);
               if (latest) setItem(latest);
-            } catch (e) {
-              console.log("Lỗi gỡ NFC:", e);
+            } catch {
               Alert.alert(t("camera.error_title"), t("staff_item_edit.remove_nfc_error"));
             }
           },
@@ -117,6 +142,19 @@ export default function ItemDescriptionScreen() {
   const houseName = houses.find((h) => h.id === item.houseId)?.name ?? item.houseId;
   const categoryName =
     categories.find((c) => c.id === item.categoryId)?.name ?? item.categoryId;
+
+  const placementDisplay = useMemo(() => {
+    const fid = item.functionAreaId;
+    if (!fid || !String(fid).trim()) return "—";
+    const a = functionalAreas.find((x) => x.id === fid);
+    if (a) {
+      const floorPart = (a.floorNo ?? "").trim()
+        ? t("staff_building_detail.functional_area_floor", { floor: a.floorNo })
+        : "";
+      return [a.name, floorPart].filter(Boolean).join(" · ");
+    }
+    return t("staff_item_create.function_area_unknown");
+  }, [item.functionAreaId, functionalAreas, t]);
 
   const getStatusStyle = () => {
     const normalizedStatus = item.status === "AVAILABLE" ? "IN_USE" : item.status;
@@ -162,6 +200,7 @@ export default function ItemDescriptionScreen() {
 
   const rows: { label: string; value: string }[] = [
     { label: t("staff_item_create.house_label"), value: houseName },
+    { label: t("staff_item_create.function_area_label"), value: placementDisplay },
     { label: t("staff_item_create.category_label"), value: categoryName },
     { label: t("staff_item_create.display_name_label"), value: item.displayName ?? "—" },
     { label: t("staff_item_create.serial_number_label"), value: item.serialNumber ?? "—" },
@@ -179,26 +218,31 @@ export default function ItemDescriptionScreen() {
     },
   ];
 
-  const safeStyle = { paddingTop: insets.top, paddingBottom: insets.bottom };
-
   return (
-    <View style={[itemScreenStyles.container, safeStyle]}>
-      <View style={itemScreenStyles.topBar}>
-        <TouchableOpacity
-          style={itemScreenStyles.backBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Icons.chevronBack size={24} color="#1F2937" />
-        </TouchableOpacity>
-        <Text style={itemScreenStyles.topBarTitle} numberOfLines={1}>
-          {t("staff_item_description.title")}
-        </Text>
-      </View>
+    <View style={itemScreenStyles.container}>
+      <StackScreenTitleHeaderStrip>
+        <View style={stackScreenTitleRowStyle}>
+          <View style={stackScreenTitleSideSlotStyle}>
+            <TouchableOpacity
+              style={stackScreenTitleBackBtnOnBrand}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <Icons.chevronBack size={24} color={stackScreenTitleOnBrandIconColor} />
+            </TouchableOpacity>
+          </View>
+          <View style={stackScreenTitleCenterSlotStyle}>
+            <StackScreenTitleBadge numberOfLines={1}>
+              {t("staff_item_description.title")}
+            </StackScreenTitleBadge>
+          </View>
+          <StackScreenTitleBarBalance />
+        </View>
+      </StackScreenTitleHeaderStrip>
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color="#60A5FA" />
+          <ActivityIndicator size="large" color={brandPrimary} />
         </View>
       ) : (
         <ScrollView

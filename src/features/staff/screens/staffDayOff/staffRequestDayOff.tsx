@@ -20,6 +20,7 @@ import Header from "../../../../shared/components/header";
 import { CustomAlert } from "../../../../shared/components/alert";
 import { useCreateLeaveRequest } from "../../../../shared/hooks";
 import { staffDayOffStyles } from "./staffDayOffStyles";
+import { neutral } from "../../../../shared/theme/color";
 
 const DAY_HEADER_KEYS: Record<number, string> = {
   0: "staff_calendar.day_short_7", // CN
@@ -170,7 +171,7 @@ export default function StaffRequestDayOffScreen() {
                       disabled && staffDayOffStyles.calendarDayCellDisabled,
                     ]}
                     onPress={() => !disabled && setLeaveDate(ymd)}
-                    activeOpacity={0.7}
+                    activeOpacity={0.75}
                     disabled={disabled}
                   >
                     <View
@@ -201,7 +202,7 @@ export default function StaffRequestDayOffScreen() {
           <TextInput
             style={staffDayOffStyles.formNoteInput}
             placeholder={t("staff_day_off.form_note_placeholder")}
-            placeholderTextColor="#94a3b8"
+            placeholderTextColor={neutral.slate400}
             value={note}
             onChangeText={setNote}
             multiline
@@ -220,7 +221,7 @@ export default function StaffRequestDayOffScreen() {
             activeOpacity={0.8}
           >
             {submitting ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={neutral.surface} />
             ) : (
               <Text style={staffDayOffStyles.formSubmitBtnText}>
                 {t("staff_day_off.form_submit")}

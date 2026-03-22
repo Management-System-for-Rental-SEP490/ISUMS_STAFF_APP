@@ -1,4 +1,5 @@
 import { StyleSheet } from "react-native";
+import { brandPrimary, brandSecondary, brandTintBg, neutral } from "../../../../shared/theme/color";
 
 /**
  * Styles cho màn hình Home của Staff.
@@ -21,11 +22,27 @@ export const staffHomeStyles = StyleSheet.create({
     marginBottom: 10,
     marginTop: 16,
   },
+  /** Hàng tiêu đề "Việc hôm nay…" + nút + — khoảng cách xuống bảng giống tiêu đề → DropdownBox nhà */
+  scheduleSummaryHeadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  scheduleSummaryHeadingText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginRight: 10,
+    flex: 1,
+  },
   /** Card chứa bảng tóm tắt lịch (chỉ những slot có việc) */
   scheduleCard: {
     backgroundColor: "#fff",
     marginHorizontal: 16,
-    marginTop: 16,
+    marginTop: 0,
     padding: 0,
     borderRadius: 12,
     overflow: "hidden",
@@ -39,35 +56,37 @@ export const staffHomeStyles = StyleSheet.create({
   },
   scheduleTableHeader: {
     flexDirection: "row",
-    borderBottomWidth: 2,
-    borderBottomColor: "#2563EB",
-    backgroundColor: "#f8fafc",
-    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: neutral.slate200,
+    backgroundColor: neutral.backgroundElevated,
+    paddingVertical: 11,
     paddingHorizontal: 12,
   },
   scheduleColTime: {
     width: "30%",
     fontSize: 12,
     fontWeight: "700",
-    color: "#1F2937",
+    color: neutral.heading,
     borderRightWidth: 1,
-    borderRightColor: "#e2e8f0",
+    borderRightColor: neutral.slate200,
     paddingRight: 8,
   },
   scheduleColBuilding: {
     flex: 1,
+    minWidth: 0,
     fontSize: 12,
     fontWeight: "700",
-    color: "#1F2937",
+    color: neutral.heading,
     borderRightWidth: 1,
-    borderRightColor: "#e2e8f0",
+    borderRightColor: neutral.slate200,
     paddingHorizontal: 8,
   },
   scheduleColTask: {
     flex: 1,
+    minWidth: 0,
     fontSize: 12,
     fontWeight: "700",
-    color: "#1F2937",
+    color: neutral.heading,
     paddingLeft: 8,
   },
   scheduleRow: {
@@ -76,7 +95,7 @@ export const staffHomeStyles = StyleSheet.create({
     paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   scheduleRowLast: {
     borderBottomWidth: 0,
@@ -84,24 +103,61 @@ export const staffHomeStyles = StyleSheet.create({
   scheduleCellTime: {
     width: "30%",
     fontSize: 13,
-    color: "#374151",
-    borderRightWidth: 1,
-    borderRightColor: "#e2e8f0",
+    color: neutral.textBody,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: neutral.borderMuted,
     paddingRight: 8,
   },
   scheduleCellBuilding: {
     flex: 1,
+    minWidth: 0,
     fontSize: 13,
-    color: "#374151",
+    fontWeight: "600",
+    color: neutral.textBody,
     borderRightWidth: 1,
-    borderRightColor: "#e2e8f0",
+    borderRightColor: neutral.slate200,
     paddingHorizontal: 8,
   },
   scheduleCellTask: {
     flex: 1,
+    minWidth: 0,
     fontSize: 13,
-    color: "#6B7280",
+    color: neutral.textSecondary,
     paddingLeft: 8,
+    lineHeight: 18,
+  },
+  /** Nhóm các ca cùng một ngày (chỉ bọc layout, không thêm viền để tránh đôi với dòng ca) */
+  scheduleDayGroup: {},
+  /** Dòng chỉ ghi ngày — không chia cột / không viền dọc giữa các ô */
+  scheduleDayLabelRow: {
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    backgroundColor: neutral.canvasMuted,
+    borderBottomWidth: 1,
+    borderBottomColor: neutral.slate200,
+  },
+  scheduleDayLabelText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: neutral.heading,
+    letterSpacing: 0.2,
+  },
+  /** Dòng ca: căn cột với header, viền lưới giữa các ô */
+  scheduleRowIndented: {
+    flexDirection: "row",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: neutral.surface,
+    alignItems: "flex-start",
+  },
+  scheduleCellTimeOnly: {
+    width: "30%",
+    fontSize: 13,
+    fontWeight: "600",
+    color: neutral.textBody,
+    borderRightWidth: 1,
+    borderRightColor: neutral.slate200,
+    paddingRight: 8,
   },
   /** Card một căn nhà + danh sách asset */
   buildingCard: {
@@ -121,7 +177,7 @@ export const staffHomeStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderLeftWidth: 4,
-    borderLeftColor: "#2563EB",
+    borderLeftColor: brandPrimary,
   },
   buildingName: {
     fontSize: 16,
@@ -168,18 +224,18 @@ export const staffHomeStyles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
-    backgroundColor: "#D1FAE5",
+    backgroundColor: brandTintBg,
   },
   nfcBadgeEmpty: {
-    backgroundColor: "#FEF3C7",
+    backgroundColor: brandTintBg,
   },
   nfcBadgeText: {
     fontSize: 10,
     fontWeight: "600",
-    color: "#065F46",
+    color: brandSecondary,
   },
   nfcBadgeEmptyText: {
-    color: "#92400E",
+    color: brandPrimary,
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -224,7 +280,7 @@ export const staffHomeStyles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#2563EB",
+    backgroundColor: brandPrimary,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -284,8 +340,8 @@ export const staffHomeStyles = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
   categoryChipActive: {
-    backgroundColor: "#2563EB",
-    borderColor: "#2563EB",
+    backgroundColor: brandPrimary,
+    borderColor: brandPrimary,
   },
   categoryChipText: {
     fontSize: 13,

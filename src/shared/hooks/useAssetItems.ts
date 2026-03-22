@@ -212,12 +212,14 @@ export const useAssetItemsAllHouses = (
 
   const isLoading = queries.some((q) => q.isLoading);
   const isError = queries.some((q) => q.isError);
-  const refetch = () => queries.forEach((q) => q.refetch());
+  const isRefetching = queries.some((q) => q.isRefetching);
+  const refetch = () => Promise.all(queries.map((q) => q.refetch()));
 
   return {
     data: { data: merged } as AssetItemsApiResponse,
     isLoading,
     isError,
+    isRefetching,
     refetch,
   };
 };
@@ -261,8 +263,8 @@ export const useTransferAssetItemHouse = () => {
 };
 
 /**
- * Hook gán tag NFC vào thiết bị (POST /api/asset/tags).
- * Sau khi gán thành công, invalidate cache danh sách thiết bị để màn hình cập nhật (item có nfcId/tag).
+ * Hook gán tag NFC hoặc QR vào thiết bị (POST /api/assets/tags).
+ * Sau khi gán thành công, invalidate cache danh sách thiết bị.
  */
 export const useAttachAssetTag = () => {
   const queryClient = useQueryClient();
@@ -278,8 +280,7 @@ export const useAttachAssetTag = () => {
 };
 
 /**
- * Hook gỡ tag NFC khỏi thiết bị (PUT /api/asset/tags/detach/{tagValue}).
- * Sau khi gỡ thành công, invalidate cache danh sách thiết bị để trạng thái NFC cập nhật.
+ * Hook gỡ tag NFC hoặc QR (PUT /api/assets/tags/detach/{tagValue}).
  */
 export const useDetachAssetTag = () => {
   const queryClient = useQueryClient();

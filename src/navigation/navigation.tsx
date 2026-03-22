@@ -10,6 +10,7 @@ import OnBoarding from "../features/screens/onBoarding/onBoarding";
 import { useAuthStore } from "../store/useAuthStore";
 import { RootStackParamList } from "../shared/types";
 import { StaffTabs } from "../shared/components/footerNavigator";
+import { brandPrimary } from "../shared/theme/color";
 import CameraScreen from "../features/modal/camera/CameraScreen";
 import BuildingDetailScreen from "../features/staff/screens/staffHouse/BuildingDetailScreen";
 import TicketDetailScreen from "../features/staff/screens/staffTicket/TicketDetailScreen";
@@ -29,6 +30,7 @@ import StaffIotQrScanScreen from "../features/staff/screens/staffIoT/staffIotQrS
 import StaffIotWifiScreen from "../features/staff/screens/staffIoT/staffIotWifi";
 import StaffIotWifiPasswordScreen from "../features/staff/screens/staffIoT/staffIotWifiPasswordScreen";
 import StaffIotProvisionWaitingScreen from "../features/staff/screens/staffIoT/staffIotProvisionWaiting";
+import StaffIotDetailScreen from "../features/staff/screens/staffIoT/staffIotDetail";
 import { StaffScheduleProvider } from "../features/staff/context/StaffScheduleContext";
 
 // Wrapper components để bọc Provider cho các screen cần useStaffSchedule
@@ -92,7 +94,7 @@ const Navigation = () => {
       return (
           <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
             {/* Hiển thị loading khi đang đọc state từ AsyncStorage vào store(cái vòng tròn xoay */}
-              <ActivityIndicator size="large" color="#3bb582" /> 
+              <ActivityIndicator size="large" color={brandPrimary} /> 
           </View>
       );
   }
@@ -138,6 +140,7 @@ const Navigation = () => {
               <Stack.Screen name="LeaveRequestList" component={StaffDayOffListScreen} />
               <Stack.Screen name="RequestDayOff" component={StaffRequestDayOffScreen} />
               <Stack.Screen name="StaffIotList" component={StaffIotListScreen} />
+              <Stack.Screen name="StaffIotDetail" component={StaffIotDetailScreen} />
               <Stack.Screen name="StaffIotProvision" component={StaffIotProvisionScreen} />
               <Stack.Screen name="StaffIotQrScan" component={StaffIotQrScanScreen} />
               <Stack.Screen name="StaffIotWifi" component={StaffIotWifiScreen} />

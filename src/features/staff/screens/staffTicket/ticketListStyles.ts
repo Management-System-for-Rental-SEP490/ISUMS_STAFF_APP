@@ -1,4 +1,5 @@
 import { StyleSheet } from "react-native";
+import { brandPrimary, brandSecondary } from "../../../../shared/theme/color";
 
 /**
  * Styles cho màn hình Danh sách Ticket của Staff.
@@ -31,16 +32,16 @@ export const ticketListStyles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3, // Độ lệch của bóng
     borderLeftWidth: 4,
-    borderLeftColor: "#2563EB",
+    borderLeftColor: brandPrimary,
   },
   cardHigh: {
-    borderLeftColor: "#DC2626",
+    borderLeftColor: brandPrimary,
   },
   cardMedium: {
-    borderLeftColor: "#F59E0B",
+    borderLeftColor: brandSecondary,
   },
   cardLow: {
-    borderLeftColor: "#6B7280",
+    borderLeftColor: brandPrimary,
   },
   cardHeader: {
     flexDirection: "row",
@@ -51,7 +52,7 @@ export const ticketListStyles = StyleSheet.create({
   ticketId: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#2563EB",
+    color: brandPrimary,
   },
   priorityBadge: {
     paddingHorizontal: 8,

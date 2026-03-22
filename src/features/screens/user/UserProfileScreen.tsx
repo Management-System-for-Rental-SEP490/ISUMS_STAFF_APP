@@ -11,6 +11,12 @@ import { logoutKeycloak, openChangePasswordPage } from "../../../shared/services
 import { UserProfileResponse } from "../../../shared/types/api";
 import { getUserProfile } from "../../../shared/services/userApi";
 import Icons from "../../../shared/theme/icon";
+import {
+  BRAND_DANGER,
+  brandGradientSolid,
+  brandTintBg,
+  neutral,
+} from "../../../shared/theme/color";
 import { useTranslation } from "react-i18next";
 
 const UserProfileScreen = () => {
@@ -100,7 +106,7 @@ const UserProfileScreen = () => {
           accessibilityRole="button"
         >
           <LinearGradient
-            colors={["#3bb582", "#0c6ab5"]}
+            colors={[...brandGradientSolid]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={userProfileStyles.headerBackground}
@@ -153,14 +159,14 @@ const UserProfileScreen = () => {
             style={userProfileStyles.menuItem} 
             onPress={openChangePasswordPage}
           >
-            <View style={[userProfileStyles.menuIcon, { backgroundColor: "#E3F2FD" }]}>
-              <Icons.shield size={22} color="#0c6ab5" />
+            <View style={[userProfileStyles.menuIcon, { backgroundColor: brandTintBg }]}>
+              <Icons.shield size={22} color="#666" />
             </View>
             <View style={userProfileStyles.menuContent}>
               <Text style={userProfileStyles.menuLabel}>{t('profile.change_password')}</Text>
               <Text style={userProfileStyles.menuDescription}>{t('profile.change_password_desc')}</Text>
             </View>
-            <Icons.chevronForward size={20} color="#ccc" />
+            <Icons.chevronForward size={20} color={neutral.textOnDarkSoft} />
           </TouchableOpacity>
         </View>
 
@@ -169,20 +175,20 @@ const UserProfileScreen = () => {
           <Text style={userProfileStyles.sectionTitle}>{t('profile.app_settings')}</Text>
 
           <TouchableOpacity style={userProfileStyles.menuItem} onPress={() => navigation.navigate("Notification")}>
-            <View style={[userProfileStyles.menuIcon, { backgroundColor: "#FFF3E0" }]}>
-              <Icons.notification size={22} color="#F57C00" />
+            <View style={[userProfileStyles.menuIcon, { backgroundColor: brandTintBg }]}>
+              <Icons.notification size={22} color="#666" />
             </View>
             <View style={userProfileStyles.menuContent}>
               <Text style={userProfileStyles.menuLabel}>{t('profile.notifications')}</Text>
               <Text style={userProfileStyles.menuDescription}>{t('profile.notifications_desc')}</Text>
             </View>
-            <Icons.chevronForward size={20} color="#ccc" />
+            <Icons.chevronForward size={20} color={neutral.textOnDarkSoft} />
           </TouchableOpacity>
         </View>
 
         {/* Logout Button */}
         <TouchableOpacity style={userProfileStyles.logoutButton} onPress={handleLogout}>
-            <Icons.logOut size={20} color="#D32F2F" />
+            <Icons.logOut size={20} color={BRAND_DANGER} />
             <Text style={userProfileStyles.logoutText}>{t('profile.logout')}</Text>
         </TouchableOpacity>
 

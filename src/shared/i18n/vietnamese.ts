@@ -14,7 +14,9 @@ export default {
         "cancel": "Hủy",
         "try_again": "Thử lại",
         "save": "Lưu",
-        "warning_different_house": "Cảnh báo: Thiết bị này thuộc về {{houseName}}, không phải nhà đang chọn."
+        "warning_different_house": "Cảnh báo: Thiết bị này thuộc về {{houseName}}, không phải nhà đang chọn.",
+        "read_more": "Xem thêm",
+        "show_less": "Thu gọn"
     },
     "device_detail": {
         "title": "Chi tiết thiết bị",
@@ -124,13 +126,14 @@ export default {
     },
     "staff_home": {
         "schedule_title": "Lịch làm việc tuần này",
-        "schedule_summary_title": "Tóm tắt lịch có việc",
+        "schedule_summary_title": "Tóm tắt công việc",
         "schedule_no_slots": "Tuần này chưa có ca nào",
+        "schedule_no_slots_today_tomorrow": "Không có ca làm việc hôm nay hoặc ngày mai.",
         "schedule_col_time": "Thời gian",
         "schedule_col_building": "Căn nhà",
         "schedule_col_task": "Công việc",
         "assets_by_building_title": "Thiết bị / Asset theo căn nhà",
-        "buildings_title": "Các căn nhà",
+        "buildings_title": "Danh sách căn nhà",
         "buildings_error": "Không tải được danh sách căn nhà. Vui lòng thử lại.",
         "all_devices_title": "Tất cả thiết bị",
         "all_devices_category_all": "Tất cả",
@@ -157,7 +160,10 @@ export default {
         "add_menu_create_category": "Tạo danh mục",
         "add_menu_create_device": "Tạo thiết bị",
         "add_menu_assign_nfc": "Gán NFC",
-        "add_menu_assign_qr": "Gán QR Code"
+        "add_menu_assign_qr": "Gán QR Code",
+        "house_picker_collapsed": "Danh sách căn nhà · {{count}} căn",
+        "house_picker_search_placeholder": "Chạm để tìm theo tên hoặc địa chỉ…",
+        "house_picker_device_prefix": "Số thiết bị:"
     },
     "staff_category": {
         "title": "Tạo danh mục thiết bị",
@@ -198,6 +204,9 @@ export default {
     "staff_item_create": {
         "title": "Thêm thiết bị",
         "house_label": "Căn nhà",
+        "function_area_label": "Vị trí đặt",
+        "function_area_none": "Chưa gán khu vực",
+        "function_area_unknown": "Khu vực đã lưu (không có trong danh sách hiện tại)",
         "category_label": "Danh mục thiết bị",
         "display_name_label": "Tên hiển thị",
         "display_name_placeholder": "Ví dụ: Máy lạnh phòng khách",
@@ -234,13 +243,18 @@ export default {
         "remove_nfc_confirm_message": "Bạn có chắc muốn gỡ thẻ NFC này khỏi thiết bị?",
         "remove_nfc_success": "Đã gỡ thẻ NFC khỏi thiết bị.",
         "remove_nfc_error": "Không thể gỡ thẻ NFC. Vui lòng thử lại.",
-        "error_100_percent_in_use": "Thiết bị có tình trạng 100% không thể để trạng thái Đang sử dụng (IN_USE)."
+        "error_100_percent_in_use": "Thiết bị có tình trạng 100% không thể để trạng thái Đang sử dụng (IN_USE).",
+        "area_not_saved_title": "Khu vực có thể chưa được lưu",
+        "area_not_saved_message": "Ứng dụng đã gửi khu vực chức năng lên server, nhưng phản hồi không chứa functionAreaId (hoặc message không đúng API cập nhật thiết bị). Việc lấy danh sách khu vực theo nhà (GET functionalAreas) vẫn đúng — lỗi nằm ở PUT cập nhật item trên môi trường bạn đang dùng (vd. api-dev). Hãy kiểm tra backend hoặc trỏ app sang server đã xác nhận bằng Postman."
     },
     "staff_item_description": {
         "title": "Thông tin thiết bị",
         "edit_btn": "Chỉnh sửa"
     },
     "staff_notification": {
+        "demo_house_a": "Nhà A - Tòa 1",
+        "demo_house_b": "Nhà B - Tòa 2",
+        "demo_building_c": "Nhà C - Tòa 3",
         "tenant_sent_ticket_title": "Có ticket mới từ người thuê",
         "tenant_sent_ticket_body": "Người thuê tại {{house}} đã gửi ticket #{{id}}. Vui lòng xem và xử lý.",
         "schedule_updated_title": "Lịch làm việc đã được cập nhật",
@@ -270,6 +284,7 @@ export default {
         "status_cancelled": "Đã hủy"
     },
     "staff_ticket_detail": {
+        "screen_title": "Chi tiết phiếu",
         "status": "Trạng thái",
         "priority": "Mức ưu tiên",
         "title_label": "Tiêu đề",
@@ -363,6 +378,7 @@ export default {
         "cancel_already_processed": "Yêu cầu này đã được xử lý (duyệt/từ chối). Không thể hủy."
     },
     "staff_building_detail": {
+        "screen_title": "Chi tiết nhà",
         "devices_title": "Thiết bị ({{count}})",
         "no_devices": "Chưa có thiết bị nào",
         "devices_load_error": "Không tải được danh sách thiết bị.",
@@ -377,11 +393,13 @@ export default {
         "house_status_rented": "Đã cho thuê",
         "house_status_other": "{{status}}",
         "functional_areas_title": "Khu vực trong nhà",
+        "area_filter_all": "Tất cả khu vực",
+        "areas_pick_hint": "Chọn khu vực để lọc thiết bị",
         "functional_areas_empty": "Chưa có khu vực nào",
         "functional_area_floor": "Tầng {{floor}}",
         "area_type_LIVINGROOM": "Phòng khách",
         "area_type_KITCHEN": "Bếp",
-        "area_type_BATHROOM": "Phòng tắm",
+        "area_type_BATHROOM": "Toilet",
         "area_type_HALLWAY": "Hành lang",
         "area_type_BEDROOM": "Phòng ngủ",
         "area_type_OTHER": "Khác"
@@ -401,6 +419,27 @@ export default {
         "kind_all": "Tất cả",
         "kind_controller": "Controller",
         "kind_node": "Node",
+        "list_hint_controller": "Thu thập và tổng hợp dữ liệu từ các node trong nhà.",
+        "list_hint_node": "Thiết bị đo / cảnh báo, gửi dữ liệu về controller.",
+        "detail_title_controller": "Chi tiết Controller",
+        "detail_title_node": "Chi tiết Node",
+        "detail_not_found": "Không tìm thấy thiết bị hoặc đã bị gỡ.",
+        "detail_field_id": "ID bản ghi",
+        "detail_field_house_name": "Nhà",
+        "detail_field_thing_name": "Thing (controller)",
+        "detail_field_device_id": "Device ID / MAC",
+        "detail_field_status": "Trạng thái",
+        "detail_field_area_name": "Khu vực",
+        "detail_field_created_at": "Ngày tạo",
+        "detail_field_activated_at": "Ngày kích hoạt",
+        "detail_field_nodes_count": "Số node đang gắn",
+        "detail_field_display_name": "Tên hiển thị",
+        "detail_field_asset_id": "ID tài sản (asset)",
+        "detail_field_category_code": "Mã loại thiết bị",
+        "detail_field_serial_number": "Serial",
+        "detail_field_thing": "Thing (MQTT)",
+        "status_DEPROVISIONED": "Đã gỡ khỏi hệ thống",
+        "node_status_IN_USE": "Đang sử dụng",
         "areas_title": "Khu vực trong nhà",
         "areas_all": "Tất cả",
         "areas_floor": "Tầng {{floor}}",
@@ -442,6 +481,12 @@ export default {
         "provision_connect_btn": "Kết nối & gắn thiết bị",
         "provision_select_area_required": "Vui lòng chọn khu vực trước.",
         "provision_qr_required": "Vui lòng quét QR để lấy Device ID.",
+        "provision_qr_wrong_kind_need_controller":
+          "Mã QR này là Node, không phải Controller. Vui lòng quét QR gắn trên thiết bị Controller.",
+        "provision_qr_wrong_kind_need_node":
+          "Mã QR này là Controller, không phải Node. Vui lòng quét QR gắn trên thiết bị Node.",
+        "provision_qr_type_unknown":
+          "QR có giá trị type không hợp lệ ({{type}}). Vui lòng dùng mã QR theo định dạng hệ thống.",
         "provision_wifi_required": "Vui lòng nhập tên WiFi (SSID).",
         "provision_wait_controller_title": "Đang gắn Controller",
         "provision_wait_node_title": "Đang gắn Node",
@@ -475,8 +520,14 @@ export default {
         "wifi_password_show": "Hiện mật khẩu",
         "wifi_password_hide": "Ẩn mật khẩu",
         "wifi_continue": "Tiếp tục",
-        "wifi_permission_required": "Cần cấp quyền vị trí để quét WiFi.",
+        "wifi_permission_required":
+          "Quyền vị trí được xin ở màn chọn WiFi (sau khi quét QR xong), không phải lúc camera.\n\nNếu lần trước bạn đã Từ chối (hoặc \"Không hỏi lại\"), Android sẽ không hiện hộp thoại nữa — app chỉ báo lỗi thôi. Cách xử lý: Cài đặt → Ứng dụng → ISUMS Staff → Quyền → bật Vị trí và chọn Chính xác (không chỉ gần đúng). Hoặc Xóa dữ liệu / gỡ app rồi cài lại để được hỏi lại từ đầu.",
+        "wifi_open_app_settings": "Mở cài đặt",
+        "wifi_location_services_required":
+          "Hãy bật định vị (GPS / dịch vụ vị trí) trên điện thoại — Android yêu cầu vậy để quét danh sách WiFi.",
         "wifi_scan_failed": "Không thể quét danh sách WiFi. Vui lòng thử lại.",
+        "wifi_native_module_missing":
+          "WiFi native chưa gắn vào app (thường do bật New Architecture). Đã tắt newArchEnabled trong project — hãy build lại Android (clean) và cài lại app.",
         "ble_permission_required": "Cần cấp quyền Bluetooth để kết nối thiết bị.",
         "ble_not_found": "Không tìm thấy thiết bị Bluetooth — kiểm tra nguồn điện.",
         "ble_device_label": "Thiết bị BLE",
@@ -669,5 +720,21 @@ export default {
         "type_date": "Ngày",
         "no_result": "Không có kết quả cho \"{{query}}\"",
         "viewing_date": "Xem ngày: {{date}}"
+    },
+    "dropdown_box": {
+        "title": "Bộ lọc & lựa chọn",
+        "search_placeholder": "Tìm theo tên, địa chỉ, tầng, danh mục…",
+        "no_results": "Không có mục phù hợp.",
+        "section_floor": "Tầng",
+        "section_category": "Danh mục thiết bị",
+        "section_house": "Nhà",
+        "section_functional_area": "Khu vực chức năng",
+        "section_status": "Trạng thái",
+        "floor_short": "Tầng",
+        "category_short": "Danh mục",
+        "house_short": "Nhà",
+        "functional_area_short": "Khu vực",
+        "status_short": "Trạng thái",
+        "open_a11y": "Mở bộ lọc"
     }
 }

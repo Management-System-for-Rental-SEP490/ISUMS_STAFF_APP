@@ -1,4 +1,7 @@
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import {
+  SafeAreaProvider,
+  initialWindowMetrics,
+} from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "./src/shared/i18n";
 import Navigation from "./src/navigation/navigation";
@@ -18,7 +21,7 @@ const queryClient = new QueryClient({ /* cấu hình defaultOptions cho tất c�
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <SafeAreaProvider>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <Navigation />
         <GlobalAlert />
       </SafeAreaProvider>

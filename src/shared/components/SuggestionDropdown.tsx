@@ -7,6 +7,8 @@ import {
   ScrollView,
 } from "react-native";
 import { useTranslation } from "react-i18next";
+import { brandPrimary, brandTintBg, neutral } from "../theme/color";
+import { appTypography } from "../utils/typography";
 
 export type Suggestion = {
   id: string;
@@ -113,23 +115,23 @@ const styles = StyleSheet.create({
     borderBottomWidth: ARROW_SIZE,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderBottomColor: "#fff",
+    borderBottomColor: neutral.surface,
     alignSelf: "center",
     marginBottom: -1,
   },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: neutral.surface,
     borderRadius: 16,
     maxHeight: 300,
     overflow: "hidden",
     /** elevation phải đặt trên View có backgroundColor để shadow hiển thị đúng trên Android. */
     elevation: 12,
-    shadowColor: "#0f172a",
+    shadowColor: neutral.slate900,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.14,
     shadowRadius: 14,
     borderWidth: 1,
-    borderColor: "#F1F5F9",
+    borderColor: neutral.borderMuted,
   },
   /** KHÔNG dùng flex: 1 — để content tự kéo giãn chiều cao, maxHeight trên card sẽ giới hạn. */
   list: {},
@@ -140,7 +142,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: neutral.background,
   },
   itemLast: {
     borderBottomWidth: 0,
@@ -150,25 +152,23 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   itemLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1F2937",
+    ...appTypography.itemTitle,
+    color: neutral.heading,
   },
   itemSublabel: {
-    fontSize: 12,
-    color: "#6B7280",
+    ...appTypography.caption,
+    color: neutral.textSecondary,
     marginTop: 2,
   },
   typeBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
-    backgroundColor: "#EFF6FF",
+    backgroundColor: brandTintBg,
   },
   typeBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#3B82F6",
+    ...appTypography.badge,
+    color: brandPrimary,
   },
   emptyRow: {
     paddingHorizontal: 16,
@@ -176,8 +176,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   emptyText: {
-    fontSize: 13,
-    color: "#9CA3AF",
+    ...appTypography.secondary,
+    color: neutral.textMuted,
   },
 });
 
