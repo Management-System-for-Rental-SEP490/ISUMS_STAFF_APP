@@ -1,4 +1,5 @@
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
+import { brandPrimary } from "../../../../shared/theme/color";
 
 /**
  * Chiều cao (px) tương ứng 1 giờ trên timeline để tính vị trí slot.
@@ -201,7 +202,7 @@ export const staffCalendarStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: "#2563EB",
+    backgroundColor: brandPrimary,
   },
   registerSlotBtnText: {
     fontSize: 13,
@@ -248,10 +249,10 @@ export const staffCalendarStyles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#6366f1",
+    backgroundColor: brandPrimary,
     justifyContent: "center" as const,
     alignItems: "center" as const,
-    shadowColor: "#6366f1",
+    shadowColor: brandPrimary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
@@ -282,13 +283,29 @@ export const staffCalendarStyles = StyleSheet.create({
     justifyContent: "center" as const,
     alignItems: "center" as const,
   },
+  /** Bọc ký tự ‹ › để căn giữa hình tròn (tránh lệch do font metrics Android). */
+  navArrowInner: {
+    width: 40,
+    height: 40,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+  },
   navArrowText: {
-    fontSize: 24,
-    lineHeight: 24,
+    fontSize: 22,
     color: "#475569",
-    fontWeight: "600" as const,
+    fontWeight: "700" as const,
     textAlign: "center" as const,
     includeFontPadding: false,
+    ...Platform.select({
+      android: {
+        textAlignVertical: "center" as const,
+        lineHeight: 24,
+      },
+      ios: {
+        marginTop: 1,
+      },
+      default: {},
+    }),
   },
   weekNavMonthWrap: {
     flex: 1,
@@ -555,5 +572,5 @@ export const SLOT_COLORS: Record<string, string> = {
   ticket: "#06B6D4",
   nfc: "#F97316",
   break: "#9CA3AF",
-  other: "#2563EB",
+  other: brandPrimary,
 };

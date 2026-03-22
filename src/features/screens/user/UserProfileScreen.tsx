@@ -4,18 +4,26 @@ import { CustomAlert as Alert } from "../../../shared/components/alert";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import userProfileStyles from "./UserProfileScreenStyles";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { logoutKeycloak, openChangePasswordPage } from "../../../shared/services/keycloakAuth";
 import { UserProfileResponse } from "../../../shared/types/api";
 import { getUserProfile } from "../../../shared/services/userApi";
 import Icons from "../../../shared/theme/icon";
+import {
+  BRAND_DANGER,
+  brandGradientSolid,
+  brandTintBg,
+  neutral,
+} from "../../../shared/theme/color";
 import { useTranslation } from "react-i18next";
 
 const UserProfileScreen = () => {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { user, role, idToken, logout } = useAuthStore();
+  const insets = useSafeAreaInsets();
   const [userInfo, setUserInfo] = useState<UserProfileResponse | null>(null);
 
   useEffect(() => {
@@ -74,18 +82,38 @@ const UserProfileScreen = () => {
   const displayEmail = userInfo?.email || "";
   const displayPhone = userInfo?.phoneNumber || "";
 
+  const goHome = () => {
+    const nav: any = navigation;
+    if (typeof nav?.jumpTo === "function") {
+      nav.jumpTo("Dashboard");
+      return;
+    }
+    nav.navigate("Dashboard");
+  };
+
   return (
     <View style={userProfileStyles.container}>
-      <ScrollView contentContainerStyle={userProfileStyles.contentContainer}>
+      <ScrollView
+        contentContainerStyle={[
+          userProfileStyles.contentContainer,
+          
+        ]}
+      >
         {/* Header Background */}
-        <LinearGradient
-          colors={["#3bb582", "#0c6ab5"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={userProfileStyles.headerBackground}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={goHome}
+          accessibilityRole="button"
         >
-          <Text style={userProfileStyles.headerTitle}>{t('profile.title')}</Text>
-        </LinearGradient>
+          <LinearGradient
+            colors={[...brandGradientSolid]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={userProfileStyles.headerBackground}
+          >
+            <Text style={userProfileStyles.headerTitle}>{t('profile.title')}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
         {/* Profile Card */}
         <View style={userProfileStyles.profileCard}>
@@ -131,14 +159,14 @@ const UserProfileScreen = () => {
             style={userProfileStyles.menuItem} 
             onPress={openChangePasswordPage}
           >
-            <View style={[userProfileStyles.menuIcon, { backgroundColor: "#E3F2FD" }]}>
-              <Icons.shield size={22} color="#0c6ab5" />
+            <View style={[userProfileStyles.menuIcon, { backgroundColor: brandTintBg }]}>
+              <Icons.shield size={22} color="#666" />
             </View>
             <View style={userProfileStyles.menuContent}>
               <Text style={userProfileStyles.menuLabel}>{t('profile.change_password')}</Text>
               <Text style={userProfileStyles.menuDescription}>{t('profile.change_password_desc')}</Text>
             </View>
-            <Icons.chevronForward size={20} color="#ccc" />
+            <Icons.chevronForward size={20} color={neutral.textOnDarkSoft} />
           </TouchableOpacity>
         </View>
 
@@ -147,20 +175,20 @@ const UserProfileScreen = () => {
           <Text style={userProfileStyles.sectionTitle}>{t('profile.app_settings')}</Text>
 
           <TouchableOpacity style={userProfileStyles.menuItem} onPress={() => navigation.navigate("Notification")}>
-            <View style={[userProfileStyles.menuIcon, { backgroundColor: "#FFF3E0" }]}>
-              <Icons.notification size={22} color="#F57C00" />
+            <View style={[userProfileStyles.menuIcon, { backgroundColor: brandTintBg }]}>
+              <Icons.notification size={22} color="#666" />
             </View>
             <View style={userProfileStyles.menuContent}>
               <Text style={userProfileStyles.menuLabel}>{t('profile.notifications')}</Text>
               <Text style={userProfileStyles.menuDescription}>{t('profile.notifications_desc')}</Text>
             </View>
-            <Icons.chevronForward size={20} color="#ccc" />
+            <Icons.chevronForward size={20} color={neutral.textOnDarkSoft} />
           </TouchableOpacity>
         </View>
 
         {/* Logout Button */}
         <TouchableOpacity style={userProfileStyles.logoutButton} onPress={handleLogout}>
-            <Icons.logOut size={20} color="#D32F2F" />
+            <Icons.logOut size={20} color={BRAND_DANGER} />
             <Text style={userProfileStyles.logoutText}>{t('profile.logout')}</Text>
         </TouchableOpacity>
 

@@ -1,26 +1,17 @@
 /**
  * Context chia sẻ lịch làm việc của Staff giữa Calendar, Home và TicketDetail.
- * - dayOffList: ngày nghỉ đã duyệt (định dạng dd/MM), derived từ leave API.
- * - scheduleTemplate: mẫu lịch từ API (giờ làm, ngày làm việc, slot...) – fetch khi mount.
+ * Dữ liệu lấy qua React Query (đồng bộ lại khi app active / mạng trở lại).
  */
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useEffect,
-  useMemo,
-} from "react";
-import { useTranslation } from "react-i18next";
+import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useLeaveRequests } from "../../../shared/hooks/useStaffLeave";
 import {
-  getCurrentScheduleTemplate,
-  getWorkSlotsByStaffId,
-  getLeaveRequestsByStaffId,
-  getStaffIdForSchedule,
-} from "../../../shared/services/scheduleApi";
+  useScheduleTemplateQuery,
+  useEnrichedWorkSlotsQuery,
+  SCHEDULE_DATA_KEYS,
+} from "../hooks/useStaffScheduleData";
 import type { LeaveRequestFromApi, ScheduleTemplateData } from "../../../shared/types/api";
 import type { WorkSlot } from "../data/mockStaffData";
-import { mapWorkSlotsFromApiForCurrentWeek } from "../data/workSlotUtils";
 
 /** Chuyển YYYY-MM-DD hoặc ISO sang dd/MM */
 function toDdMm(s: string): string {
@@ -41,115 +32,60 @@ function getMondayOfCurrentWeek(): string {
 }
 
 type StaffScheduleContextValue = {
-  /** Danh sách ngày nghỉ đã duyệt (định dạng dd/MM), từ leave API */
   dayOffList: string[];
-  /** Gọi lại API leave để cập nhật dayOffList */
-  refetchLeaveRequests: () => Promise<void>;
-  /** Mẫu lịch làm việc từ API (null khi chưa load hoặc lỗi) */
+  refetchLeaveRequests: () => Promise<unknown>;
   scheduleTemplate: ScheduleTemplateData | null;
-  /** Đang fetch template */
   templateLoading: boolean;
-  /** Lỗi khi fetch (nếu có) */
   templateError: string | null;
-  /** Gọi lại API với ngày (YYYY-MM-DD). Dùng khi chuyển tuần. */
-  refetchTemplate: (date: string) => Promise<void>;
-  /** Work slots từ API (đã map sang WorkSlot, chỉ trong tuần hiện tại). Null khi chưa load hoặc lỗi. */
+  refetchTemplate: (date: string) => void;
   workSlots: WorkSlot[] | null;
-  /** Đang fetch work slots */
   workSlotsLoading: boolean;
-  /** Lỗi khi fetch work slots (nếu có) */
   workSlotsError: string | null;
-  /** Gọi lại API work slots. Dùng khi cần refresh lịch. */
-  refetchWorkSlots: () => Promise<void>;
+  refetchWorkSlots: () => Promise<unknown>;
 };
 
 const StaffScheduleContext = createContext<StaffScheduleContextValue | null>(null);
 
+function queryErrToMessage(err: unknown): string | null {
+  if (!err) return null;
+  return err instanceof Error ? err.message : String(err);
+}
+
 export function StaffScheduleProvider({ children }: { children: React.ReactNode }) {
-  const { t } = useTranslation();
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequestFromApi[]>([]);
-  const [scheduleTemplate, setScheduleTemplate] = useState<ScheduleTemplateData | null>(null);
-  const [templateLoading, setTemplateLoading] = useState(false);
-  const [templateError, setTemplateError] = useState<string | null>(null);
-  const [workSlots, setWorkSlots] = useState<WorkSlot[] | null>(null);
-  const [workSlotsLoading, setWorkSlotsLoading] = useState(false);
-  const [workSlotsError, setWorkSlotsError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [templateQueryDate, setTemplateQueryDate] = useState(getMondayOfCurrentWeek);
 
-  const refetchWorkSlots = useCallback(async () => {
-    const staffId = getStaffIdForSchedule();
-    setWorkSlotsLoading(true);
-    setWorkSlotsError(null);
-    try {
-      const res = await getWorkSlotsByStaffId(staffId);
-      if (res.success && res.data) {
-        const mapped = mapWorkSlotsFromApiForCurrentWeek(res.data);
-        setWorkSlots(mapped);
-      } else {
-        setWorkSlots([]);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : t("staff_calendar.work_slots_load_error");
-      setWorkSlotsError(msg);
-      setWorkSlots(null);
-    } finally {
-      setWorkSlotsLoading(false);
-    }
-  }, [t]);
+  const templateQuery = useScheduleTemplateQuery(templateQueryDate);
+  const workSlotsQuery = useEnrichedWorkSlotsQuery();
+  const leaveQuery = useLeaveRequests();
 
-  const refetchTemplate = useCallback(async (date: string) => {
-    setTemplateLoading(true);
-    setTemplateError(null);
-    try {
-      const res = await getCurrentScheduleTemplate(date);
-      if (res.success && res.data) {
-        const d = res.data;
-        // // eslint-disable-next-line no-console
-        // console.log("[Schedule Template API] Đã bắt được giá trị:", {
-        //   id: d.id,
-        //   workingDays: d.workingDays,
-        //   openTime: d.openTime,
-        //   breakStart: d.breakStart,
-        //   breakEnd: d.breakEnd,
-        //   closeTime: d.closeTime,
-        //   slotMinutes: d.slotMinutes,
-        //   bufferMinutes: d.bufferMinutes,
-        //   effectiveFrom: d.effectiveFrom,
-        //   updatedAt: d.updatedAt,
-        // });
-        setScheduleTemplate(res.data);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : t("staff_calendar.template_load_error");
-      setTemplateError(msg);
-      setScheduleTemplate(null);
-    } finally {
-      setTemplateLoading(false);
-    }
-  }, [t]);
+  const refetchTemplate = useCallback(
+    (date: string) => {
+      setTemplateQueryDate((prev) => {
+        if (prev === date) {
+          void queryClient.refetchQueries({ queryKey: SCHEDULE_DATA_KEYS.template(date) });
+        }
+        return date;
+      });
+    },
+    [queryClient]
+  );
 
-  useEffect(() => {
-    const monday = getMondayOfCurrentWeek();
-    refetchTemplate(monday);
-  }, [refetchTemplate]);
+  const refetchWorkSlots = useCallback(() => workSlotsQuery.refetch(), [workSlotsQuery]);
+  const refetchLeaveRequests = useCallback(() => leaveQuery.refetch(), [leaveQuery]);
 
-  useEffect(() => {
-    refetchWorkSlots();
-  }, [refetchWorkSlots]);
+  const scheduleTemplate = templateQuery.data ?? null;
+  const templateLoading = templateQuery.isFetching;
+  const templateError = queryErrToMessage(templateQuery.error);
 
-  const refetchLeaveRequests = useCallback(async () => {
-    const staffId = getStaffIdForSchedule();
-    try {
-      const res = await getLeaveRequestsByStaffId(staffId);
-      const data = Array.isArray(res.data) ? res.data : [];
-      setLeaveRequests(data);
-    } catch {
-      setLeaveRequests([]);
-    }
-  }, []);
+  const workSlots = workSlotsQuery.isError ? null : (workSlotsQuery.data ?? null);
+  const workSlotsLoading = workSlotsQuery.isFetching;
+  const workSlotsError = queryErrToMessage(workSlotsQuery.error);
 
-  useEffect(() => {
-    refetchLeaveRequests();
-  }, [refetchLeaveRequests]);
+  const leaveRequests: LeaveRequestFromApi[] = useMemo(() => {
+    const res = leaveQuery.data;
+    return Array.isArray(res?.data) ? res.data : [];
+  }, [leaveQuery.data]);
 
   const dayOffList = useMemo(() => {
     const approved = leaveRequests.filter((r) => r.status?.toUpperCase() === "APPROVED");

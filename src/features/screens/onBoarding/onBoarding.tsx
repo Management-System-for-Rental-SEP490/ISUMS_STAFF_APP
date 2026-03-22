@@ -14,6 +14,7 @@ import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { brandGradient } from "../../../shared/theme/color";
 
 const { width } = Dimensions.get("window"); //lấy chiều rộng của màn hình.
 
@@ -101,7 +102,7 @@ const OnBoarding = () => {
 
   return (
     <LinearGradient
-      colors={["#3bb582", "rgba(12, 106, 181, 0.7)"]}
+      colors={[...brandGradient]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.container}

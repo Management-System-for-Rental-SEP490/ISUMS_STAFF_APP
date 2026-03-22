@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../../shared/types";
+import { brandFocusBorder, brandTintBg, neutral } from "../../../../../shared/theme/color";
 
 type DayOffActionModalProps = {
   visible: boolean;
@@ -128,7 +129,7 @@ const styles = StyleSheet.create({
   },
   cancelBtnText: {
     fontSize: 15,
-    color: "#64748b",
+    color: neutral.slate500,
     fontWeight: "600",
   },
 });

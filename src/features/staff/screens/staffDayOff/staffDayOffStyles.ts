@@ -1,10 +1,11 @@
 import { StyleSheet } from "react-native";
+import { brandPrimary, neutral } from "../../../../shared/theme/color";
 
 /** Styles cho màn hình yêu cầu nghỉ (staffDayOff). */
 export const staffDayOffStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAFBFC",
+    backgroundColor: neutral.backgroundElevated,
   },
   list: {
     paddingHorizontal: 16,
@@ -196,20 +197,18 @@ export const staffDayOffStyles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  /** Vòng tròn ô ngày — borderRadius lớn để luôn tròn trên mọi kích thước. */
   calendarDayCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 9999,
     justifyContent: "center",
     alignItems: "center",
     alignSelf: "center",
+    overflow: "hidden",
   },
   calendarDayCircleSelected: {
-    backgroundColor: "#6366f1",
-  },
-  calendarDayCellSelected: {
-    backgroundColor: "#6366f1",
-    borderRadius: 20,
+    backgroundColor: brandPrimary,
   },
   calendarDayCellDisabled: {
     opacity: 0.35,
@@ -217,12 +216,13 @@ export const staffDayOffStyles = StyleSheet.create({
   calendarDayCellText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#334155",
+    color: neutral.slate700,
     textAlign: "center",
-    lineHeight: 36,
+    lineHeight: 20,
+    includeFontPadding: false,
   },
   calendarDayCellTextSelected: {
-    color: "#fff",
+    color: neutral.surface,
   },
   calendarDayCellTextDisabled: {
     color: "#94a3b8",
@@ -242,8 +242,8 @@ export const staffDayOffStyles = StyleSheet.create({
     minWidth: 90,
   },
   dateChipSelected: {
-    backgroundColor: "#6366f1",
-    borderColor: "#6366f1",
+    backgroundColor: brandPrimary,
+    borderColor: brandPrimary,
   },
   dateChipText: {
     fontSize: 14,
@@ -266,14 +266,14 @@ export const staffDayOffStyles = StyleSheet.create({
     minHeight: 100,
   },
   formSubmitBtn: {
-    backgroundColor: "#6366f1",
+    backgroundColor: brandPrimary,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
     marginTop: 24,
   },
   formSubmitBtnDisabled: {
-    backgroundColor: "#94a3b8",
+    backgroundColor: neutral.slate400,
     opacity: 0.7,
   },
   formSubmitBtnText: {

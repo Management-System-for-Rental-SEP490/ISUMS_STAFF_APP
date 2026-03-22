@@ -4,7 +4,7 @@
  * - GET /api/schedules/work_slots/staff/{staffId} - danh sách work slots của staff.
  */
 import axiosClient from "../api/axiosClient";
-import { SCHEDULE_API_BASE } from "../api/config";
+import { BACKEND_API_BASE } from "../api/config";
 import type {
   ScheduleTemplateApiResponse,
   WorkSlotsApiResponse,
@@ -42,7 +42,7 @@ export const getCurrentScheduleTemplate = async (
   date: string
 ): Promise<ScheduleTemplateApiResponse> => {
   const response = await axiosClient.get<ScheduleTemplateApiResponse>(
-    `${SCHEDULE_API_BASE}/schedules/templates/current/${encodeURIComponent(date)}`
+    `${BACKEND_API_BASE}/schedules/templates/current/${encodeURIComponent(date)}`
   );
   return response.data;
 };
@@ -58,7 +58,7 @@ export const getWorkSlotsByStaffId = async (
   staffId: string
 ): Promise<WorkSlotsApiResponse> => {
   const response = await axiosClient.get<WorkSlotsApiResponse>(
-    `${SCHEDULE_API_BASE}/schedules/work_slots/staff/${encodeURIComponent(staffId)}`
+    `${BACKEND_API_BASE}/schedules/work_slots/staff/${encodeURIComponent(staffId)}`
   );
   return response.data;
 };
@@ -75,7 +75,7 @@ export const getLeaveRequestsByStaffId = async (
   /** Tham số cache-bust để tránh lấy dữ liệu cũ khi refresh sau khi manager duyệt */
   cacheBust?: number
 ): Promise<LeaveRequestsApiResponse> => {
-  const url = `${SCHEDULE_API_BASE}/schedules/leave/staff/${encodeURIComponent(staffId)}`;
+  const url = `${BACKEND_API_BASE}/schedules/leave/staff/${encodeURIComponent(staffId)}`;
   const response = await axiosClient.get<LeaveRequestsApiResponse>(url, {
     params: cacheBust != null ? { _: cacheBust } : undefined,
   });
@@ -90,7 +90,7 @@ export const createLeaveRequest = async (
   payload: CreateLeaveRequestPayload
 ): Promise<CreateLeaveRequestResponse> => {
   const response = await axiosClient.post<CreateLeaveRequestResponse>(
-    `${SCHEDULE_API_BASE}/schedules/leave`,
+    `${BACKEND_API_BASE}/schedules/leave`,
     payload
   );
   return response.data;
@@ -105,7 +105,7 @@ export const updateLeaveRequestStatus = async (
   payload: UpdateLeaveRequestPayload
 ): Promise<UpdateLeaveRequestResponse> => {
   const response = await axiosClient.put<UpdateLeaveRequestResponse>(
-    `${SCHEDULE_API_BASE}/schedules/leave/${encodeURIComponent(leaveRequestId)}/status`,
+    `${BACKEND_API_BASE}/schedules/leave/${encodeURIComponent(leaveRequestId)}/status`,
     payload
   );
   return response.data;

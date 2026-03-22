@@ -1,9 +1,8 @@
 /**
  * Màn hình thêm thiết bị (Staff).
- * Form: Chọn nhà, chọn danh mục, displayName, serialNumber, NFC tag (tùy chọn), conditionPercent, status.
- * POST /api/asset/items qua useCreateAssetItem. Thành công → goBack về ItemList.
+ * Form: Chọn nhà, khu vực chức năng (tùy chọn), danh mục, … POST /api/assets/items qua useCreateAssetItem.
  */
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -20,13 +19,35 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
-import { useCreateAssetItem, useHouses, useAssetCategories } from "../../../../shared/hooks";
+import {
+  useCreateAssetItem,
+  useHouses,
+  useAssetCategories,
+  useFunctionalAreasByHouseId,
+} from "../../../../shared/hooks";
+import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
+import { mergeFunctionalAreasForHouse, sortFunctionalAreasForDisplay } from "../../../../shared/utils";
 import { itemScreenStyles } from "./itemScreenStyles";
-import type { AssetCategoryFromApi, HouseFromApi } from "../../../../shared/types/api";
+import {
+  StackScreenTitleBadge,
+  StackScreenTitleBarBalance,
+  StackScreenTitleHeaderStrip,
+  stackScreenTitleBackBtnOnBrand,
+  stackScreenTitleCenterSlotStyle,
+  stackScreenTitleOnBrandIconColor,
+  stackScreenTitleRowStyle,
+  stackScreenTitleSideSlotStyle,
+} from "../../../../shared/components/StackScreenTitleBadge";
+import type {
+  AssetCategoryFromApi,
+  HouseFromApi,
+  FunctionalAreaFromApi,
+} from "../../../../shared/types/api";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemCreate">;
 
-const STATUS_OPTIONS = ["AVAILABLE", "IN_USE", "DISPOSED"] as const;
+// AssetStatus: bỏ "AVAILABLE". Backend có thể trả về thêm ACTIVE/BROKEN/DELETED.
+const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED", "DELETED"] as const;
 
 export default function ItemCreateScreen() {
   const { t } = useTranslation();
@@ -38,13 +59,160 @@ export default function ItemCreateScreen() {
   const [displayName, setDisplayName] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
   const [nfcId, setNfcId] = useState("");
+  const [qrId, setQrId] = useState("");
   const [conditionPercent, setConditionPercent] = useState("");
   const [status, setStatus] = useState<string>(STATUS_OPTIONS[0]);
+  const [functionAreaId, setFunctionAreaId] = useState<string | null>(null);
 
   const { data: housesData } = useHouses();
   const houses = housesData?.data ?? [];
   const { data: categoriesData } = useAssetCategories();
   const categories = categoriesData?.data ?? [];
+  /** Sau khi chọn nhà: GET /api/houses/functionalAreas/{houseId} (enabled khi có houseId). */
+  const { data: functionalAreasResp } = useFunctionalAreasByHouseId(houseId.trim());
+  const selectedHouse = useMemo(
+    () => houses.find((h: HouseFromApi) => h.id === houseId),
+    [houses, houseId]
+  );
+  const functionalAreas: FunctionalAreaFromApi[] = useMemo(() => {
+    const merged = mergeFunctionalAreasForHouse(selectedHouse, functionalAreasResp?.data);
+    return sortFunctionalAreasForDisplay(merged);
+  }, [selectedHouse, functionalAreasResp?.data]);
+
+  const sortedHouses = useMemo(
+    () => [...houses].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
+    [houses]
+  );
+  const sortedCategories = useMemo(
+    () => [...categories].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })),
+    [categories]
+  );
+
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollCreateNearTop = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 32, animated: true }));
+    });
+  }, []);
+  const scrollCreateMid = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 140, animated: true }));
+    });
+  }, []);
+  const scrollCreateEnd = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    });
+  }, []);
+
+  const statusLabel = useCallback(
+    (s: string) => {
+      if (s === "IN_USE") return t("staff_item_create.status_in_use");
+      if (s === "ACTIVE") return t("staff_item_create.status_active");
+      if (s === "BROKEN") return t("staff_item_create.status_broken");
+      if (s === "DELETED") return t("staff_item_create.status_deleted");
+      return t("staff_item_create.status_disposed");
+    },
+    [t]
+  );
+
+  const houseDropdownSection = useMemo((): DropdownBoxSection | null => {
+    if (sortedHouses.length === 0) return null;
+    return {
+      id: "house",
+      title: t("dropdown_box.section_house"),
+      items: sortedHouses.map((h: HouseFromApi) => ({
+        id: h.id,
+        label: [h.name, h.address].filter(Boolean).join(" · "),
+      })),
+      selectedId: houseId.trim() ? houseId : null,
+      showAllOption: false,
+    };
+  }, [sortedHouses, houseId, t]);
+
+  const categoryDropdownSection = useMemo((): DropdownBoxSection | null => {
+    if (sortedCategories.length === 0) return null;
+    return {
+      id: "category",
+      title: t("dropdown_box.section_category"),
+      items: sortedCategories.map((c: AssetCategoryFromApi) => ({ id: c.id, label: c.name })),
+      selectedId: categoryId.trim() ? categoryId : null,
+      showAllOption: false,
+    };
+  }, [sortedCategories, categoryId, t]);
+
+  const statusDropdownSection = useMemo((): DropdownBoxSection => {
+    return {
+      id: "status",
+      title: t("dropdown_box.section_status"),
+      items: STATUS_OPTIONS.map((s) => ({ id: s, label: statusLabel(s) })),
+      selectedId: status,
+      showAllOption: false,
+    };
+  }, [status, statusLabel, t]);
+
+  const houseDropdownSummary = useMemo(() => {
+    const h = sortedHouses.find((x: HouseFromApi) => x.id === houseId);
+    return `${t("dropdown_box.house_short")}: ${h?.name ?? t("staff_item_create.house_label")}`;
+  }, [sortedHouses, houseId, t]);
+
+  const categoryDropdownSummary = useMemo(() => {
+    const c = sortedCategories.find((x: AssetCategoryFromApi) => x.id === categoryId);
+    return `${t("dropdown_box.category_short")}: ${c?.name ?? t("staff_item_create.category_label")}`;
+  }, [sortedCategories, categoryId, t]);
+
+  const statusDropdownSummary = useMemo(
+    () => `${t("dropdown_box.status_short")}: ${statusLabel(status)}`,
+    [status, statusLabel, t]
+  );
+
+  const formatAreaDropdownLabel = useCallback(
+    (a: FunctionalAreaFromApi) => {
+      const floorPart = (a.floorNo ?? "").trim()
+        ? t("staff_building_detail.functional_area_floor", { floor: a.floorNo })
+        : "";
+      return [a.name, floorPart].filter(Boolean).join(" · ");
+    },
+    [t]
+  );
+
+  const functionalAreaDropdownSection = useMemo((): DropdownBoxSection => {
+    return {
+      id: "functionalArea",
+      title: t("dropdown_box.section_functional_area"),
+      items: functionalAreas.map((a) => ({
+        id: a.id,
+        label: formatAreaDropdownLabel(a),
+      })),
+      selectedId: functionAreaId,
+      showAllOption: true,
+      allLabel: t("staff_item_create.function_area_none"),
+    };
+  }, [functionalAreas, functionAreaId, formatAreaDropdownLabel, t]);
+
+  const functionalAreaDropdownSummary = useMemo(() => {
+    if (!functionAreaId) {
+      return `${t("dropdown_box.functional_area_short")}: ${t("staff_item_create.function_area_none")}`;
+    }
+    const a = functionalAreas.find((x) => x.id === functionAreaId);
+    const label = a ? formatAreaDropdownLabel(a) : t("staff_item_create.function_area_unknown");
+    return `${t("dropdown_box.functional_area_short")}: ${label}`;
+  }, [functionAreaId, functionalAreas, formatAreaDropdownLabel, t]);
+
+  const onItemCreateDropdownSelect = useCallback((sectionId: string, itemId: string | null) => {
+    if (sectionId === "functionalArea") {
+      setFunctionAreaId(itemId);
+      return;
+    }
+    if (itemId == null) return;
+    if (sectionId === "house") {
+      setHouseId(itemId);
+      setFunctionAreaId(null);
+      return;
+    }
+    if (sectionId === "category") setCategoryId(itemId);
+    if (sectionId === "status") setStatus(itemId);
+  }, []);
 
   const createMutation = useCreateAssetItem();
   const isPending = createMutation.isPending;
@@ -61,15 +229,21 @@ export default function ItemCreateScreen() {
       createMutation.reset();
       return;
     }
+    const trimmedNfc = nfcId.trim();
+    const trimmedQr = qrId.trim();
     createMutation.mutate(
       {
         houseId: houseId.trim(),
         categoryId: categoryId.trim(),
         displayName: displayName.trim(),
         serialNumber: serialNumber.trim(),
-        nfcTag: nfcId.trim() || null,
+        nfcTag: trimmedNfc || null,
+        nfcId: trimmedNfc || null,
+        qrTag: trimmedQr || null,
+        qrId: trimmedQr || null,
         conditionPercent: percent,
-        status: status || "AVAILABLE",
+        status: status || "IN_USE",
+        functionAreaId,
       },
       {
         onSuccess: () => {
@@ -87,24 +261,34 @@ export default function ItemCreateScreen() {
     conditionPercent.length > 0 &&
     !Number.isNaN(parseInt(conditionPercent, 10));
 
-  const safeStyle = { paddingTop: insets.top, paddingBottom: insets.bottom };
-
   return (
-    <View style={[itemScreenStyles.container, safeStyle]}>
-      <View style={itemScreenStyles.topBar}>
-        <TouchableOpacity style={itemScreenStyles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-          <Icons.chevronBack size={24} color="#1F2937" />
-        </TouchableOpacity>
-        <Text style={itemScreenStyles.topBarTitle} numberOfLines={1}>
-          {t("staff_item_create.title")}
-        </Text>
-      </View>
+    <View style={itemScreenStyles.container}>
+      <StackScreenTitleHeaderStrip>
+        <View style={stackScreenTitleRowStyle}>
+          <View style={stackScreenTitleSideSlotStyle}>
+            <TouchableOpacity
+              style={stackScreenTitleBackBtnOnBrand}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <Icons.chevronBack size={24} color={stackScreenTitleOnBrandIconColor} />
+            </TouchableOpacity>
+          </View>
+          <View style={stackScreenTitleCenterSlotStyle}>
+            <StackScreenTitleBadge numberOfLines={1}>
+              {t("staff_item_create.title")}
+            </StackScreenTitleBadge>
+          </View>
+          <StackScreenTitleBarBalance />
+        </View>
+      </StackScreenTitleHeaderStrip>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
             itemScreenStyles.scrollContent,
             itemScreenStyles.scrollContentWithKeyboard,
@@ -115,43 +299,41 @@ export default function ItemCreateScreen() {
         >
           <View style={itemScreenStyles.formCard}>
             <Text style={itemScreenStyles.label}>{t("staff_item_create.house_label")}</Text>
-            <View style={itemScreenStyles.chipRow}>
-              {houses.map((h: HouseFromApi) => (
-                <TouchableOpacity
-                  key={h.id}
-                  onPress={() => setHouseId(h.id)}
-                  style={[itemScreenStyles.chip, houseId === h.id && itemScreenStyles.chipSelected]}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[itemScreenStyles.chipText, houseId === h.id && itemScreenStyles.chipTextSelected]}
-                    numberOfLines={1}
-                  >
-                    {h.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            {houseDropdownSection ? (
+              <DropdownBox
+                sections={[houseDropdownSection]}
+                summary={houseDropdownSummary}
+                onSelect={onItemCreateDropdownSelect}
+                style={{ marginBottom: 4 }}
+                keyboardVerticalOffset={insets.top + 52}
+                onSearchInputFocus={scrollCreateNearTop}
+              />
+            ) : null}
+
+            <View style={itemScreenStyles.fieldSpacer}>
+              <Text style={itemScreenStyles.label}>{t("staff_item_create.function_area_label")}</Text>
+              <DropdownBox
+                sections={[functionalAreaDropdownSection]}
+                summary={functionalAreaDropdownSummary}
+                onSelect={onItemCreateDropdownSelect}
+                style={{ marginBottom: 4 }}
+                keyboardVerticalOffset={insets.top + 52}
+                onSearchInputFocus={scrollCreateMid}
+              />
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.category_label")}</Text>
-              <View style={itemScreenStyles.chipRow}>
-                {categories.map((c: AssetCategoryFromApi) => (
-                  <TouchableOpacity
-                    key={c.id}
-                    onPress={() => setCategoryId(c.id)}
-                    style={[itemScreenStyles.chip, categoryId === c.id && itemScreenStyles.chipSelected]}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[itemScreenStyles.chipText, categoryId === c.id && itemScreenStyles.chipTextSelected]}
-                      numberOfLines={1}
-                    >
-                      {c.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {categoryDropdownSection ? (
+                <DropdownBox
+                  sections={[categoryDropdownSection]}
+                  summary={categoryDropdownSummary}
+                  onSelect={onItemCreateDropdownSelect}
+                  style={{ marginBottom: 4 }}
+                  keyboardVerticalOffset={insets.top + 52}
+                  onSearchInputFocus={scrollCreateMid}
+                />
+              ) : null}
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
@@ -191,6 +373,18 @@ export default function ItemCreateScreen() {
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
+              <Text style={itemScreenStyles.label}>{t("staff_item_create.qr_id_label")}</Text>
+              <TextInput
+                style={itemScreenStyles.input}
+                value={qrId}
+                onChangeText={setQrId}
+                placeholder={t("staff_item_create.qr_id_placeholder")}
+                placeholderTextColor="#9CA3AF"
+                editable={!isPending}
+              />
+            </View>
+
+            <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.condition_label")}</Text>
               <TextInput
                 style={itemScreenStyles.input}
@@ -206,29 +400,14 @@ export default function ItemCreateScreen() {
 
             <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.status_label")}</Text>
-              <View style={itemScreenStyles.statusRow}>
-                {STATUS_OPTIONS.map((s: string) => (
-                  <TouchableOpacity
-                    key={s}
-                    onPress={() => setStatus(s)}
-                    style={[itemScreenStyles.statusBtn, status === s && itemScreenStyles.statusBtnSelected]}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        itemScreenStyles.statusBtnText,
-                        status === s && itemScreenStyles.statusBtnTextSelected,
-                      ]}
-                    >
-                      {s === "AVAILABLE"
-                        ? t("staff_item_create.status_available")
-                        : s === "IN_USE"
-                        ? t("staff_item_create.status_in_use")
-                        : t("staff_item_create.status_disposed")}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <DropdownBox
+                sections={[statusDropdownSection]}
+                summary={statusDropdownSummary}
+                onSelect={onItemCreateDropdownSelect}
+                style={{ marginBottom: 4 }}
+                keyboardVerticalOffset={insets.top + 52}
+                onSearchInputFocus={scrollCreateEnd}
+              />
             </View>
 
             <TouchableOpacity

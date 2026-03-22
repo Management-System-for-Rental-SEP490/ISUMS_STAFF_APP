@@ -1,4 +1,5 @@
 import { StyleSheet } from "react-native";
+import { brandPrimary, brandTintBg } from "../../../../shared/theme/color";
 
 /**
  * Styles cho màn hình Thông báo của Staff.
@@ -34,7 +35,7 @@ export const staffNotificationStyles = StyleSheet.create({
   },
   itemCardUnread: {
     borderLeftWidth: 4,
-    borderLeftColor: "#2563EB",
+    borderLeftColor: brandPrimary,
   },
   iconWrapper: {
     width: 44,
@@ -45,13 +46,13 @@ export const staffNotificationStyles = StyleSheet.create({
     marginRight: 14,
   },
   iconWrapperTicket: {
-    backgroundColor: "#E3F2FD",
+    backgroundColor: brandTintBg,
   },
   iconWrapperSchedule: {
-    backgroundColor: "#E8F5E9",
+    backgroundColor: brandTintBg,
   },
   iconWrapperSystem: {
-    backgroundColor: "#FFF3E0",
+    backgroundColor: brandTintBg,
   },
   itemBody: {
     flex: 1,

@@ -1,23 +1,48 @@
 
-import { ColorValue, Dimensions, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ColorValue, Dimensions, Image, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import headerStyles from "../styles/headerStyles";
+import { brandGradient, neutral, waterHeaderGradient } from "../theme/color";
+import { appTypography } from "../utils/typography";
 import Icons from "../theme/icon";
-import { HeaderVariant, MainTabParamList } from "../types";
-import { NavigationProp, useNavigation } from "@react-navigation/native";
+import { HeaderVariant, RootStackParamList } from "../types";
+import { NavigationProp, ParamListBase, useNavigation } from "@react-navigation/native";
+
+/** Về tab Home (Staff): đi qua `Main` → `Dashboard` (tab con). */
+function navigateToStaffHome(navigation: NavigationProp<ParamListBase>) {
+  const parent = navigation.getParent<NavigationProp<RootStackParamList>>();
+  if (parent) {
+    parent.navigate("Main", { screen: "Dashboard" } as never);
+    return;
+  }
+  (navigation as NavigationProp<RootStackParamList>).navigate("Main", { screen: "Dashboard" } as never);
+}
+
+const LOGO_ASSET = require("../../../assets/logob.png");
+const LOGO_RING_PADDING = 3;
+
+const brandHeaderGradient: [ColorValue, ColorValue] = [
+  brandGradient[0],
+  brandGradient[1],
+];
 
 const gradientMaps: Record<HeaderVariant, [ColorValue, ColorValue]> = {
-  default: ["#3bb582", "rgba(12, 106, 181, 0.7)"],
-  electric: ["#82A762", "#82A762"],
-  water: ["#20B8EB", "#20B8EB"],
+  default: brandHeaderGradient,
+  electric: brandHeaderGradient,
+  water: waterHeaderGradient,
 };
 
 type HeaderProps = {
   variant?: HeaderVariant;
-  /** Giá trị hiện tại của ô tìm kiếm (controlled). Nếu không truyền, ô search chỉ là trang trí. */
+  /**
+   * Chỉ bật trên màn Home: hiện ô tìm kiếm bên phải logo.
+   * Các màn khác để false — chỉ logo + tên ISUMS căn giữa.
+   */
+  showSearch?: boolean;
+  /** Giá trị hiện tại của ô tìm kiếm (controlled). */
   searchQuery?: string;
-  /** Callback khi người dùng gõ vào ô tìm kiếm. Truyền vào để kích hoạt chế độ search. */
+  /** Callback khi người dùng gõ vào ô tìm kiếm. */
   onSearchChange?: (text: string) => void;
   /** Placeholder tuỳ chỉnh theo ngữ cảnh của từng màn hình. */
   searchPlaceholder?: string;
@@ -25,16 +50,21 @@ type HeaderProps = {
 
 const Header = ({
   variant = "default",
+  showSearch = false,
   searchQuery,
   onSearchChange,
   searchPlaceholder,
 }: HeaderProps) => {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<NavigationProp<MainTabParamList>>();
+  const navigation = useNavigation();
   const screenWidth = Dimensions.get("window").width;
   const isSmallScreen = screenWidth < 375;
-  const isSearchActive = !!onSearchChange;
+  const isSearchActive = showSearch && !!onSearchChange;
   const hasText = isSearchActive && !!searchQuery?.trim();
+  const logoOuter = isSmallScreen ? 40 : 48;
+  const logoInner = logoOuter - LOGO_RING_PADDING * 2;
+  const logoRadiusOuter = logoOuter / 2;
+  const logoRadiusInner = logoInner / 2;
 
   return (
     <View style={headerStyles.container}>
@@ -45,59 +75,84 @@ const Header = ({
         style={[
           headerStyles.gradient,
           { paddingTop: insets.top + 12 },
-          isSmallScreen && { paddingHorizontal: 12 }, // Giảm padding trên màn hình nhỏ
+          isSmallScreen && { paddingHorizontal: 12 },
         ]}
       >
-        <View style={[
-          headerStyles.headerRow,
-          isSmallScreen && { gap: 8 }, // Giảm gap trên màn hình nhỏ
-        ]}>
+        <View
+          style={[
+            headerStyles.headerRow,
+            !isSearchActive && headerStyles.headerRowCentered,
+            isSmallScreen && { gap: 8 },
+          ]}
+        >
           <TouchableOpacity
             style={headerStyles.brandRow}
             activeOpacity={0.75}
-            onPress={() => navigation.navigate("Dashboard")}
+            onPress={() => navigateToStaffHome(navigation as NavigationProp<ParamListBase>)}
           >
-            <View style={[
-              headerStyles.logoWrapper,
-              isSmallScreen && { width: 40, height: 40, marginRight: 6 }, // Giảm kích thước logo trên màn hình nhỏ
-            ]}>
-              <Icons.logoHome size={isSmallScreen ? 32 : 40} />
+            <View
+              style={[
+                headerStyles.logoRing,
+                {
+                  width: logoOuter,
+                  height: logoOuter,
+                  borderRadius: logoRadiusOuter,
+                },
+                isSmallScreen && { marginRight: 6 },
+              ]}
+            >
+              <Image
+                source={LOGO_ASSET}
+                style={{
+                  width: logoInner,
+                  height: logoInner,
+                  borderRadius: logoRadiusInner,
+                }}
+                resizeMode="cover"
+                accessibilityLabel="ISUMS logo"
+              />
             </View>
-            <Text style={[
-              headerStyles.brandTitle,
-              isSmallScreen && { fontSize: 16 }, // Giảm fontSize trên màn hình nhỏ
-            ]}>ISUMS</Text>
+            <Text
+              style={[
+                headerStyles.brandTitle,
+                isSmallScreen && appTypography.sectionHeading,
+              ]}
+            >
+              ISUMS
+            </Text>
           </TouchableOpacity>
 
-          <View style={[
-            headerStyles.searchContainer,
-            isSmallScreen && { paddingHorizontal: 10, paddingVertical: 8 }, // Giảm padding trên màn hình nhỏ
-          ]}>
-            <Icons.search size={isSmallScreen ? 18 : 20} color="#1e293b" />
-            <TextInput
+          {isSearchActive && (
+            <View
               style={[
-                headerStyles.searchInput,
-                isSmallScreen && { fontSize: 14, marginLeft: 8 }, // Giảm fontSize và margin trên màn hình nhỏ
+                headerStyles.searchContainer,
+                isSmallScreen && { paddingHorizontal: 10, paddingVertical: 8 },
               ]}
-              placeholder={searchPlaceholder ?? "Tìm kiếm ..."}
-              placeholderTextColor="rgba(15, 23, 42, 0.45)"
-              returnKeyType="search"
-              editable={isSearchActive}
-              value={isSearchActive ? (searchQuery ?? "") : undefined}
-              onChangeText={isSearchActive ? onSearchChange : undefined}
-            />
-            {/* Nút xóa text — chỉ hiện khi đang search và có nội dung */}
-            {hasText && (
-              <TouchableOpacity
-                onPress={() => onSearchChange?.("")}
-                style={headerStyles.clearBtn}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Icons.close size={14} color="#64748b" />
-              </TouchableOpacity>
-            )}
-          </View>
+            >
+              <Icons.search size={isSmallScreen ? 18 : 20} color={neutral.slate900} />
+              <TextInput
+                style={[
+                  headerStyles.searchInput,
+                  isSmallScreen && { ...appTypography.body, marginLeft: 8 },
+                ]}
+                placeholder={searchPlaceholder ?? "Tìm kiếm ..."}
+                placeholderTextColor="rgba(15, 23, 42, 0.45)"
+                returnKeyType="search"
+                value={searchQuery ?? ""}
+                onChangeText={onSearchChange}
+              />
+              {hasText && (
+                <TouchableOpacity
+                  onPress={() => onSearchChange?.("")}
+                  style={headerStyles.clearBtn}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Icons.close size={14} color={neutral.slate500} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
       </LinearGradient>
     </View>

@@ -1,6 +1,7 @@
 import { FC } from "react";
 import { Svg, Path, Defs, LinearGradient, Stop } from "react-native-svg";
 import { LogoProps } from "../types";
+import { BRAND_BLUE } from "./color";
 export const LogoHomeIcon: FC<LogoProps> = ({ width = 24, height = 24 }) => (
   <Svg width={width} height={height} viewBox="0 0 34 30" fill="none">
     <Path
@@ -84,7 +85,7 @@ export const LogoHomeIcon: FC<LogoProps> = ({ width = 24, height = 24 }) => (
       </LinearGradient>
       <LinearGradient id="paint2_linear" x1="13.1028" y1="22.3219" x2="14.0503" y2="16.1225">
         <Stop stopColor="#2975AD" />
-        <Stop offset="1" stopColor="#20B8EB" />
+        <Stop offset="1" stopColor={BRAND_BLUE} />
       </LinearGradient>
       <LinearGradient id="paint3_linear" x1="16.7952" y1="18.743" x2="17.436" y2="22.9928">
         <Stop stopColor="#EE9729" />

@@ -2,6 +2,12 @@ import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/rea
 import {
   getAssetItems,
   getAssetItemsByHouseId,
+  getIotDevicesByHouseId,
+  deprovisionIotControllerByHouseId,
+  provisionIotControllerByHouseId,
+  getIotProvisionTokenBySerial,
+  getIotControllerByHouseId,
+  provisionIotNodeByHouseId,
   createAssetItem,
   updateAssetItem,
   deleteAssetItem,
@@ -15,6 +21,7 @@ import type {
   AssetItemsParams,
   CreateAssetItemRequest,
   UpdateAssetItemRequest,
+  IotDevicesByHouseApiResponse,
 } from "../types/api";
 
 /**
@@ -45,6 +52,15 @@ export const ASSET_ITEM_KEYS = {
    */
   byHouse: (houseId: string, categoryId?: string | null) =>
     [...ASSET_ITEM_KEYS.base, "byHouse", houseId, categoryId ?? null] as const,
+};
+
+/**
+ * Key cho IoT devices theo nhà.
+ * Tách riêng khỏi assetItems để cache/invalidate rõ ràng.
+ */
+export const IOT_DEVICE_KEYS = {
+  base: ["iotDevices"] as const,
+  byHouse: (houseId: string) => [...IOT_DEVICE_KEYS.base, "byHouse", houseId] as const,
 };
 
 /**
@@ -79,6 +95,72 @@ export const useAssetItems = (params: UseAssetItemsParams = {}) => {
       return getAssetItems({
         categoryId: (categoryId ?? undefined) as AssetItemsParams["categoryId"],
       });
+    },
+  });
+};
+
+/**
+ * Hook lấy thiết bị IoT theo houseId.
+ * API: GET /api/assets/iot-devices/house/{houseId}
+ */
+export const useIotDevicesByHouseId = (houseId: string) => {
+  return useQuery<IotDevicesByHouseApiResponse>({
+    queryKey: IOT_DEVICE_KEYS.byHouse(houseId),
+    queryFn: () => getIotDevicesByHouseId(houseId),
+    enabled: Boolean(houseId),
+  });
+};
+
+/**
+ * Hook tháo (deprovision) controller IoT khỏi nhà.
+ * API: DELETE /api/assets/houses/{houseId}/iot/deprovision
+ * Sau khi thành công sẽ invalidate cache iotDevices của house để màn danh sách cập nhật ngay.
+ */
+export const useDeprovisionIotControllerByHouseId = (houseId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => deprovisionIotControllerByHouseId(houseId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: IOT_DEVICE_KEYS.byHouse(houseId) });
+    },
+  });
+};
+
+/**
+ * Hook gắn (provision) controller IoT vào nhà.
+ * API: POST /api/assets/houses/{houseId}/iot/provision
+ * Sau khi thành công sẽ invalidate cache iotDevices của house để màn danh sách cập nhật ngay.
+ */
+export const useProvisionIotControllerByHouseId = (houseId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { deviceId: string; areaId: string }) =>
+      provisionIotControllerByHouseId(houseId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: IOT_DEVICE_KEYS.byHouse(houseId) });
+    },
+  });
+};
+
+export const useIotProvisionToken = () => {
+  return useMutation({
+    mutationFn: (payload: { serial: string }) => getIotProvisionTokenBySerial(payload),
+  });
+};
+
+export const useIotControllerByHouseId = (houseId: string) => {
+  return useMutation({
+    mutationFn: () => getIotControllerByHouseId(houseId),
+  });
+};
+
+export const useProvisionIotNodeByHouseId = (houseId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { serial: string; token: string; areaId: string }) =>
+      provisionIotNodeByHouseId(houseId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: IOT_DEVICE_KEYS.byHouse(houseId) });
     },
   });
 };
@@ -130,12 +212,14 @@ export const useAssetItemsAllHouses = (
 
   const isLoading = queries.some((q) => q.isLoading);
   const isError = queries.some((q) => q.isError);
-  const refetch = () => queries.forEach((q) => q.refetch());
+  const isRefetching = queries.some((q) => q.isRefetching);
+  const refetch = () => Promise.all(queries.map((q) => q.refetch()));
 
   return {
     data: { data: merged } as AssetItemsApiResponse,
     isLoading,
     isError,
+    isRefetching,
     refetch,
   };
 };
@@ -179,8 +263,8 @@ export const useTransferAssetItemHouse = () => {
 };
 
 /**
- * Hook gán tag NFC vào thiết bị (POST /api/asset/tags).
- * Sau khi gán thành công, invalidate cache danh sách thiết bị để màn hình cập nhật (item có nfcId/tag).
+ * Hook gán tag NFC hoặc QR vào thiết bị (POST /api/assets/tags).
+ * Sau khi gán thành công, invalidate cache danh sách thiết bị.
  */
 export const useAttachAssetTag = () => {
   const queryClient = useQueryClient();
@@ -196,8 +280,7 @@ export const useAttachAssetTag = () => {
 };
 
 /**
- * Hook gỡ tag NFC khỏi thiết bị (PUT /api/asset/tags/detach/{tagValue}).
- * Sau khi gỡ thành công, invalidate cache danh sách thiết bị để trạng thái NFC cập nhật.
+ * Hook gỡ tag NFC hoặc QR (PUT /api/assets/tags/detach/{tagValue}).
  */
 export const useDetachAssetTag = () => {
   const queryClient = useQueryClient();

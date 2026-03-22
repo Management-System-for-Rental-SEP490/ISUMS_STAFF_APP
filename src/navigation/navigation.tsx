@@ -10,6 +10,7 @@ import OnBoarding from "../features/screens/onBoarding/onBoarding";
 import { useAuthStore } from "../store/useAuthStore";
 import { RootStackParamList } from "../shared/types";
 import { StaffTabs } from "../shared/components/footerNavigator";
+import { brandPrimary } from "../shared/theme/color";
 import CameraScreen from "../features/modal/camera/CameraScreen";
 import BuildingDetailScreen from "../features/staff/screens/staffHouse/BuildingDetailScreen";
 import TicketDetailScreen from "../features/staff/screens/staffTicket/TicketDetailScreen";
@@ -23,6 +24,13 @@ import ItemDescriptionScreen from "../features/staff/screens/staffItems/itemDesc
 import WorkSlotDetailScreen from "../features/staff/screens/staffWorkSlot/staffWorkSlotDetail";
 import StaffDayOffListScreen from "../features/staff/screens/staffDayOff/staffDayOffList";
 import StaffRequestDayOffScreen from "../features/staff/screens/staffDayOff/staffRequestDayOff";
+import StaffIotListScreen from "../features/staff/screens/staffIoT/staffIotList";
+import StaffIotProvisionScreen from "../features/staff/screens/staffIoT/staffIotProvision";
+import StaffIotQrScanScreen from "../features/staff/screens/staffIoT/staffIotQrScanScreen";
+import StaffIotWifiScreen from "../features/staff/screens/staffIoT/staffIotWifi";
+import StaffIotWifiPasswordScreen from "../features/staff/screens/staffIoT/staffIotWifiPasswordScreen";
+import StaffIotProvisionWaitingScreen from "../features/staff/screens/staffIoT/staffIotProvisionWaiting";
+import StaffIotDetailScreen from "../features/staff/screens/staffIoT/staffIotDetail";
 import { StaffScheduleProvider } from "../features/staff/context/StaffScheduleContext";
 
 // Wrapper components để bọc Provider cho các screen cần useStaffSchedule
@@ -86,7 +94,7 @@ const Navigation = () => {
       return (
           <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
             {/* Hiển thị loading khi đang đọc state từ AsyncStorage vào store(cái vòng tròn xoay */}
-              <ActivityIndicator size="large" color="#3bb582" /> 
+              <ActivityIndicator size="large" color={brandPrimary} /> 
           </View>
       );
   }
@@ -131,6 +139,13 @@ const Navigation = () => {
               />
               <Stack.Screen name="LeaveRequestList" component={StaffDayOffListScreen} />
               <Stack.Screen name="RequestDayOff" component={StaffRequestDayOffScreen} />
+              <Stack.Screen name="StaffIotList" component={StaffIotListScreen} />
+              <Stack.Screen name="StaffIotDetail" component={StaffIotDetailScreen} />
+              <Stack.Screen name="StaffIotProvision" component={StaffIotProvisionScreen} />
+              <Stack.Screen name="StaffIotQrScan" component={StaffIotQrScanScreen} />
+              <Stack.Screen name="StaffIotWifi" component={StaffIotWifiScreen} />
+              <Stack.Screen name="StaffIotWifiPassword" component={StaffIotWifiPasswordScreen} />
+              <Stack.Screen name="StaffIotProvisionWaiting" component={StaffIotProvisionWaitingScreen} />
             </>
           )
         ) : (

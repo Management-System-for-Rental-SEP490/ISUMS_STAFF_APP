@@ -59,6 +59,9 @@ const Icons = {
   chevronBack: ({ size = 24, color = 'black' }: IconProps = {}) => (
     <Ionicons name="chevron-back" size={size} color={color} />
   ),
+  chevronDown: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <Ionicons name="chevron-down" size={size} color={color} />
+  ),
   logOut: ({ size = 24, color = 'black' }: IconProps = {}) => (
     <Ionicons name="log-out-outline" size={size} color={color} />
   ),

@@ -17,7 +17,7 @@ const getKeycloakBaseUrl = (): string => {
   if (Platform.OS === "web") {
     return "http://localhost:8080";
   }
-  return "https://sso-dev.isums.pro";
+  return "https://sso.isums.pro";
 };
 
 // Cấu hình Keycloak
@@ -32,7 +32,7 @@ const KEYCLOAK_CONFIG = {
     if (Platform.OS === 'web') {
       return process.env.EXPO_PUBLIC_KEYCLOAK_REDIRECT_WEB || "http://localhost/callback";
     }
-    return process.env.EXPO_PUBLIC_KEYCLOAK_REDIRECT_NATIVE || "isums://callback";
+    return process.env.EXPO_PUBLIC_KEYCLOAK_REDIRECT_NATIVE || "isumsstaff://callback";
   },
 };
 

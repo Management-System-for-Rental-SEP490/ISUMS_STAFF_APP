@@ -18,11 +18,9 @@ import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
 import Header from "../../../../shared/components/header";
 import { CustomAlert } from "../../../../shared/components/alert";
-import {
-  createLeaveRequest,
-  getStaffIdForSchedule,
-} from "../../../../shared/services/scheduleApi";
+import { useCreateLeaveRequest } from "../../../../shared/hooks";
 import { staffDayOffStyles } from "./staffDayOffStyles";
+import { neutral } from "../../../../shared/theme/color";
 
 const DAY_HEADER_KEYS: Record<number, string> = {
   0: "staff_calendar.day_short_7", // CN
@@ -63,6 +61,7 @@ export default function StaffRequestDayOffScreen() {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [monthOffset, setMonthOffset] = useState(0); // 0 = tháng hiện tại, 1 = tháng sau...
+  const createLeaveMutation = useCreateLeaveRequest();
 
   const today = useMemo(() => new Date(), []);
   const displayDate = useMemo(() => {
@@ -85,11 +84,9 @@ export default function StaffRequestDayOffScreen() {
       CustomAlert.alert(t("staff_day_off.form_error_title"), t("staff_day_off.form_date_required"), undefined, { type: "warning" });
       return;
     }
-    const staffId = getStaffIdForSchedule();
     setSubmitting(true);
     try {
-      await createLeaveRequest({
-        staffId,
+      await createLeaveMutation.mutateAsync({
         leaveDate,
         note: note.trim() || "",
       });
@@ -174,7 +171,7 @@ export default function StaffRequestDayOffScreen() {
                       disabled && staffDayOffStyles.calendarDayCellDisabled,
                     ]}
                     onPress={() => !disabled && setLeaveDate(ymd)}
-                    activeOpacity={0.7}
+                    activeOpacity={0.75}
                     disabled={disabled}
                   >
                     <View
@@ -205,7 +202,7 @@ export default function StaffRequestDayOffScreen() {
           <TextInput
             style={staffDayOffStyles.formNoteInput}
             placeholder={t("staff_day_off.form_note_placeholder")}
-            placeholderTextColor="#94a3b8"
+            placeholderTextColor={neutral.slate400}
             value={note}
             onChangeText={setNote}
             multiline
@@ -224,7 +221,7 @@ export default function StaffRequestDayOffScreen() {
             activeOpacity={0.8}
           >
             {submitting ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={neutral.surface} />
             ) : (
               <Text style={staffDayOffStyles.formSubmitBtnText}>
                 {t("staff_day_off.form_submit")}

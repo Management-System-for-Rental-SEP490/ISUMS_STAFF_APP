@@ -3,8 +3,16 @@
  * Hiển thị các ticket do người thuê gửi (báo cáo sự cố). Mock data từ mockStaffData.
  * Khi có API sẽ thay bằng dữ liệu thật; có thể navigate sang TicketDetail khi nhấn vào item.
  */
-import React, { useMemo } from "react";
-import { View, Text, FlatList, TouchableOpacity, ListRenderItem } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  ListRenderItem,
+  RefreshControl,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
@@ -14,6 +22,14 @@ import { MainTabParamList, RootStackParamList } from "../../../../shared/types";
 import Header from "../../../../shared/components/header";
 import { MOCK_STAFF_TICKETS, StaffTicketListItem } from "../../data/mockStaffData";
 import { ticketListStyles } from "./ticketListStyles";
+import {
+  brandPrimary,
+  brandSecondary,
+  brandTintBg,
+  neutral,
+} from "../../../../shared/theme/color";
+import { PaginationBar } from "../../../../shared/components/PaginationBar";
+import { getTotalPages, slicePage } from "../../../../shared/utils";
 
 type TicketListNavProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Ticket">,
@@ -23,30 +39,30 @@ type TicketListNavProp = CompositeNavigationProp<
 function getPriorityStyle(priority: string) {
   switch (priority) {
     case "high":
-      return { bg: "#FEE2E2", color: "#DC2626" };
+      return { bg: brandTintBg, color: brandPrimary };
     case "medium":
-      return { bg: "#FEF3C7", color: "#D97706" };
+      return { bg: brandTintBg, color: brandSecondary };
     default:
-      return { bg: "#F3F4F6", color: "#6B7280" };
+      return { bg: neutral.background, color: neutral.textSecondary };
   }
 }
 // String về status ticket
 function getStatusStyle(status: string) {
   switch (status) {
     case "pending":
-      return { bg: "#FEF3C7", color: "#92400E" };
+      return { bg: brandTintBg, color: brandPrimary };
     case "assigned":
-      return { bg: "#DBEAFE", color: "#1D4ED8" };
+      return { bg: brandTintBg, color: brandSecondary };
     case "scheduled":
-      return { bg: "#E0E7FF", color: "#4338CA" };
+      return { bg: brandTintBg, color: brandSecondary };
     case "in_progress":
-      return { bg: "#D1FAE5", color: "#059669" };
+      return { bg: brandTintBg, color: brandPrimary };
     case "completed":
-      return { bg: "#D1FAE5", color: "#047857" };
+      return { bg: brandTintBg, color: brandPrimary };
     case "cancelled":
-      return { bg: "#F3F4F6", color: "#6B7280" };
+      return { bg: neutral.background, color: neutral.textSecondary };
     default:
-      return { bg: "#F3F4F6", color: "#6B7280" };
+      return { bg: neutral.background, color: neutral.textSecondary };
   }
 }
 
@@ -62,8 +78,25 @@ function formatDate(d: Date, t: (key: string, options?: Record<string, number>) 
 
 export default function TicketListScreen() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<TicketListNavProp>();
   const tickets = useMemo(() => MOCK_STAFF_TICKETS, []);
+  const [listPage, setListPage] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const ticketTotalPages = getTotalPages(tickets.length);
+  const pagedTickets = useMemo(
+    () => slicePage(tickets, listPage),
+    [tickets, listPage]
+  );
+
+  useEffect(() => {
+    setListPage(1);
+  }, [tickets.length]);
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 450);
+  }, []);
 
   const openTicketDetail = (ticketId: string) => {
     const root = navigation.getParent?.();
@@ -158,17 +191,33 @@ export default function TicketListScreen() {
     <View style={ticketListStyles.container}>
       <Header variant="default" />
       <FlatList
-        data={tickets}
+        data={pagedTickets}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={listEmpty}
+        ListFooterComponent={() => (
+          <PaginationBar
+            currentPage={listPage}
+            totalPages={ticketTotalPages}
+            onPageChange={setListPage}
+            style={{ paddingBottom: Math.max(8, insets.bottom) }}
+          />
+        )}
         contentContainerStyle={
           tickets.length === 0
             ? [ticketListStyles.listContent, { flex: 1 }]
             : ticketListStyles.listContent
         }
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={brandPrimary}
+            colors={[brandPrimary]}
+          />
+        }
       />
     </View>
   );

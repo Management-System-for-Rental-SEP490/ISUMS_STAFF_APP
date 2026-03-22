@@ -1,35 +1,72 @@
 /**
  * Màn hình Chi tiết nhà dành cho Staff.
  * Hiển thị thông tin nhà + danh sách thiết bị từ API GET /api/asset/items (filter theo houseId).
- * Thiết bị chưa có NFC hiển thị nút "Gán mã NFC" (sau này mở luồng quét NFC).
  */
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
+  Keyboard,
+  Platform,
+  type KeyboardEvent,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
-import type { AssetItemFromApi, AssetCategoryFromApi, FunctionalAreaFromApi } from "../../../../shared/types/api";
+import type {
+  AssetItemFromApi,
+  AssetCategoryFromApi,
+  FunctionalAreaFromApi,
+  HouseFromApi,
+} from "../../../../shared/types/api";
 import Icons from "../../../../shared/theme/icon";
 import { staffBuildingDetailStyles } from "./staffBuildingDetailStyles";
-import { useAssetItems, useAssetCategories } from "../../../../shared/hooks";
+import { FloorPlanView } from "../../houseStructure";
+import { useAssetItems, useAssetCategories, useFunctionalAreasByHouseId } from "../../../../shared/hooks";
 import { useCategoryFilterStore } from "../../../../store/useCategoryFilterStore";
+import {
+  DROPDOWN_SEARCH_TOP_INSET_PX,
+  parentScrollOffsetForDropdownField,
+} from "../../../../shared/utils";
+import { brandPrimary, neutral } from "../../../../shared/theme/color";
+import {
+  StackScreenTitleBadge,
+  StackScreenTitleBarBalance,
+  StackScreenTitleHeaderStrip,
+  stackScreenTitleBackBtnOnBrand,
+  stackScreenTitleCenterSlotStyle,
+  stackScreenTitleOnBrandIconColor,
+  stackScreenTitleRowStyle,
+  stackScreenTitleSideSlotStyle,
+} from "../../../../shared/components/StackScreenTitleBadge";
+import {
+  DropdownBox,
+  type DropdownBoxSection,
+} from "../../../../shared/components/dropdownBox";
+import { ExpandableLongText } from "../../../../shared/components/ExpandableLongText";
+import {
+  DEFAULT_BE_SHORT_TEXT_MAX_CHARS,
+  getTotalPages,
+  mergeFunctionalAreasForHouse,
+  slicePage,
+  sortFunctionalAreasForDisplay,
+} from "../../../../shared/utils";
+import { PaginationBar } from "../../../../shared/components/PaginationBar";
 
 type BuildingDetailRouteProp = RouteProp<RootStackParamList, "BuildingDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "BuildingDetail">;
 
 export default function BuildingDetailScreen() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavProp>();
   const route = useRoute<BuildingDetailRouteProp>();
-  const insets = useSafeAreaInsets();
   const {
     buildingId,
     buildingName,
@@ -42,89 +79,201 @@ export default function BuildingDetailScreen() {
     functionalAreas: rawFunctionalAreas,
   } = route.params;
 
-  /** Danh sách khu vực chức năng trong nhà (từ API), sắp xếp theo tầng rồi tên. */
+  const { data: functionalAreasApiRes } = useFunctionalAreasByHouseId(buildingId);
+
+  /** Khu vực: gộp từ route + GET /houses/functionalAreas/{id}, sắp xếp tầng → tên. */
   const functionalAreas = useMemo(() => {
-    const list = rawFunctionalAreas ?? [];
-    return [...list].sort((a, b) => {
-      const floorA = a.floorNo ?? "";
-      const floorB = b.floorNo ?? "";
-      if (floorA !== floorB) return String(floorA).localeCompare(String(floorB), undefined, { numeric: true });
-      return (a.name ?? "").localeCompare(b.name ?? "");
-    });
-  }, [rawFunctionalAreas]);
+    const merged = mergeFunctionalAreasForHouse(
+      { functionalAreas: rawFunctionalAreas ?? [] } as HouseFromApi,
+      functionalAreasApiRes?.data
+    );
+    return sortFunctionalAreasForDisplay(merged);
+  }, [rawFunctionalAreas, functionalAreasApiRes?.data]);
 
-  /** Tầng đang chọn để lọc khu vực: null = Tất cả. */
+  /** Tầng đang chọn để lọc sơ đồ: null = hiển thị mọi tầng (xếp chồng). */
   const [selectedFloor, setSelectedFloor] = useState<string | null>(null);
+  /** null = mọi thiết bị; id = chỉ thiết bị gắn khu vực đó. */
+  const [selectedDeviceAreaId, setSelectedDeviceAreaId] = useState<string | null>(null);
 
-  /** Danh sách tầng duy nhất (không trùng), sắp xếp theo số. */
+  /** Danh sách tầng (floorNo rỗng → gộp "1"). */
   const uniqueFloors = useMemo(() => {
     const floors = new Set<string>();
     for (const area of functionalAreas) {
-      if (area.floorNo != null && area.floorNo !== "") floors.add(String(area.floorNo));
+      floors.add(String(area.floorNo ?? "").trim() || "1");
     }
     return [...floors].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [functionalAreas]);
 
-  /** Khu vực sau khi lọc theo tầng đang chọn. */
-  const filteredFunctionalAreas = useMemo(() => {
-    if (selectedFloor === null) return functionalAreas;
-    return functionalAreas.filter((area) => String(area.floorNo) === selectedFloor);
-  }, [functionalAreas, selectedFloor]);
+  /** Khi chọn "Tất cả" tầng: chỉ hiển thị một sơ đồ (ưu tiên tầng 1). */
+  const floorPlanWhenAllFloors = useMemo(() => {
+    if (uniqueFloors.includes("1")) return "1";
+    return uniqueFloors[0] ?? "1";
+  }, [uniqueFloors]);
+
+  const mainScrollRef = useRef<ScrollView>(null);
+  /** Top của block "Khu vực trong nhà" trong nội dung ScrollView (offset cuộn). */
+  const functionalAreasSectionYRef = useRef(0);
+  /** Top của khối DropdownBox danh mục so với `functionalAreasSection` (chỉ khi có functionalAreas). */
+  const categoryFilterInnerYRef = useRef(0);
+  /** Offset cuộn dùng cho `parentScrollOffsetForDropdownField` — luôn tính theo tọa độ nội dung ScrollView. */
+  const categoryFilterScrollContentYRef = useRef(0);
+
+  const updateCategoryFilterScrollY = useCallback(() => {
+    categoryFilterScrollContentYRef.current =
+      functionalAreasSectionYRef.current + categoryFilterInnerYRef.current;
+  }, []);
+
+  /** Chiều cao bàn phím (để cuộn ô tìm DropdownBox lên khi mở phím). */
+  const keyboardHeightRef = useRef(0);
+  const scrollFiltersIntoViewRef = useRef<() => void>(() => {});
+  const keyboardScrollRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [keyboardBottomInset, setKeyboardBottomInset] = useState(0);
+
+  const scrollFiltersIntoView = useCallback(() => {
+    const run = () => {
+      const kh = keyboardHeightRef.current;
+      const topInset =
+        kh > 0
+          ? Math.max(
+              36,
+              DROPDOWN_SEARCH_TOP_INSET_PX - Math.min(Math.round(kh * 0.45), 120)
+            )
+          : DROPDOWN_SEARCH_TOP_INSET_PX;
+      const y = parentScrollOffsetForDropdownField(
+        categoryFilterScrollContentYRef.current,
+        topInset
+      );
+      mainScrollRef.current?.scrollTo({ y, animated: true });
+    };
+    requestAnimationFrame(() => {
+      requestAnimationFrame(run);
+    });
+  }, []);
+
+  scrollFiltersIntoViewRef.current = scrollFiltersIntoView;
+
+  useEffect(() => {
+    const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const onShow = (e: KeyboardEvent) => {
+      keyboardHeightRef.current = e.endCoordinates.height;
+      if (Platform.OS === "ios") {
+        setKeyboardBottomInset(e.endCoordinates.height);
+      }
+      if (keyboardScrollRetryRef.current) {
+        clearTimeout(keyboardScrollRetryRef.current);
+      }
+      keyboardScrollRetryRef.current = setTimeout(() => {
+        keyboardScrollRetryRef.current = null;
+        scrollFiltersIntoViewRef.current();
+      }, Platform.OS === "ios" ? 80 : 160);
+    };
+
+    const onHide = () => {
+      keyboardHeightRef.current = 0;
+      setKeyboardBottomInset(0);
+      if (keyboardScrollRetryRef.current) {
+        clearTimeout(keyboardScrollRetryRef.current);
+        keyboardScrollRetryRef.current = null;
+      }
+    };
+
+    const subShow = Keyboard.addListener(showEvt, onShow);
+    const subHide = Keyboard.addListener(hideEvt, onHide);
+    return () => {
+      subShow.remove();
+      subHide.remove();
+      if (keyboardScrollRetryRef.current) {
+        clearTimeout(keyboardScrollRetryRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    setSelectedDeviceAreaId(null);
+  }, [selectedFloor, buildingId]);
 
   // Lấy thiết bị thuộc căn nhà này từ API GET /api/asset/items?houseId=...
-  const { data: itemsData, isLoading, isError } = useAssetItems({
+  const {
+    data: itemsData,
+    isLoading,
+    isError,
+    refetch: refetchItems,
+    isRefetching: itemsRefetching,
+  } = useAssetItems({
     houseId: buildingId,
   });
-  /** Chỉ hiển thị thiết bị có houseId đúng với căn nhà đang xem (lọc phía client phòng BE trả về nhầm nhà). */
-  const rawItems: AssetItemFromApi[] = useMemo(
+  /** Thiết bị đúng nhà (trước lọc khu vực). */
+  const rawItemsAll: AssetItemFromApi[] = useMemo(
     () => (itemsData?.data ?? []).filter((item) => item.houseId === buildingId),
     [itemsData?.data, buildingId]
   );
 
+  /** Lọc theo khu vực đã chọn (null = tất cả). */
+  const rawItems: AssetItemFromApi[] = useMemo(() => {
+    if (selectedDeviceAreaId == null) return rawItemsAll;
+    return rawItemsAll.filter((item) => item.functionAreaId === selectedDeviceAreaId);
+  }, [rawItemsAll, selectedDeviceAreaId]);
+
   // Danh mục từ API để hiển thị tên và nhóm thiết bị theo category
-  const { data: categoriesData } = useAssetCategories();
+  const {
+    data: categoriesData,
+    refetch: refetchCategories,
+    isRefetching: categoriesRefetching,
+  } = useAssetCategories();
   const categories: AssetCategoryFromApi[] = categoriesData?.data ?? [];
 
-  /** Nhóm thiết bị theo category: [{ categoryId, categoryName, items }], thứ tự theo danh sách category từ API.
-   * Trong mỗi nhóm, thiết bị được sắp xếp theo displayName để dễ tìm. */
-  const devicesByCategory = useMemo(() => {
-    const map = new Map<string, AssetItemFromApi[]>();
-    for (const item of rawItems) {
-      const list = map.get(item.categoryId) ?? [];
-      list.push(item);
-      map.set(item.categoryId, list);
-    }
-    const result: { categoryId: string; categoryName: string; items: AssetItemFromApi[] }[] = [];
-    // Thứ tự theo categories từ API
-    for (const cat of categories) {
-      const items = map.get(cat.id);
-      if (items?.length) {
-        const sorted = [...items].sort((a, b) =>
+  const listRefreshing = itemsRefetching || categoriesRefetching;
+  const onPullRefresh = () => Promise.all([refetchItems(), refetchCategories()]);
+
+  const groupItemsByCategory = useCallback(
+    (items: AssetItemFromApi[]) => {
+      const map = new Map<string, AssetItemFromApi[]>();
+      for (const item of items) {
+        const list = map.get(item.categoryId) ?? [];
+        list.push(item);
+        map.set(item.categoryId, list);
+      }
+      const result: { categoryId: string; categoryName: string; items: AssetItemFromApi[] }[] = [];
+      for (const cat of categories) {
+        const groupItems = map.get(cat.id);
+        if (groupItems?.length) {
+          const sorted = [...groupItems].sort((a, b) =>
+            (a.displayName ?? "").localeCompare(b.displayName ?? "", undefined, { sensitivity: "base" })
+          );
+          result.push({ categoryId: cat.id, categoryName: cat.name, items: sorted });
+          map.delete(cat.id);
+        }
+      }
+      for (const [categoryId, groupItems] of map) {
+        const sorted = [...groupItems].sort((a, b) =>
           (a.displayName ?? "").localeCompare(b.displayName ?? "", undefined, { sensitivity: "base" })
         );
-        result.push({ categoryId: cat.id, categoryName: cat.name, items: sorted });
-        map.delete(cat.id);
+        result.push({
+          categoryId,
+          categoryName: t("staff_building_detail.category_other"),
+          items: sorted,
+        });
       }
-    }
-    // Phần còn lại (categoryId không có trong danh sách category) gom vào "Khác"
-    for (const [categoryId, items] of map) {
-      const sorted = [...items].sort((a, b) =>
-        (a.displayName ?? "").localeCompare(b.displayName ?? "", undefined, { sensitivity: "base" })
-      );
-      result.push({
-        categoryId,
-        categoryName: t("staff_building_detail.category_other"),
-        items: sorted,
-      });
-    }
-    return result;
-  }, [rawItems, categories, t]);
+      return result;
+    },
+    [categories, t]
+  );
+
+  /** Nhóm toàn bộ thiết bị nhà — dùng cho dropdown danh mục (không mất khi lọc khu vực). */
+  const devicesByCategoryAll = useMemo(
+    () => groupItemsByCategory(rawItemsAll),
+    [groupItemsByCategory, rawItemsAll]
+  );
+
+  /** Nhóm thiết bị sau lọc khu vực — hiển thị danh sách. */
+  const devicesByCategory = useMemo(
+    () => groupItemsByCategory(rawItems),
+    [groupItemsByCategory, rawItems]
+  );
 
   const loading = isLoading;
-
-  /** Map trạng thái API (AVAILABLE, DISPOSED) sang nhãn hiển thị (active, inactive) dùng cho getStatusStyle/getStatusLabel. */
-  const getDisplayStatus = (apiStatus: string) =>
-    apiStatus === "AVAILABLE" ? "active" : apiStatus === "DISPOSED" ? "inactive" : "pending";
 
   /** Category đang chọn: lấy từ store theo buildingId, null = Tất cả. */
   const buildingSelectedCategoryId = useCategoryFilterStore(
@@ -142,54 +291,34 @@ export default function BuildingDetailScreen() {
     return devicesByCategory.filter((g) => g.categoryId === selectedCategoryId);
   }, [devicesByCategory, selectedCategoryId]);
 
+  const flatDeviceRows = useMemo(() => {
+    const rows: { categoryName: string; item: AssetItemFromApi }[] = [];
+    for (const g of filteredDevicesByCategory) {
+      for (const item of g.items) {
+        rows.push({ categoryName: g.categoryName, item });
+      }
+    }
+    return rows;
+  }, [filteredDevicesByCategory]);
+
+  const [deviceListPage, setDeviceListPage] = useState(1);
+  const deviceTotalPages = getTotalPages(flatDeviceRows.length);
+  const pagedDeviceRows = useMemo(
+    () => slicePage(flatDeviceRows, deviceListPage),
+    [flatDeviceRows, deviceListPage]
+  );
+
+  useEffect(() => {
+    setDeviceListPage(1);
+  }, [selectedCategoryId, buildingId, rawItemsAll.length, selectedDeviceAreaId]);
+
+  useEffect(() => {
+    setDeviceListPage((p) => Math.min(p, deviceTotalPages));
+  }, [deviceTotalPages]);
+
   /** Mở màn chỉnh sửa thiết bị (ItemEdit) khi nhấn vào 1 thiết bị trong nhà. */
   const openItemEdit = (item: AssetItemFromApi) => {
     navigation.navigate("ItemEdit", { item });
-  };
-
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case "active":
-        return { bg: "#D1FAE5", color: "#059669" };
-      case "maintenance":
-        return { bg: "#FEF3C7", color: "#D97706" };
-      case "inactive":
-        return { bg: "#FEE2E2", color: "#DC2626" };
-      default:
-        return { bg: "#F3F4F6", color: "#6B7280" };
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "active":
-        return t("staff_building_detail.status_active");
-      case "maintenance":
-        return t("staff_building_detail.status_maintenance");
-      case "inactive":
-        return t("staff_building_detail.status_inactive");
-      default:
-        return t("staff_building_detail.status_pending");
-    }
-  };
-
-  /** Mô tả trạng thái NFC & QR: hiển thị đúng khi chỉ có 1 trong 2 được gán. */
-  const getTagStatusLabel = (hasNfc: boolean, hasQr: boolean) => {
-    if (hasNfc && hasQr) return t("staff_home.tag_status_both");
-    if (hasNfc && !hasQr) return t("staff_home.tag_status_nfc_only");
-    if (!hasNfc && hasQr) return t("staff_home.tag_status_qr_only");
-    return t("staff_home.tag_status_none");
-  };
-
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case "electric":
-        return t("device_detail.type_label.electric");
-      case "water":
-        return t("device_detail.type_label.water");
-      default:
-        return t("device_detail.type_label.other");
-    }
   };
 
   /** Dịch trạng thái căn nhà từ API (AVAILABLE, RENTED, ...). */
@@ -203,62 +332,116 @@ export default function BuildingDetailScreen() {
     return t(`staff_building_detail.${key}`, { status: statusValue });
   };
 
-  /** Dịch loại khu vực (LIVINGROOM, KITCHEN, BATHROOM, HALLWAY, BEDROOM...) từ API. */
-  const getAreaTypeLabel = (areaType: string) => {
-    const key = `staff_building_detail.area_type_${areaType}`;
-    const translated = t(key);
-    if (translated === key) return t("staff_building_detail.area_type_OTHER");
-    return translated;
+  const openIotManage = () => {
+    navigation.navigate("StaffIotList", { houseId: buildingId, houseName: buildingName });
   };
 
-  const handleAssignNfc = (device: AssetItemFromApi) => {
-    // Mở màn Camera (chế độ NFC) với thiết bị cần gán; sau khi quét thẻ, xác nhận và PUT cập nhật nfcId.
-    navigation.navigate("Camera", { assignForDevice: device });
-  };
+  const categoryFilterSection = useMemo((): DropdownBoxSection | null => {
+    if (rawItemsAll.length === 0 || devicesByCategoryAll.length === 0) return null;
+    return {
+      id: "category",
+      title: t("dropdown_box.section_category"),
+      items: devicesByCategoryAll.map(({ categoryId, categoryName }) => ({
+        id: categoryId,
+        label: categoryName,
+      })),
+      selectedId: selectedCategoryId,
+      showAllOption: true,
+    };
+  }, [rawItemsAll.length, devicesByCategoryAll, selectedCategoryId, t]);
 
-  const handleAssignQr = (device: AssetItemFromApi) => {
-    // Mở màn Camera (chế độ QR) với thiết bị cần gán; sau khi quét QR, xác nhận và gán QR code.
-    navigation.navigate("Camera", {
-      assignForDevice: device,
-      mode: "assign",
-      initialScanMode: "qr",
-    });
-  };
+  const categoryFilterSummary = useMemo(() => {
+    const all = t("staff_home.all_devices_category_all");
+    const catLabel =
+      selectedCategoryId === null
+        ? all
+        : devicesByCategoryAll.find((g) => g.categoryId === selectedCategoryId)?.categoryName ?? "";
+    return `${t("dropdown_box.category_short")}: ${catLabel}`;
+  }, [devicesByCategoryAll, selectedCategoryId, t]);
+
+  const handleCategoryDropdownSelect = useCallback(
+    (_sectionId: string, itemId: string | null) => {
+      setBuildingSelectedCategoryId(buildingId, itemId);
+    },
+    [buildingId, setBuildingSelectedCategoryId]
+  );
+
+  const headerRow = (
+    <StackScreenTitleHeaderStrip>
+      <View style={stackScreenTitleRowStyle}>
+        <View style={stackScreenTitleSideSlotStyle}>
+          <TouchableOpacity
+            style={stackScreenTitleBackBtnOnBrand}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <Icons.chevronBack size={28} color={stackScreenTitleOnBrandIconColor} />
+          </TouchableOpacity>
+        </View>
+        <View style={stackScreenTitleCenterSlotStyle}>
+          <StackScreenTitleBadge numberOfLines={1}>
+            {t("staff_building_detail.screen_title")}
+          </StackScreenTitleBadge>
+        </View>
+        <StackScreenTitleBarBalance />
+      </View>
+    </StackScreenTitleHeaderStrip>
+  );
 
   if (loading) {
     return (
-      <View style={[staffBuildingDetailStyles.container, staffBuildingDetailStyles.loadingContainer]}>
-        <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={{ marginTop: 10, color: "#6B7280" }}>{t("home.loading_data")}</Text>
+      <View
+        style={[
+          staffBuildingDetailStyles.container,
+          staffBuildingDetailStyles.loadingContainer,
+        ]}
+      >
+        {headerRow}
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 40 }}>
+          <ActivityIndicator size="large" color={brandPrimary} />
+          <Text style={{ marginTop: 10, color: neutral.textSecondary }}>{t("home.loading_data")}</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={staffBuildingDetailStyles.container}>
-      <View style={[staffBuildingDetailStyles.topBar, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={staffBuildingDetailStyles.backBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Icons.chevronBack size={28} color="#374151" />
-        </TouchableOpacity>
-        <Text style={staffBuildingDetailStyles.topBarTitle} numberOfLines={1}>
-          {buildingName}
-        </Text>
-      </View>
+      {headerRow}
       <ScrollView
-        contentContainerStyle={staffBuildingDetailStyles.scrollContent}
+        ref={mainScrollRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={[
+          staffBuildingDetailStyles.scrollContent,
+          {
+            paddingBottom:
+              24 + insets.bottom + (Platform.OS === "ios" ? keyboardBottomInset : 0),
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={listRefreshing}
+            onRefresh={onPullRefresh}
+            tintColor={brandPrimary}
+            colors={[brandPrimary]}
+          />
+        }
       >
         <View style={staffBuildingDetailStyles.headerCard}>
           <Text style={staffBuildingDetailStyles.buildingName}>{buildingName}</Text>
-          <Text style={staffBuildingDetailStyles.buildingAddress}>{buildingAddress}</Text>
+          <ExpandableLongText
+            text={buildingAddress}
+            maxLength={DEFAULT_BE_SHORT_TEXT_MAX_CHARS}
+            textStyle={staffBuildingDetailStyles.buildingAddress}
+          />
           {(ward || commune || city) ? (
-            <Text style={staffBuildingDetailStyles.buildingAddressDetail}>
-              {[ward, commune, city].filter(Boolean).join(", ")}
-            </Text>
+            <ExpandableLongText
+              text={[ward, commune, city].filter(Boolean).join(", ")}
+              maxLength={DEFAULT_BE_SHORT_TEXT_MAX_CHARS}
+              textStyle={staffBuildingDetailStyles.buildingAddressDetail}
+            />
           ) : null}
           {status ? (
             <View style={staffBuildingDetailStyles.statusHouseBadge}>
@@ -268,153 +451,183 @@ export default function BuildingDetailScreen() {
             </View>
           ) : null}
           {description ? (
-            <Text style={staffBuildingDetailStyles.buildingDescription}>{description}</Text>
+            <ExpandableLongText
+              text={description}
+              textStyle={staffBuildingDetailStyles.buildingDescription}
+            />
           ) : null}
         </View>
 
+        <TouchableOpacity
+          style={staffBuildingDetailStyles.iotManageCard}
+          onPress={openIotManage}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={t("staff_iot.manage_cta")}
+        >
+          <View style={staffBuildingDetailStyles.iotManageLeft}>
+            <View style={staffBuildingDetailStyles.iotManageIconWrap}>
+              <Icons.electric size={18} color="#666" />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={staffBuildingDetailStyles.iotManageTitle} numberOfLines={1}>
+                {t("staff_iot.manage_cta")}
+              </Text>
+              <Text style={staffBuildingDetailStyles.iotManageSub} numberOfLines={2}>
+                {t("staff_iot.manage_subtitle", { houseName: buildingName })}
+              </Text>
+            </View>
+          </View>
+          <View style={staffBuildingDetailStyles.cardTrailingChevron}>
+            <Icons.chevronForward size={20} color={neutral.slate500} />
+          </View>
+        </TouchableOpacity>
+
         {/* Khu vực chức năng trong nhà (từ API functionalAreas) */}
-        <View style={staffBuildingDetailStyles.functionalAreasSection}>
+        <View
+          style={staffBuildingDetailStyles.functionalAreasSection}
+          collapsable={false}
+          onLayout={(e) => {
+            functionalAreasSectionYRef.current = e.nativeEvent.layout.y;
+            if (functionalAreas.length > 0) {
+              updateCategoryFilterScrollY();
+            }
+          }}
+        >
           <Text style={staffBuildingDetailStyles.sectionTitle}>
             {t("staff_building_detail.functional_areas_title")}
           </Text>
 
-          {/* Thanh lọc theo tầng (cuộn ngang) */}
-          {functionalAreas.length > 0 && uniqueFloors.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={staffBuildingDetailStyles.categoryContent}
-              style={[staffBuildingDetailStyles.categoryScroll, { marginBottom: 12 }]}
-            >
-              <TouchableOpacity
-                style={[
-                  staffBuildingDetailStyles.categoryChip,
-                  selectedFloor === null && staffBuildingDetailStyles.categoryChipActive,
-                ]}
-                onPress={() => setSelectedFloor(null)}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    staffBuildingDetailStyles.categoryChipText,
-                    selectedFloor === null && staffBuildingDetailStyles.categoryChipTextActive,
-                  ]}
-                >
-                  {t("staff_home.all_devices_category_all")}
-                </Text>
-              </TouchableOpacity>
-              {uniqueFloors.map((floor) => {
-                const isActive = selectedFloor === floor;
-                return (
-                  <TouchableOpacity
-                    key={floor}
-                    style={[
-                      staffBuildingDetailStyles.categoryChip,
-                      isActive && staffBuildingDetailStyles.categoryChipActive,
-                    ]}
-                    onPress={() => setSelectedFloor(floor)}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        staffBuildingDetailStyles.categoryChipText,
-                        isActive && staffBuildingDetailStyles.categoryChipTextActive,
-                      ]}
-                    >
-                      {t("staff_building_detail.functional_area_floor", { floor })}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          )}
-
-          {filteredFunctionalAreas.length === 0 ? (
+          {functionalAreas.length === 0 ? (
             <View style={staffBuildingDetailStyles.functionalAreasEmpty}>
               <Text style={staffBuildingDetailStyles.functionalAreasEmptyText}>
                 {t("staff_building_detail.functional_areas_empty")}
               </Text>
             </View>
           ) : (
-            filteredFunctionalAreas.map((area: FunctionalAreaFromApi) => (
-              <View key={area.id} style={staffBuildingDetailStyles.functionalAreaCard}>
-                <Text style={staffBuildingDetailStyles.functionalAreaName} numberOfLines={1}>
-                  {area.name}
-                </Text>
-                <Text style={staffBuildingDetailStyles.functionalAreaMeta}>
-                  {t("staff_building_detail.functional_area_floor", {
-                    floor: area.floorNo ?? "-",
-                  })}{" "}
-                  · {getAreaTypeLabel(area.areaType)}
-                </Text>
-                {area.description ? (
-                  <Text
-                    style={staffBuildingDetailStyles.functionalAreaDescription}
-                    numberOfLines={3}
+            <>
+              {uniqueFloors.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={staffBuildingDetailStyles.floorChipScroll}
+                  contentContainerStyle={staffBuildingDetailStyles.floorChipScrollContent}
+                  keyboardShouldPersistTaps="handled"
+                  nestedScrollEnabled
+                >
+                  <TouchableOpacity
+                    style={[
+                      staffBuildingDetailStyles.floorChip,
+                      selectedFloor === null && staffBuildingDetailStyles.floorChipSelected,
+                    ]}
+                    onPress={() => setSelectedFloor(null)}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: selectedFloor === null }}
                   >
-                    {area.description}
-                  </Text>
-                ) : null}
-              </View>
-            ))
+                    <Text
+                      style={[
+                        staffBuildingDetailStyles.floorChipLabel,
+                        selectedFloor === null && staffBuildingDetailStyles.floorChipLabelSelected,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {t("staff_home.all_devices_category_all")}
+                    </Text>
+                  </TouchableOpacity>
+                  {uniqueFloors.map((f) => {
+                    const selected = selectedFloor === f;
+                    return (
+                      <TouchableOpacity
+                        key={f}
+                        style={[
+                          staffBuildingDetailStyles.floorChip,
+                          selected && staffBuildingDetailStyles.floorChipSelected,
+                        ]}
+                        onPress={() => setSelectedFloor(f)}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                      >
+                        <Text
+                          style={[
+                            staffBuildingDetailStyles.floorChipLabel,
+                            selected && staffBuildingDetailStyles.floorChipLabelSelected,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {t("staff_building_detail.functional_area_floor", { floor: f })}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              ) : null}
+              {selectedFloor === null ? (
+                <FloorPlanView
+                  selectedFloor={floorPlanWhenAllFloors}
+                  selectedAreaId={selectedDeviceAreaId ?? "all"}
+                  functionalAreas={functionalAreas}
+                  onSelectArea={(id) =>
+                    setSelectedDeviceAreaId((p) => (p === id ? null : id))
+                  }
+                  accentColor={brandPrimary}
+                />
+              ) : (
+                <FloorPlanView
+                  selectedFloor={selectedFloor}
+                  selectedAreaId={selectedDeviceAreaId ?? "all"}
+                  functionalAreas={functionalAreas}
+                  onSelectArea={(id) =>
+                    setSelectedDeviceAreaId((p) => (p === id ? null : id))
+                  }
+                  accentColor={brandPrimary}
+                />
+              )}
+
+              {categoryFilterSection ? (
+                <View
+                  style={{ marginHorizontal: 16, marginBottom: 8 }}
+                  collapsable={false}
+                  onLayout={(e) => {
+                    categoryFilterInnerYRef.current = e.nativeEvent.layout.y;
+                    updateCategoryFilterScrollY();
+                  }}
+                >
+                  <DropdownBox
+                    sections={[categoryFilterSection]}
+                    summary={categoryFilterSummary}
+                    onSelect={handleCategoryDropdownSelect}
+                    keyboardVerticalOffset={insets.top + 52}
+                    onSearchInputFocus={scrollFiltersIntoView}
+                  />
+                </View>
+              ) : null}
+            </>
           )}
         </View>
+
+        {functionalAreas.length === 0 && categoryFilterSection ? (
+          <View
+            style={{ marginHorizontal: 16, marginBottom: 8 }}
+            collapsable={false}
+            onLayout={(e) => {
+              categoryFilterScrollContentYRef.current = e.nativeEvent.layout.y;
+            }}
+          >
+            <DropdownBox
+              sections={[categoryFilterSection]}
+              summary={categoryFilterSummary}
+              onSelect={handleCategoryDropdownSelect}
+              keyboardVerticalOffset={insets.top + 52}
+              onSearchInputFocus={scrollFiltersIntoView}
+            />
+          </View>
+        ) : null}
 
         <Text style={staffBuildingDetailStyles.sectionTitle}>
           {t("staff_building_detail.devices_title", { count: rawItems.length })}
         </Text>
-
-        {/* Thanh category cuộn ngang (giống StaffHomeScreen) */}
-        {rawItems.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={staffBuildingDetailStyles.categoryContent}
-            style={staffBuildingDetailStyles.categoryScroll}
-          >
-            <TouchableOpacity
-              style={[
-                staffBuildingDetailStyles.categoryChip,
-                selectedCategoryId === null && staffBuildingDetailStyles.categoryChipActive,
-              ]}
-              onPress={() => setSelectedCategoryId(null)}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  staffBuildingDetailStyles.categoryChipText,
-                  selectedCategoryId === null && staffBuildingDetailStyles.categoryChipTextActive,
-                ]}
-              >
-                {t("staff_home.all_devices_category_all")}
-              </Text>
-            </TouchableOpacity>
-            {devicesByCategory.map(({ categoryId, categoryName }) => {
-              const isActive = selectedCategoryId === categoryId;
-              return (
-                <TouchableOpacity
-                  key={categoryId}
-                  style={[
-                    staffBuildingDetailStyles.categoryChip,
-                    isActive && staffBuildingDetailStyles.categoryChipActive,
-                  ]}
-                  onPress={() => setSelectedCategoryId(categoryId)}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      staffBuildingDetailStyles.categoryChipText,
-                      isActive && staffBuildingDetailStyles.categoryChipTextActive,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {categoryName}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
 
         {rawItems.length === 0 && !loading ? (
           <View style={staffBuildingDetailStyles.emptyDevices}>
@@ -425,114 +638,35 @@ export default function BuildingDetailScreen() {
             </Text>
           </View>
         ) : (
-          filteredDevicesByCategory.map(({ categoryId, categoryName, items }) => (
-            <View key={categoryId} style={staffBuildingDetailStyles.categoryBlock}>
-              <Text style={staffBuildingDetailStyles.categorySectionTitle}>
-                {categoryName}
-              </Text>
-              {items.map((item) => {
-                const hasNfc = !!item.nfcTag?.trim();
-                const hasQr = !!item.qrTag?.trim();
-                const displayStatus = getDisplayStatus(item.status);
-                const statusStyle = getStatusStyle(displayStatus);
-                const categoryName = categories.find((c) => c.id === item.categoryId)?.name;
-
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={staffBuildingDetailStyles.deviceCard}
-                    onPress={() => openItemEdit(item)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={staffBuildingDetailStyles.deviceInfo}>
-                      <Text style={staffBuildingDetailStyles.deviceName} numberOfLines={1}>
-                        {item.displayName}
-                      </Text>
-                      <Text style={staffBuildingDetailStyles.deviceLocation}>
-                        {buildingName}
-                      </Text>
-                      {(item.serialNumber || item.conditionPercent != null) ? (
-                        <Text style={staffBuildingDetailStyles.deviceMeta} numberOfLines={1}>
-                          {[item.serialNumber, item.conditionPercent != null ? `${item.conditionPercent}%` : null]
-                            .filter(Boolean)
-                            .join(" • ")}
-                        </Text>
-                      ) : null}
-                      <View
-                        style={[
-                          staffBuildingDetailStyles.nfcBadge,
-                          (!hasNfc || !hasQr) && staffBuildingDetailStyles.nfcBadgeEmpty,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            staffBuildingDetailStyles.nfcBadgeText,
-                            (!hasNfc || !hasQr) && staffBuildingDetailStyles.nfcBadgeEmptyText,
-                          ]}
-                          numberOfLines={2}
-                        >
-                          {getTagStatusLabel(hasNfc, hasQr)}
-                        </Text>
-                      </View>
-                      <View
-                        style={[
-                          staffBuildingDetailStyles.statusBadge,
-                          { backgroundColor: statusStyle.bg },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            staffBuildingDetailStyles.statusText,
-                            { color: statusStyle.color },
-                          ]}
-                        >
-                          {getStatusLabel(displayStatus)}
-                          {categoryName ? ` • ${categoryName}` : ` • ${getTypeLabel("other")}`}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={staffBuildingDetailStyles.deviceCardRight}>
-                      {(!hasNfc || !hasQr) && (
-                        <View style={staffBuildingDetailStyles.assignBtnCol}>
-                          {!hasNfc && (
-                            <TouchableOpacity
-                              style={staffBuildingDetailStyles.assignNfcBtn}
-                              onPress={(e) => {
-                                e?.stopPropagation?.();
-                                handleAssignNfc(item);
-                              }}
-                              activeOpacity={0.8}
-                            >
-                              <Text style={staffBuildingDetailStyles.assignNfcBtnText}>
-                                {t("staff_building_detail.assign_nfc")}
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-                          {!hasQr && (
-                            <TouchableOpacity
-                              style={staffBuildingDetailStyles.assignNfcBtn}
-                              onPress={(e) => {
-                                e?.stopPropagation?.();
-                                handleAssignQr(item);
-                              }}
-                              activeOpacity={0.8}
-                            >
-                              <Text style={staffBuildingDetailStyles.assignNfcBtnText}>
-                                {t("staff_building_detail.assign_qr")}
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      )}
-                      <View style={staffBuildingDetailStyles.deviceCardChevron}>
-                        <Icons.chevronForward size={20} color="#64748b" />
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ))
+          <>
+            {pagedDeviceRows.map((row) => {
+              const item = row.item;
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={staffBuildingDetailStyles.deviceCard}
+                  onPress={() => openItemEdit(item)}
+                  activeOpacity={0.8}
+                >
+                  <View style={staffBuildingDetailStyles.deviceInfo}>
+                    <Text style={staffBuildingDetailStyles.deviceName} numberOfLines={1}>
+                      {item.displayName}
+                    </Text>
+                    <Text style={staffBuildingDetailStyles.deviceCategoryLine} numberOfLines={1}>
+                      {row.categoryName}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+            <PaginationBar
+              currentPage={deviceListPage}
+              totalPages={deviceTotalPages}
+              onPageChange={setDeviceListPage}
+              hideWhenSingle={false}
+              style={{ paddingBottom: Math.max(8, insets.bottom) }}
+            />
+          </>
         )}
       </ScrollView>
     </View>

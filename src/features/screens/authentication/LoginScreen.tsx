@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, TouchableOpacity, Linking, Image, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, Linking, Image, ActivityIndicator, Platform, BackHandler } from "react-native";
 import WebView from "react-native-webview";
 import { CustomAlert as Alert } from "../../../shared/components/alert";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -10,6 +10,7 @@ import loginStyles from "./loginStyles";
 import { RootStackParamList } from "../../../shared/types";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { getKeycloakAuthUrl, getKeycloakRedirectUri, handleKeycloakCallback, exchangeCodeForToken, logoutKeycloak } from "../../../shared/services/keycloakAuth";
+import { brandGradient, brandPrimary } from "../../../shared/theme/color";
 import { useTranslation } from "react-i18next";
 
 type LoginNavigationProp = NativeStackNavigationProp<RootStackParamList, "AuthLogin">; //đây là khai báo kiểu để useNavigation có type an toàn khi dùng trong LoginScreen.
@@ -22,7 +23,8 @@ const LoginScreen = () => {
   const [showWebView, setShowWebView] = useState(false);
   const [authUrl, setAuthUrl] = useState<string | null>(null);
   const isProcessing = useRef(false); //useRef là một hook trong React để lưu trữ giá trị không thay đổi (immutable) trong suốt cả quá trình render của component.
-
+  const hasShownUpdatePasswordAlert = useRef(false);
+  const pendingUpdatePasswordUrl = useRef<string | null>(null);
   // Reset trạng thái khi màn hình được focus lại (ví dụ: quay lại từ browser nhưng không login):
   //Đoạn code này là một cơ chế dọn dẹp và reset trạng thái an toàn dành riêng cho việc điều hướng giữa các màn hình 
   // trong React Native, đảm bảo UI không bị treo ở trạng thái loading khi người dùng quay lại màn hình này.
@@ -124,6 +126,25 @@ const LoginScreen = () => {
 
   // Đã xóa AppState listener vì Linking.addEventListener đã đủ để bắt deep link khi app resume
 
+   // Bắt nút back cứng Android: nếu đang mở WebView login thì đóng overlay trước thay vì thoát app.
+   useEffect(() => {
+    if (Platform.OS !== "android") {
+      return;
+    }
+
+    const onHardwareBack = () => {
+      if (showWebView) {
+        setShowWebView(false);
+        hasShownUpdatePasswordAlert.current = false;
+        pendingUpdatePasswordUrl.current = null;
+        return true;
+      }
+      return false;
+    };
+
+    const subscription = BackHandler.addEventListener("hardwareBackPress", onHardwareBack);
+    return () => subscription.remove();
+  }, [showWebView]);
 
   const handleKeycloakLogin = () => {
     // Dùng WebView nội bộ app để mở trang đăng nhập Keycloak
@@ -131,13 +152,13 @@ const LoginScreen = () => {
     setAuthUrl(url);
     setShowWebView(true);
   };
-
+  
   const handleWebViewRequest = useCallback(
     (request: any) => {
       const redirectUri = getKeycloakRedirectUri();
       const currentUrl: string = request.url;
 
-      // Khi Keycloak redirect về redirectUri (isums://callback?code=...)
+      // Khi Keycloak redirect về redirectUri (ví dụ isumsstaff://callback?code=...)
       if (currentUrl.startsWith(redirectUri)) {
         // Tái sử dụng cùng logic xử lý deep link hiện tại
         handleDeepLink({ url: currentUrl });
@@ -154,7 +175,7 @@ const LoginScreen = () => {
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
-        <ActivityIndicator size="large" color="#3bb582" />
+        <ActivityIndicator size="large" color={brandPrimary} />
         <Text style={{ color: "#666", textAlign: "center", marginTop: 10 }}>
           {t("common.loading")}
         </Text>
@@ -170,7 +191,7 @@ const LoginScreen = () => {
 
   return (
     <LinearGradient
-      colors={["#3bb582", "rgba(12, 106, 181, 0.7)"]}
+      colors={[...brandGradient]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={[loginStyles.container, { paddingTop: insets.top }]}
@@ -226,7 +247,7 @@ const LoginScreen = () => {
 
         {showWebView && authUrl && (
           <View style={loginStyles.webViewOverlay}>
-            <View style={loginStyles.webViewHeader}>
+            {/* <View style={loginStyles.webViewHeader}>
               <TouchableOpacity
                 onPress={() => {
                   setShowWebView(false);
@@ -237,14 +258,14 @@ const LoginScreen = () => {
                   {t("common.cancel")}
                 </Text>
               </TouchableOpacity>
-            </View>
+            </View> */}
             <WebView
               source={{ uri: authUrl }}
               onShouldStartLoadWithRequest={handleWebViewRequest}
               startInLoadingState
               renderLoading={() => (
                 <View style={loginStyles.webViewLoadingOverlay}>
-                  <ActivityIndicator size="large" color="#3bb582" />
+                  <ActivityIndicator size="large" color={brandPrimary} />
                   <Text style={{ color: "#666", textAlign: "center", marginTop: 10 }}>
                     {t("common.loading")}
                   </Text>

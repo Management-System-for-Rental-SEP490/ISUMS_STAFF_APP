@@ -32,6 +32,8 @@ export interface WorkSlot {
   id: string;
   /** Thứ (1=T2, 7=CN) */
   dayOfWeek: number;
+  /** ID căn nhà (nếu có) mà ca làm việc gắn với job thuộc về */
+  houseId?: string;
   /** Ngày trong tháng (string để hiển thị, VD "18/02") */
   date: string;
   /** Giờ bắt đầu - kết thúc, ví dụ "08:00 - 10:00" */
@@ -437,7 +439,7 @@ export const MOCK_NEXT_WEEK_SLOTS: AvailableSlot[] = [
 // Nhà và thiết bị: đã dùng API (useHouses, useAssetItems). MOCK_BUILDINGS, MOCK_STAFF_ASSETS, getAssetsByBuilding đã xóa.
 
 // ---------- Mock: Danh sách ticket (tenant gửi) ----------
-export const MOCK_STAFF_TICKETS: StaffTicketListItem[] = [
+const MOCK_STAFF_TICKETS_BASE: StaffTicketListItem[] = [
   {
     id: "T001",
     title: "Máy lạnh không mát",
@@ -486,6 +488,38 @@ export const MOCK_STAFF_TICKETS: StaffTicketListItem[] = [
     buildingName: "Nhà B - Tòa 2",
     createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
   },
+];
+
+/** Thêm bản ghi demo để kiểm tra phân trang UI (8+ trang @ 10/trang → dấu …). */
+const MOCK_STAFF_TICKETS_DEMO_EXTRA: StaffTicketListItem[] = Array.from({ length: 76 }, (_, i) => {
+  const n = i + 5;
+  const id = `T${String(n).padStart(3, "0")}`;
+  const priorities: TicketPriority[] = ["low", "medium", "high"];
+  const statuses: TicketStatus[] = [
+    "pending",
+    "assigned",
+    "scheduled",
+    "in_progress",
+    "completed",
+    "cancelled",
+  ];
+  return {
+    id,
+    title: `Báo cáo sự cố demo #${n}`,
+    description: "Nội dung mẫu cho phân trang danh sách ticket.",
+    priority: priorities[n % 3],
+    status: statuses[n % 6],
+    deviceName: `Thiết bị #${n}`,
+    deviceLocation: "Tầng 1",
+    tenantName: "Người thuê demo",
+    buildingName: "Nhà demo",
+    createdAt: new Date(Date.now() - n * 37 * 60 * 1000),
+  };
+});
+
+export const MOCK_STAFF_TICKETS: StaffTicketListItem[] = [
+  ...MOCK_STAFF_TICKETS_BASE,
+  ...MOCK_STAFF_TICKETS_DEMO_EXTRA,
 ];
 
 /** Lấy ticket theo id (cho màn chi tiết). Khi có API thay bằng gọi BE. */

@@ -26,11 +26,10 @@ const CameraScreen = () => {
   /** "assign" = từ menu + Gán NFC; "lookup" (hoặc undefined) = tra cứu. */
   const cameraMode = route.params?.mode;
   const initialScanMode = route.params?.initialScanMode;
-  const navigateOnSuccess = route.params?.navigateOnSuccess;
 
   // Debug params
   useEffect(() => {
-    console.log("CameraScreen params:", { mode: cameraMode, assignForDevice: assignForDevice?.id, role, initialScanMode, navigateOnSuccess });
+    console.log("CameraScreen params:", { mode: cameraMode, assignForDevice: assignForDevice?.id, role, initialScanMode });
   }, [route.params]);
 
   const [permission, requestPermission] = useCameraPermissions(); 
@@ -50,7 +49,7 @@ const CameraScreen = () => {
 
   const nfcTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  /** Gán NFC/QR vào thiết bị qua POST /api/asset/tags. */
+  /** Gán NFC/QR vào thiết bị qua POST /api/assets/tags. */
   const { mutateAsync: attachAssetTag } = useAttachAssetTag();
 
   const isMounted = useRef(true);
@@ -101,11 +100,16 @@ const CameraScreen = () => {
    * sang DeviceStatus để tái sử dụng màn DeviceDetail/Ticket cũ.
    */
   const mapApiStatusToDeviceStatus = (apiStatus: string): DeviceStatus => {
-    switch (apiStatus) {
-      case "AVAILABLE":
+    // AssetStatus: API có thể trả về "AVAILABLE" hoặc status mới ACTIVE/BROKEN/DELETED.
+    const normalized = apiStatus === "AVAILABLE" ? "IN_USE" : apiStatus;
+    switch (normalized) {
       case "IN_USE":
+      case "ACTIVE":
         return "active";
       case "DISPOSED":
+      case "BROKEN":
+      case "DELETED":
+      case "INACTIVE":
         return "inactive";
       case "MAINTENANCE":
         return "maintenance";

@@ -1,6 +1,12 @@
-import { StyleSheet, Dimensions } from "react-native";
-
-const { width } = Dimensions.get("window");
+import { StyleSheet } from "react-native";
+import {
+  BRAND_DANGER,
+  brandDangerBg,
+  brandPrimary,
+  brandTintBg,
+  neutral,
+} from "../theme/color";
+import { appTypography } from "../utils/typography";
 
 export const alertStyles = StyleSheet.create({
   overlay: {
@@ -13,11 +19,11 @@ export const alertStyles = StyleSheet.create({
   alertContainer: {
     width: "100%",
     maxWidth: 340,
-    backgroundColor: "#ffffff",
+    backgroundColor: neutral.surface,
     borderRadius: 20,
     padding: 24,
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: neutral.slate900,
     shadowOffset: {
       width: 0,
       height: 10,
@@ -35,30 +41,28 @@ export const alertStyles = StyleSheet.create({
     alignItems: "center",
   },
   iconSuccess: {
-    backgroundColor: "#DCFCE7", // green-100
+    backgroundColor: brandTintBg,
   },
   iconError: {
-    backgroundColor: "#FEE2E2", // red-100
+    backgroundColor: brandDangerBg,
   },
   iconWarning: {
-    backgroundColor: "#FEF3C7", // amber-100
+    backgroundColor: brandTintBg,
   },
   iconInfo: {
-    backgroundColor: "#DBEAFE", // blue-100
+    backgroundColor: brandTintBg,
   },
   title: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1F2937", // gray-800
+    ...appTypography.dialogTitle,
+    color: neutral.heading,
     textAlign: "center",
     marginBottom: 8,
   },
   message: {
-    fontSize: 15,
-    color: "#6B7280", // gray-500
+    ...appTypography.dialogMessage,
+    color: neutral.textSecondary,
     textAlign: "center",
     marginBottom: 24,
-    lineHeight: 22,
   },
   buttonContainer: {
     flexDirection: "row",
@@ -73,22 +77,20 @@ export const alertStyles = StyleSheet.create({
     alignItems: "center",
   },
   buttonPrimary: {
-    backgroundColor: "#2563EB", // blue-600
+    backgroundColor: brandPrimary,
   },
   buttonSecondary: {
-    backgroundColor: "#F3F4F6", // gray-100
+    backgroundColor: neutral.background,
   },
   buttonDanger: {
-    backgroundColor: "#DC2626", // red-600
+    backgroundColor: BRAND_DANGER,
   },
   buttonTextPrimary: {
-    color: "#ffffff",
-    fontWeight: "600",
-    fontSize: 16,
+    ...appTypography.dialogButton,
+    color: neutral.surface,
   },
   buttonTextSecondary: {
-    color: "#374151", // gray-700
-    fontWeight: "600",
-    fontSize: 16,
+    ...appTypography.dialogButton,
+    color: neutral.textBody,
   },
 });

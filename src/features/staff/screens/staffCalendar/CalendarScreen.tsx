@@ -9,9 +9,16 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  RefreshControl,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useFocusEffect, type NavigationProp } from "@react-navigation/native";
+import {
+  useInvalidateScheduleRelatedQueries,
+  SCHEDULE_DATA_KEYS,
+} from "../../hooks/useStaffScheduleData";
+import { useQueryClient } from "@tanstack/react-query";
+import { brandPrimary } from "../../../../shared/theme/color";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import Header from "../../../../shared/components/header";
@@ -76,8 +83,18 @@ function formatMonthYear(d: Date): string {
 export default function CalendarScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { dayOffList, scheduleTemplate, workSlots, refetchTemplate, refetchLeaveRequests } = useStaffSchedule();
+  const {
+    dayOffList,
+    scheduleTemplate,
+    workSlots,
+    refetchTemplate,
+    refetchWorkSlots,
+    refetchLeaveRequests,
+  } = useStaffSchedule();
+  const queryClient = useQueryClient();
+  const invalidateScheduleRelated = useInvalidateScheduleRelatedQueries();
   const [dayOffActionVisible, setDayOffActionVisible] = useState(false);
+  const [timetableRefreshing, setTimetableRefreshing] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   /** null = hiển thị full tuần, string = chỉ hiển thị ngày đó */
   const [selectedDateYMD, setSelectedDateYMD] = useState<string | null>(null);
@@ -152,11 +169,27 @@ export default function CalendarScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      refetchLeaveRequests();
-    }, [refetchLeaveRequests])
+      invalidateScheduleRelated();
+    }, [invalidateScheduleRelated])
   );
 
   const navigateWeek = (delta: number) => setWeekOffset((prev) => prev + delta);
+
+  const onTimetableRefresh = useCallback(async () => {
+    setTimetableRefreshing(true);
+    try {
+      const tasks: Promise<unknown>[] = [refetchWorkSlots(), refetchLeaveRequests()];
+      if (weekStart) {
+        const ymd = `${weekStart.getFullYear()}-${(weekStart.getMonth() + 1)
+          .toString()
+          .padStart(2, "0")}-${weekStart.getDate().toString().padStart(2, "0")}`;
+        tasks.push(queryClient.refetchQueries({ queryKey: SCHEDULE_DATA_KEYS.template(ymd) }));
+      }
+      await Promise.all(tasks);
+    } finally {
+      setTimetableRefreshing(false);
+    }
+  }, [weekStart, queryClient, refetchWorkSlots, refetchLeaveRequests]);
 
   return (
     <View style={staffCalendarStyles.container}>
@@ -183,7 +216,9 @@ export default function CalendarScreen() {
             </Text>
             <View style={staffCalendarStyles.weekNavArrows}>
               <TouchableOpacity style={staffCalendarStyles.navArrow} onPress={() => navigateWeek(-1)} activeOpacity={0.7}>
-                <Text style={staffCalendarStyles.navArrowText}>‹</Text>
+                <View style={staffCalendarStyles.navArrowInner}>
+                  <Text style={staffCalendarStyles.navArrowText}>‹</Text>
+                </View>
               </TouchableOpacity>
               <TouchableOpacity
                 style={staffCalendarStyles.weekNavMonthWrap}
@@ -193,7 +228,9 @@ export default function CalendarScreen() {
                 <Text style={staffCalendarStyles.monthText}>{formatMonthYear(weekStart)}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={staffCalendarStyles.navArrow} onPress={() => navigateWeek(1)} activeOpacity={0.7}>
-                <Text style={staffCalendarStyles.navArrowText}>›</Text>
+                <View style={staffCalendarStyles.navArrowInner}>
+                  <Text style={staffCalendarStyles.navArrowText}>›</Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
@@ -232,6 +269,14 @@ export default function CalendarScreen() {
         style={staffCalendarStyles.timetableScroll}
         contentContainerStyle={staffCalendarStyles.timetableScrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={timetableRefreshing}
+            onRefresh={onTimetableRefresh}
+            tintColor={brandPrimary}
+            colors={[brandPrimary]}
+          />
+        }
       >
         <View style={staffCalendarStyles.timetableFrame}>
           {(effectiveSelected

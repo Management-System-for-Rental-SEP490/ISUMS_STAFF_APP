@@ -15,6 +15,10 @@ import {
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WorkSlot } from "../../../data/mockStaffData";
+import {
+  brandPrimary,
+  brandTintBg,
+} from "../../../../../shared/theme/color";
 
 const DAY_LABELS: Record<number, string> = {
   1: "T2",
@@ -150,7 +154,7 @@ const styles = StyleSheet.create({
   closeBtn: { padding: 4 },
   closeBtnText: {
     fontSize: 16,
-    color: "#2563EB",
+    color: brandPrimary,
     fontWeight: "600",
   },
   hint: {
@@ -177,7 +181,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingVertical: 10,
     borderBottomWidth: 2,
-    borderBottomColor: "#2563EB",
+    borderBottomColor: brandPrimary,
     marginBottom: 6,
   },
   th: {
@@ -193,9 +197,9 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e2e8f0",
   },
   tableRowSelected: {
-   backgroundColor: "#EFF6FF",
+   backgroundColor: brandTintBg,
    //borderLeftWidth: 4,
-   borderLeftColor: "#2563EB",
+   borderLeftColor: brandPrimary,
    marginLeft: -4,
    paddingLeft: 8,
   },
@@ -211,7 +215,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   confirmBtn: {
-    backgroundColor: "#2563EB",
+    backgroundColor: brandPrimary,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",

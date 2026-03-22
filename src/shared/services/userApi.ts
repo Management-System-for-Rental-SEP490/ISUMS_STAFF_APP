@@ -1,13 +1,13 @@
 import axiosClient from "../api/axiosClient";
-import { USER_API_BASE } from "../api/config";
+import { BACKEND_API_BASE } from "../api/config";
 import type { ApiResponse, UserProfileResponse } from "../types/api";
 
 /**
  * Lấy thông tin chi tiết user hiện tại (GET /api/users/me).
- * Sử dụng USER_API_BASE riêng biệt.
+ * Cùng BACKEND_API_BASE với toàn bộ REST app.
  */
 export const getUserProfile = async (): Promise<UserProfileResponse | null> => {
-  const url = `${USER_API_BASE}/users/me`;
+  const url = `${BACKEND_API_BASE}/users/me`;
   try {
     const response = await axiosClient.get<ApiResponse<UserProfileResponse>>(url);
     

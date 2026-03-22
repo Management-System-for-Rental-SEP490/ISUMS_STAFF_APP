@@ -1,17 +1,22 @@
 import { StyleSheet } from "react-native";
+import {
+  brandPrimary,
+  brandSecondary,
+  brandTintBg,
+} from "../../../../shared/theme/color";
 
-/** Màu theo trạng thái job (dùng cho status badge). */
+/** Màu theo trạng thái job — chỉ palette thương hiệu; lỗi/quá hạn giữ đỏ để dễ nhận biết. */
 export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  CREATED: { bg: "#DBEAFE", text: "#1D4ED8" },
-  SCHEDULED: { bg: "#E0E7FF", text: "#4F46E5" },
-  NEED_RESCHEDULE: { bg: "#FEF3C7", text: "#D97706" },
-  IN_PROGRESS: { bg: "#FEF3C7", text: "#B45309" },
-  COMPLETED: { bg: "#D1FAE5", text: "#059669" },
+  CREATED: { bg: brandTintBg, text: brandSecondary },
+  SCHEDULED: { bg: brandTintBg, text: brandSecondary },
+  NEED_RESCHEDULE: { bg: brandTintBg, text: brandPrimary },
+  IN_PROGRESS: { bg: brandTintBg, text: brandPrimary },
+  COMPLETED: { bg: brandTintBg, text: brandPrimary },
   FAILED: { bg: "#FEE2E2", text: "#DC2626" },
   CANCELLED: { bg: "#F3F4F6", text: "#6B7280" },
   OVERDUE: { bg: "#FEE2E2", text: "#B91C1C" },
-  AVAILABLE: { bg: "#E0E7FF", text: "#4338CA" },
-  BOOKED: { bg: "#DBEAFE", text: "#1D4ED8" },
+  AVAILABLE: { bg: brandTintBg, text: brandSecondary },
+  BOOKED: { bg: brandTintBg, text: brandSecondary },
   OTHER: { bg: "#F1F5F9", text: "#475569" },
 };
 
@@ -38,20 +43,13 @@ export const staffWorkSlotStyles = StyleSheet.create({
   },
   backBtn: {
     padding: 8,
-    marginRight: 8,
     borderRadius: 10,
     backgroundColor: "#F8FAFC",
-  },
-  topBarTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#1F2937",
-    flex: 1,
   },
 
   /** Hero banner: khung giờ + ngày nổi bật */
   heroBanner: {
-    backgroundColor: "#4F46E5",
+    backgroundColor: brandPrimary,
     marginHorizontal: -16,
     paddingHorizontal: 20,
     paddingVertical: 24,
@@ -205,10 +203,10 @@ export const staffWorkSlotStyles = StyleSheet.create({
     justifyContent: "center",
   },
   actionBtnPrimary: {
-    backgroundColor: "#4F46E5",
+    backgroundColor: brandPrimary,
   },
   actionBtnSuccess: {
-    backgroundColor: "#059669",
+    backgroundColor: brandPrimary,
   },
   actionBtnDisabled: {
     backgroundColor: "#E2E8F0",

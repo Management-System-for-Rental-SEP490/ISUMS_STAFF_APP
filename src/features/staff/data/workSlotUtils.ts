@@ -5,8 +5,13 @@
 import type { WorkSlotFromApi } from "../../../shared/types/api";
 import type { WorkSlot, SlotType } from "./mockStaffData";
 
-/** i18n keys cho jobType từ API. CalendarScreen dùng t(taskKey) để hiển thị. */
+/**
+ * i18n keys cho jobType từ API (enum JobType: PERIODIC, MANUAL, MAINTENANCE, ISSUE).
+ * Dùng cho CalendarScreen và bảng tóm tắt lịch ở Staff Home.
+ */
 const JOB_TYPE_KEYS: Record<string, string> = {
+  PERIODIC: "staff_calendar.job_type_PERIODIC",
+  MANUAL: "staff_calendar.job_type_MANUAL",
   MAINTENANCE: "staff_calendar.job_type_MAINTENANCE",
   ISSUE: "staff_calendar.job_type_ISSUE",
   INSPECTION: "staff_calendar.job_type_INSPECTION",
@@ -42,7 +47,8 @@ export function mapWorkSlotFromApiToWorkSlot(api: WorkSlotFromApi): WorkSlot {
   const timeRange = `${sd.hour.toString().padStart(2, "0")}:${sd.minute.toString().padStart(2, "0")} - ${ed.hour.toString().padStart(2, "0")}:${ed.minute.toString().padStart(2, "0")}`;
 
   const taskKey = JOB_TYPE_KEYS[api.jobType] ?? "staff_calendar.job_type_OTHER";
-  const slotType: SlotType = api.jobType === "INSPECTION" ? "inspection" : "ticket";
+  const slotType: SlotType =
+    api.jobType === "INSPECTION" || api.jobType === "PERIODIC" ? "inspection" : "ticket";
 
   return {
     id: api.id,
@@ -51,6 +57,9 @@ export function mapWorkSlotFromApiToWorkSlot(api: WorkSlotFromApi): WorkSlot {
     timeRange,
     startMinutes,
     endMinutes,
+    // Lưu lại houseId (nếu BE trả) để UI có thể map sang tên nhà bằng danh sách houses.
+    houseId: api.houseId,
+    // buildingName sẽ được thay thế bằng tên hiển thị ở UI; tạm đặt "-" khi chưa map.
     buildingName: "-",
     task: api.jobType,
     taskKey,

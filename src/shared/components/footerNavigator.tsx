@@ -15,6 +15,7 @@ import TicketListScreen from "../../features/staff/screens/staffTicket/TicketLis
 import { StaffScheduleProvider } from "../../features/staff/context/StaffScheduleContext";
 import i18next from "i18next";
 import { useTranslation } from "react-i18next";
+import { brandPrimary } from "../theme/color";
 
 export const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -81,7 +82,7 @@ const createScreenOptions = (bottomInset: number) => ({
   route: RouteProp<MainTabParamList, keyof MainTabParamList>;
 }) => ({
   headerShown: false,
-  tabBarActiveTintColor: "#111827",
+  tabBarActiveTintColor: brandPrimary,
   tabBarInactiveTintColor: "#9ca3af",
   tabBarStyle: [
     footerStyles.tabBar,

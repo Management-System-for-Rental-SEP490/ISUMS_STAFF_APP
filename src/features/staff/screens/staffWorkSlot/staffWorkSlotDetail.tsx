@@ -18,10 +18,22 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import { getJobById, updateJobStatus } from "../../../../shared/services/maintenanceApi";
 import { CustomAlert } from "../../../../shared/components/alert";
-import type { JobFromApi } from "../../../../shared/types/api";
+import type { JobFromApi, HouseFromApi } from "../../../../shared/types/api";
 import Icons from "../../../../shared/theme/icon";
 import { iconStyles } from "../../../../shared/styles/iconStyles";
 import { staffWorkSlotStyles, STATUS_COLORS } from "./staffWorkSlotStyles";
+import { brandPrimary, brandTintBg, neutral } from "../../../../shared/theme/color";
+import { useHouses } from "../../../../shared/hooks/useHouses";
+import {
+  StackScreenTitleBadge,
+  StackScreenTitleBarBalance,
+  StackScreenTitleHeaderStrip,
+  stackScreenTitleBackBtnOnBrand,
+  stackScreenTitleCenterSlotStyle,
+  stackScreenTitleOnBrandIconColor,
+  stackScreenTitleRowStyle,
+  stackScreenTitleSideSlotStyle,
+} from "../../../../shared/components/StackScreenTitleBadge";
 
 const JOB_STATUS_KEYS = new Set([
   "CREATED", "SCHEDULED", "NEED_RESCHEDULE", "IN_PROGRESS", "COMPLETED",
@@ -53,6 +65,10 @@ export default function WorkSlotDetailScreen() {
   const [loading, setLoading] = useState(!!slot.ticketId);
   const [error, setError] = useState<string | null>(null);
   const [updateLoading, setUpdateLoading] = useState(false);
+
+  // Danh sách houses từ BE (dùng để map houseId -> tên căn nhà hiển thị cho người dùng).
+  const { data: housesResp } = useHouses();
+  const houses: HouseFromApi[] = housesResp?.data ?? [];
 
   const refetchJob = () => {
     if (!slot.ticketId?.trim()) return;
@@ -120,44 +136,63 @@ export default function WorkSlotDetailScreen() {
   const jobStatusKey = getJobStatusKey(slot.status);
   const slotStatusKey = getJobStatusKey(job?.status ?? slot.status);
 
+  // Tên căn nhà hiển thị ở phần chi tiết công việc: ưu tiên lấy từ houseId của job.
+  const houseDisplayName = job?.houseId
+    ? houses.find((h) => h.id === job.houseId)?.name ?? job.houseId
+    : "";
+
   return (
     <View style={staffWorkSlotStyles.container}>
-      <View style={[staffWorkSlotStyles.topBar, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={staffWorkSlotStyles.backBtn} onPress={() => navigation.goBack()}>
-          <Icons.chevronBack size={28} color="#374151" />
-        </TouchableOpacity>
-        <Text style={staffWorkSlotStyles.topBarTitle} numberOfLines={1}>
-          {t("staff_work_slot_detail.title")}
-        </Text>
-      </View>
+      <StackScreenTitleHeaderStrip>
+        <View style={stackScreenTitleRowStyle}>
+          <View style={stackScreenTitleSideSlotStyle}>
+            <TouchableOpacity
+              style={stackScreenTitleBackBtnOnBrand}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+            >
+              <Icons.chevronBack size={28} color={stackScreenTitleOnBrandIconColor} />
+            </TouchableOpacity>
+          </View>
+          <View style={stackScreenTitleCenterSlotStyle}>
+            <StackScreenTitleBadge numberOfLines={1}>
+              {t("staff_work_slot_detail.title")}
+            </StackScreenTitleBadge>
+          </View>
+          <StackScreenTitleBarBalance />
+        </View>
+      </StackScreenTitleHeaderStrip>
 
       <ScrollView
-        contentContainerStyle={staffWorkSlotStyles.scrollContent}
+        contentContainerStyle={[
+          staffWorkSlotStyles.scrollContent,
+          { paddingBottom: 24 + insets.bottom },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero banner */}
+        {/* Hero banner
         <View style={staffWorkSlotStyles.heroBanner}>
           <Text style={staffWorkSlotStyles.heroTime}>{slot.timeRange}</Text>
           <Text style={staffWorkSlotStyles.heroDate}>{slot.date}</Text>
           <Text style={staffWorkSlotStyles.heroJobType}>
             {slot.taskKey ? t(slot.taskKey) : slot.task}
           </Text>
-        </View>
+        </View> */}
 
         {/* Work Slot */}
         <View style={staffWorkSlotStyles.section}>
           <View style={staffWorkSlotStyles.sectionHeader}>
             <View style={iconStyles.workSlotSectionIconWrap}>
-              <Icons.schedule size={20} color="#4F46E5" />
+              <Icons.schedule size={20} color={neutral.iconMuted} />
             </View>
             <Text style={staffWorkSlotStyles.sectionTitle}>{t("staff_work_slot_detail.work_slot_section")}</Text>
           </View>
           <View style={staffWorkSlotStyles.card}>
-            <InfoRow icon={<Icons.accessTime size={18} color="#64748b" />} label={t("staff_work_slot_detail.time_range")} value={slot.timeRange} />
-            <InfoRow icon={<Icons.calendar size={18} color="#64748b" />} label={t("staff_work_slot_detail.date")} value={slot.date} />
-            <InfoRow icon={<Icons.workOutline size={18} color="#64748b" />} label={t("staff_work_slot_detail.job_type")} value={slot.taskKey ? t(slot.taskKey) : slot.task} />
+            <InfoRow icon={<Icons.accessTime size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.time_range")} value={slot.timeRange} />
+            <InfoRow icon={<Icons.calendar size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.date")} value={slot.date} />
+            <InfoRow icon={<Icons.workOutline size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.job_type")} value={slot.taskKey ? t(slot.taskKey) : slot.task} />
             <InfoRow
-              icon={<Icons.flag size={18} color="#64748b" />}
+              icon={<Icons.flag size={18} color={neutral.slate500} />}
               label={t("staff_work_slot_detail.status")}
               value={t(jobStatusKey)}
               isStatus
@@ -168,15 +203,15 @@ export default function WorkSlotDetailScreen() {
 
         {/* Job (từ API) */}
         <View style={staffWorkSlotStyles.section}>
-          <View style={[staffWorkSlotStyles.sectionHeader, { borderBottomColor: "#D1FAE5" }]}>
+          <View style={[staffWorkSlotStyles.sectionHeader, { borderBottomColor: brandTintBg }]}>
             <View style={[iconStyles.workSlotSectionIconWrap, iconStyles.workSlotSectionIconWrapJob]}>
-              <Icons.assignment size={20} color="#059669" />
+              <Icons.assignment size={20} color={neutral.iconMuted} />
             </View>
             <Text style={staffWorkSlotStyles.sectionTitle}>{t("staff_work_slot_detail.job_section")}</Text>
           </View>
           {loading ? (
             <View style={staffWorkSlotStyles.loadingWrap}>
-              <ActivityIndicator size="large" color="#6366f1" />
+              <ActivityIndicator size="large" color={brandPrimary} />
               <Text style={staffWorkSlotStyles.loadingText}>{t("common.loading")}</Text>
             </View>
           ) : error ? (
@@ -185,13 +220,16 @@ export default function WorkSlotDetailScreen() {
             </View>
           ) : job ? (
             <View style={staffWorkSlotStyles.card}>
-              <InfoRow icon={<Icons.tag size={18} color="#64748b" />} label={t("staff_work_slot_detail.job_id")} value={job.id} mono />
-              <InfoRow icon={<Icons.folder size={18} color="#64748b" />} label={t("staff_work_slot_detail.plan_id")} value={job.planId} mono />
-              <InfoRow icon={<Icons.home size={18} color="#64748b" />} label={t("staff_work_slot_detail.house_id")} value={job.houseId} mono />
-              <InfoRow icon={<Icons.event size={18} color="#64748b" />} label={t("staff_work_slot_detail.period_start")} value={job.periodStartDate} />
-              <InfoRow icon={<Icons.calendar size={18} color="#64748b" />} label={t("staff_work_slot_detail.due_date")} value={formatDueDate(job.dueDate)} />
+              {/* Ẩn Job ID và Plan ID vì không cần thiết cho Staff */}
               <InfoRow
-                icon={<Icons.flag size={18} color="#64748b" />}
+                icon={<Icons.home size={18} color={neutral.slate500} />}
+                label={t("staff_work_slot_detail.house_id")}
+                value={houseDisplayName}
+              />
+              <InfoRow icon={<Icons.event size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.period_start")} value={job.periodStartDate} />
+              <InfoRow icon={<Icons.calendar size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.due_date")} value={formatDueDate(job.dueDate)} />
+              <InfoRow
+                icon={<Icons.flag size={18} color={neutral.slate500} />}
                 label={t("staff_work_slot_detail.job_status")}
                 value={t(slotStatusKey)}
                 isStatus
@@ -207,7 +245,7 @@ export default function WorkSlotDetailScreen() {
                       disabled={updateLoading}
                     >
                       {updateLoading ? (
-                        <ActivityIndicator size="small" color="#fff" />
+                        <ActivityIndicator size="small" color={neutral.surface} />
                       ) : (
                         <Text style={staffWorkSlotStyles.actionBtnText}>{t("staff_work_slot_detail.btn_start_maintenance")}</Text>
                       )}
@@ -220,7 +258,7 @@ export default function WorkSlotDetailScreen() {
                       disabled={updateLoading}
                     >
                       {updateLoading ? (
-                        <ActivityIndicator size="small" color="#fff" />
+                        <ActivityIndicator size="small" color={neutral.surface} />
                       ) : (
                         <Text style={staffWorkSlotStyles.actionBtnText}>{t("staff_work_slot_detail.btn_complete")}</Text>
                       )}
