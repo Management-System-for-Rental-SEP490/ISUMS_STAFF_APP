@@ -97,7 +97,7 @@ export const itemScreenStyles = StyleSheet.create({
   chipTextSelected: {
     color: "#fff",
   },
-  /** Hàng nút trạng thái (AVAILABLE / DISPOSED) */
+  /** Hàng nút trạng thái (AssetStatus) */
   statusRow: {
     flexDirection: "row",
     flexWrap: "wrap",

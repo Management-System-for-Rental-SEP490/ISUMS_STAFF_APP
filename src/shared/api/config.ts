@@ -1,7 +1,7 @@
 // PRIMARY = API chung (users, houses, schedules…). FALLBACK/ngrok = bản dev cục bộ.
 // Module asset (/assets/*) mặc định gọi ASSETS_API_BASE (= fallback) khi asset chưa merge lên primary.
 
-const DEFAULT_PRIMARY = "https://api-dev.isums.pro/api";
+const DEFAULT_PRIMARY = "https://api.isums.pro/api";
 const DEFAULT_FALLBACK = "https://unrestrictable-lan-syzygial.ngrok-free.dev/api";
 
 function readEnvTrimmed(envKey: string, fallback: string): string {

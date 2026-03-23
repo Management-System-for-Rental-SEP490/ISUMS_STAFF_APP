@@ -27,6 +27,7 @@ import type { WorkSlot, SlotType } from "../../data/mockStaffData";
 import { useStaffSchedule } from "../../context/StaffScheduleContext";
 import DayOffActionModal from "./modals/DayOffActionModal";
 import { staffCalendarStyles, SLOT_COLORS } from "./staffCalendarStyles";
+import { formatDateRangeDdMmYyyy, formatMonthYearSlashed } from "../../../../shared/utils";
 
 /** Key i18n cho ngày ngắn (T2, Mon, 月...) - 1=Mon..7=Sun */
 const DAY_SHORT_KEYS: Record<number, string> = {
@@ -68,16 +69,6 @@ function getJobStatusKey(status: string | undefined): string {
 /** Giữ để tương thích - workslot không hiển thị ticket nữa, chỉ status + time + jobType */
 function formatTicketDisplay(_ticketId?: string): string {
   return "";
-}
-
-function formatDateRange(start: Date, end: Date): string {
-  const s = `${start.getDate().toString().padStart(2, "0")}/${(start.getMonth() + 1).toString().padStart(2, "0")}/${start.getFullYear()}`;
-  const e = `${end.getDate().toString().padStart(2, "0")}/${(end.getMonth() + 1).toString().padStart(2, "0")}/${end.getFullYear()}`;
-  return `${s} - ${e}`;
-}
-
-function formatMonthYear(d: Date): string {
-  return `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
 }
 
 export default function CalendarScreen() {
@@ -212,7 +203,7 @@ export default function CalendarScreen() {
         {weekStart && weekEnd && (
           <View style={staffCalendarStyles.weekNavRow}>
             <Text style={staffCalendarStyles.weekNavLabel}>
-              {t("staff_calendar.current_week")}: {formatDateRange(weekStart, weekEnd)}
+              {t("staff_calendar.current_week")}: {formatDateRangeDdMmYyyy(weekStart, weekEnd)}
             </Text>
             <View style={staffCalendarStyles.weekNavArrows}>
               <TouchableOpacity style={staffCalendarStyles.navArrow} onPress={() => navigateWeek(-1)} activeOpacity={0.7}>
@@ -225,7 +216,7 @@ export default function CalendarScreen() {
                 onPress={() => setSelectedDateYMD(null)}
                 activeOpacity={0.7}
               >
-                <Text style={staffCalendarStyles.monthText}>{formatMonthYear(weekStart)}</Text>
+                <Text style={staffCalendarStyles.monthText}>{formatMonthYearSlashed(weekStart)}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={staffCalendarStyles.navArrow} onPress={() => navigateWeek(1)} activeOpacity={0.7}>
                 <View style={staffCalendarStyles.navArrowInner}>

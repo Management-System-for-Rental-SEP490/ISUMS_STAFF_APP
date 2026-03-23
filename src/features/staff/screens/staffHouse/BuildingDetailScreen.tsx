@@ -328,6 +328,8 @@ export default function BuildingDetailScreen() {
         ? "house_status_available"
         : statusValue === "RENTED"
           ? "house_status_rented"
+          : statusValue === "REPAIRED"
+            ? "house_status_repaired"
           : "house_status_other";
     return t(`staff_building_detail.${key}`, { status: statusValue });
   };

@@ -4,7 +4,8 @@
  */
 
 import { Device, DeviceStatus, DeviceType } from "../../../shared/types";
-import type { ScheduleTemplateData } from "../../../shared/types/api";
+import { formatTimeRangeFromMinutes } from "../../../shared/utils";
+import type { IssueStatus, ScheduleTemplateData } from "../../../shared/types/api";
 
 /** Căn nhà / tòa nhà trong hệ thống (staff quản lý nhiều căn) */
 export interface Building {
@@ -73,14 +74,8 @@ export function filterWorkSlotsByCurrentWeek(slots: WorkSlot[]): WorkSlot[] {
   });
 }
 
-/** Trạng thái ticket (theo spec) */
-export type TicketStatus =
-  | "pending"
-  | "assigned"
-  | "scheduled"
-  | "in_progress"
-  | "completed"
-  | "cancelled";
+/** Trạng thái ticket (theo IssueStatus BE). */
+export type TicketStatus = IssueStatus;
 
 export type TicketPriority = "low" | "medium" | "high";
 
@@ -235,24 +230,16 @@ export function getScheduleTimeSlotsFromTemplate(
     return fallback.map((r, i) => ({
       startMinutes: r.start,
       endMinutes: r.end,
-      timeRange: formatTimeRange(r.start, r.end),
+      timeRange: formatTimeRangeFromMinutes(r.start, r.end),
       slotIndex: i + 1,
     }));
   }
   const ranges = buildTimeRangesFromTemplate(template);
   return ranges.map((r, i) => ({
     ...r,
-    timeRange: formatTimeRange(r.startMinutes, r.endMinutes),
+    timeRange: formatTimeRangeFromMinutes(r.startMinutes, r.endMinutes),
     slotIndex: i + 1,
   }));
-}
-
-function formatTimeRange(startM: number, endM: number): string {
-  const sh = Math.floor(startM / 60);
-  const sm = startM % 60;
-  const eh = Math.floor(endM / 60);
-  const em = endM % 60;
-  return `${sh.toString().padStart(2, "0")}:${sm.toString().padStart(2, "0")} - ${eh.toString().padStart(2, "0")}:${em.toString().padStart(2, "0")}`;
 }
 
 /**
@@ -309,7 +296,7 @@ export function getWorkScheduleThisWeek(
     for (const range of timeRanges) {
       const startM = range.startMinutes;
       const endM = range.endMinutes;
-      const timeRange = formatTimeRange(startM, endM);
+      const timeRange = formatTimeRangeFromMinutes(startM, endM);
       const assignment = MOCK_TICKET_ASSIGNMENTS.find((a) => {
         if (a.date !== day.date) return false;
         const { startMinutes: asM, endMinutes: aeM } = parseTimeRange(a.timeRange);
@@ -357,85 +344,6 @@ export function getThisWeekDatesForPicker(): { dayOfWeek: number; date: string; 
   }));
 }
 
-/** Slot trống tuần sau mà staff có thể đăng ký (khi có API: lấy từ backend) */
-export interface AvailableSlot {
-  id: string;
-  dayOfWeek: number;
-  date: string;
-  dateLabel: string;
-  startMinutes: number;
-  endMinutes: number;
-  timeRange: string;
-  buildingName?: string;
-  /** Đã được staff này đăng ký chưa (mock) */
-  registered: boolean;
-}
-
-function getNextWeekDates(): { dayOfWeek: number; date: string; dateLabel: string }[] {
-  const today = new Date();
-  const nextMonday = new Date(today);
-  nextMonday.setDate(today.getDate() + (7 - (today.getDay() === 0 ? 6 : today.getDay()) + 1));
-  const result: { dayOfWeek: number; date: string; dateLabel: string }[] = [];
-  const dayNames = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(nextMonday);
-    d.setDate(nextMonday.getDate() + i);
-    const dayOfWeek = d.getDay() === 0 ? 7 : d.getDay();
-    result.push({
-      dayOfWeek,
-      date: d.getDate().toString().padStart(2, "0") + "/" + (d.getMonth() + 1).toString().padStart(2, "0"),
-      dateLabel: dayNames[dayOfWeek - 1] + " " + d.getDate() + "/" + (d.getMonth() + 1),
-    });
-  }
-  return result;
-}
-
-const nextWeekDays = getNextWeekDates();
-
-/** Mock: các khung giờ trống tuần sau để staff đăng ký (chưa đăng ký) */
-export const MOCK_NEXT_WEEK_SLOTS: AvailableSlot[] = [
-  {
-    id: "nw1",
-    dayOfWeek: 1,
-    date: nextWeekDays[0].date,
-    dateLabel: nextWeekDays[0].dateLabel,
-    startMinutes: 8 * 60,
-    endMinutes: 10 * 60,
-    timeRange: "08:00 - 10:00",
-    registered: false,
-  },
-  {
-    id: "nw2",
-    dayOfWeek: 1,
-    date: nextWeekDays[0].date,
-    dateLabel: nextWeekDays[0].dateLabel,
-    startMinutes: 14 * 60,
-    endMinutes: 17 * 60,
-    timeRange: "14:00 - 17:00",
-    registered: false,
-  },
-  {
-    id: "nw3",
-    dayOfWeek: 3,
-    date: nextWeekDays[2].date,
-    dateLabel: nextWeekDays[2].dateLabel,
-    startMinutes: 9 * 60,
-    endMinutes: 12 * 60,
-    timeRange: "09:00 - 12:00",
-    registered: false,
-  },
-  {
-    id: "nw4",
-    dayOfWeek: 5,
-    date: nextWeekDays[4].date,
-    dateLabel: nextWeekDays[4].dateLabel,
-    startMinutes: 8 * 60,
-    endMinutes: 11 * 60,
-    timeRange: "08:00 - 11:00",
-    registered: false,
-  },
-];
-
 // Nhà và thiết bị: đã dùng API (useHouses, useAssetItems). MOCK_BUILDINGS, MOCK_STAFF_ASSETS, getAssetsByBuilding đã xóa.
 
 // ---------- Mock: Danh sách ticket (tenant gửi) ----------
@@ -445,7 +353,7 @@ const MOCK_STAFF_TICKETS_BASE: StaffTicketListItem[] = [
     title: "Máy lạnh không mát",
     description: "Máy lạnh phòng 102 chạy nhưng không lạnh, có mùi hôi.",
     priority: "high",
-    status: "assigned",
+    status: "SCHEDULED",
     deviceName: "Máy lạnh - P102",
     deviceLocation: "Tầng 1 - Phòng 102",
     tenantName: "Nguyễn Văn A",
@@ -457,7 +365,7 @@ const MOCK_STAFF_TICKETS_BASE: StaffTicketListItem[] = [
     title: "Đồng hồ nước nhảy sai",
     description: "Chỉ số đồng hồ nước tăng bất thường so với tháng trước.",
     priority: "medium",
-    status: "pending",
+    status: "CREATED",
     deviceName: "Đồng hồ nước - P201",
     deviceLocation: "Tầng 2 - Phòng 201",
     tenantName: "Trần Thị B",
@@ -469,7 +377,7 @@ const MOCK_STAFF_TICKETS_BASE: StaffTicketListItem[] = [
     title: "Ổ cắm bị chập",
     description: "Ổ cắm gần bếp đôi lúc mất điện.",
     priority: "high",
-    status: "in_progress",
+    status: "IN_PROGRESS",
     deviceName: "Đồng hồ điện - P101",
     deviceLocation: "Tầng 1 - Phòng 101",
     tenantName: "Lê Văn C",
@@ -481,7 +389,7 @@ const MOCK_STAFF_TICKETS_BASE: StaffTicketListItem[] = [
     title: "Tủ lạnh kêu to",
     description: "Tủ lạnh kêu rất to vào ban đêm.",
     priority: "low",
-    status: "completed",
+    status: "DONE",
     deviceName: "Tủ lạnh - P202",
     deviceLocation: "Tầng 2 - Phòng 202",
     tenantName: "Phạm Thị D",
@@ -496,12 +404,12 @@ const MOCK_STAFF_TICKETS_DEMO_EXTRA: StaffTicketListItem[] = Array.from({ length
   const id = `T${String(n).padStart(3, "0")}`;
   const priorities: TicketPriority[] = ["low", "medium", "high"];
   const statuses: TicketStatus[] = [
-    "pending",
-    "assigned",
-    "scheduled",
-    "in_progress",
-    "completed",
-    "cancelled",
+    "CREATED",
+    "NEED_RESCHEDULE",
+    "SCHEDULED",
+    "IN_PROGRESS",
+    "DONE",
+    "CANCELLED",
   ];
   return {
     id,

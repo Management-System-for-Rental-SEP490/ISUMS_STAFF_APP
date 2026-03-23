@@ -17,6 +17,14 @@ alwaysApply: true
 - **React Query:** `useQuery` / `useInfiniteQuery` / `useMutation` trong `src/shared/hooks/*.ts`. Screen chỉ gọi hook.
 - **Types API / model dùng chung:** `src/shared/types/api.ts` (và re-export nếu cần). Không nhét type response lớn trong screen.
 - **Format (ngày, số, …):** `src/shared/utils/` — UI gọi util, không format rải rác.
+- **Ngày & giờ (UI):** chỉ dùng **`src/shared/utils/dateTimeFormat.ts`** (re-export trong `utils/index.ts`). Import từ `shared/utils`. **Không** `toLocaleString` / `toLocaleDateString` / tự `padStart` ngày giờ trong screen hay component trừ khi user chỉ định rõ hoặc BE trả chuỗi hiển thị nguyên si.
+  - **`formatDdMmYyyy`**, **`formatDateRangeDdMmYyyy`**, **`formatMonthYearSlashed`** — lịch (khoảng tuần, tiêu đề tháng), nghỉ phép.
+  - **`formatLocaleIsoDateTime(raw, locale)`** — IoT chi tiết (createdAt / activatedAt).
+  - **`formatIsoDueDateVi`** — hạn job (work slot detail), ngày locale vi-VN.
+  - **`formatStaffTicketListCreatedAt`**, **`formatViTicketCreatedAt`** — danh sách / chi tiết ticket staff.
+  - **`formatTimeRangeFromMinutes`** — chuỗi khung giờ `HH:mm - HH:mm` (lịch mock/template).
+  - **`formatTimeAgoI18n(date, t)`** — thông báo staff; **mặc định không** bật giây (`useSubMinuteSeconds` false) vì i18n staff chưa có `notification.time_seconds` trừ khi đã bổ sung key.
+  - Cần kiểu hiển thị mới → **thêm một hàm** trong `dateTimeFormat.ts` + export `index.ts`, không nhân bản logic.
 - **Zustand:** mọi store trong **`src/store/`**.
 - **Kết nối BE:** ưu tiên mở rộng file service/hook hiện có; có API trong repo thì **xóa mock** tương ứng. Chưa có API → mock + type gần BE; chuỗi demo qua i18n (vd. `staff_notification.demo_*`).
 - **File mới:** ưu tiên mở rộng module cùng domain; tạo file mới chỉ khi tách domain rõ **hoặc** user đã đồng ý (mục 1 trong `000`).

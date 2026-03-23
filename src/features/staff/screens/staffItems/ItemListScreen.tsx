@@ -32,6 +32,7 @@ import {
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
 import { getTotalPages, slicePage } from "../../../../shared/utils";
 import type { AssetItemFromApi, HouseFromApi } from "../../../../shared/types/api";
+import { normalizeAssetItemStatusFromApi } from "../../../../shared/types/api";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemList">;
 
@@ -170,12 +171,11 @@ export default function ItemListScreen() {
   );
 
   const getStatusLabel = (status: string) => {
-    const normalizedStatus = status === "AVAILABLE" ? "IN_USE" : status;
+    const normalizedStatus = normalizeAssetItemStatusFromApi(status);
     if (normalizedStatus === "IN_USE") return t("staff_item_list.status_in_use");
     if (normalizedStatus === "ACTIVE") return t("staff_item_list.status_active");
     if (normalizedStatus === "DISPOSED") return t("staff_item_list.status_disposed");
     if (normalizedStatus === "BROKEN") return t("staff_item_list.status_broken");
-    if (normalizedStatus === "DELETED") return t("staff_item_list.status_deleted");
     return normalizedStatus;
   };
 

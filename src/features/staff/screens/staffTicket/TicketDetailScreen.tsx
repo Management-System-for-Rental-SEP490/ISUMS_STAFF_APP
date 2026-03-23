@@ -30,7 +30,7 @@ import {
   brandTintBg,
   neutral,
 } from "../../../../shared/theme/color";
-import { appTypography } from "../../../../shared/utils";
+import { appTypography, formatViTicketCreatedAt } from "../../../../shared/utils";
 import {
   StackScreenTitleBadge,
   StackScreenTitleBarBalance,
@@ -46,18 +46,23 @@ type TicketDetailRouteProp = RouteProp<RootStackParamList, "TicketDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "TicketDetail">;
 
 function getStatusStyle(status: string) {
-  switch (status) {
-    case "pending":
+  const s = String(status || "").toUpperCase();
+  switch (s) {
+    case "CREATED":
       return { bg: brandTintBg, color: brandPrimary };
-    case "assigned":
+    case "NEED_RESCHEDULE":
+    case "SCHEDULED":
       return { bg: brandTintBg, color: brandSecondary };
-    case "scheduled":
+    case "IN_PROGRESS":
+      return { bg: brandTintBg, color: brandPrimary };
+    case "WAITING_MANAGER_APPROVAL":
+    case "WAITING_TENANT_APPROVAL":
+    case "WAITING_PAYMENT":
       return { bg: brandTintBg, color: brandSecondary };
-    case "in_progress":
+    case "DONE":
+    case "CLOSED":
       return { bg: brandTintBg, color: brandPrimary };
-    case "completed":
-      return { bg: brandTintBg, color: brandPrimary };
-    case "cancelled":
+    case "CANCELLED":
       return { bg: neutral.background, color: neutral.textSecondary };
     default:
       return { bg: neutral.background, color: neutral.textSecondary };
@@ -76,15 +81,10 @@ function getPriorityStyle(priority: string) {
 }
 
 function getStatusLabel(status: string, t: (k: string) => string) {
-  const key: Record<string, string> = {
-    pending: "staff_ticket_list.status_pending",
-    assigned: "staff_ticket_list.status_assigned",
-    scheduled: "staff_ticket_list.status_scheduled",
-    in_progress: "staff_ticket_list.status_in_progress",
-    completed: "staff_ticket_list.status_completed",
-    cancelled: "staff_ticket_list.status_cancelled",
-  };
-  return t(key[status] || key.pending);
+  const i18nKey = `staff_ticket_list.status_${String(status || "").toUpperCase()}`;
+  const translated = t(i18nKey);
+  if (translated !== i18nKey) return translated;
+  return status;
 }
 
 function getPriorityLabel(priority: string, t: (k: string) => string) {
@@ -125,14 +125,8 @@ export default function TicketDetailScreen() {
 
   const statusStyle = getStatusStyle(ticket.status);
   const priorityStyle = getPriorityStyle(ticket.priority);
-  const isPending = ticket.status === "pending";
-  const createdAtStr = ticket.createdAt.toLocaleDateString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const isPending = String(ticket.status || "").toUpperCase() === "CREATED";
+  const createdAtStr = formatViTicketCreatedAt(ticket.createdAt);
 
   const handleAcceptTicket = () => {
     setSlotModalVisible(true);

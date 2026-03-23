@@ -46,8 +46,8 @@ import type {
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemCreate">;
 
-// AssetStatus: bỏ "AVAILABLE". Backend có thể trả về thêm ACTIVE/BROKEN/DELETED.
-const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED", "DELETED"] as const;
+/** AssetStatus (BE): IN_USE, ACTIVE, BROKEN, DISPOSED — không AVAILABLE / DELETED. */
+const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED"] as const;
 
 export default function ItemCreateScreen() {
   const { t } = useTranslation();
@@ -110,8 +110,8 @@ export default function ItemCreateScreen() {
       if (s === "IN_USE") return t("staff_item_create.status_in_use");
       if (s === "ACTIVE") return t("staff_item_create.status_active");
       if (s === "BROKEN") return t("staff_item_create.status_broken");
-      if (s === "DELETED") return t("staff_item_create.status_deleted");
-      return t("staff_item_create.status_disposed");
+      if (s === "DISPOSED") return t("staff_item_create.status_disposed");
+      return s || "—";
     },
     [t]
   );

@@ -19,22 +19,8 @@ import Icons from "../../../../shared/theme/icon";
 import { staffNotificationStyles } from "./staffNotificationStyles";
 import { brandPrimary } from "../../../../shared/theme/color";
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
-import { getTotalPages, slicePage } from "../../../../shared/utils";
+import { formatTimeAgoI18n, getTotalPages, slicePage } from "../../../../shared/utils";
 import type { StaffNotificationItem } from "../../../../shared/types/api";
-
-function formatTimeAgo(
-  date: Date,
-  t: (key: string, opts?: { n?: number }) => string
-): string {
-  const now = Date.now();
-  const diffMs = now - date.getTime();
-  const diffMins = Math.floor(diffMs / (60 * 1000));
-  const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
-  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
-  if (diffMins < 60) return t("notification.time_minutes", { n: diffMins || 1 });
-  if (diffHours < 24) return t("notification.time_hours", { n: diffHours });
-  return t("notification.time_days", { n: diffDays });
-}
 
 export default function StaffNotificationScreen() {
   const { t } = useTranslation();
@@ -124,7 +110,7 @@ export default function StaffNotificationScreen() {
   const renderItem: ListRenderItem<StaffNotificationItem> = ({ item }) => {
     const title = t(item.titleKey, item.params as Record<string, string>);
     const body = t(item.bodyKey, item.params as Record<string, string>);
-    const timeStr = formatTimeAgo(item.createdAt, t);
+    const timeStr = formatTimeAgoI18n(item.createdAt, t);
 
     let iconWrapperStyle = staffNotificationStyles.iconWrapperTicket;
     let IconComponent = Icons.ticket;

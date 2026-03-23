@@ -54,7 +54,7 @@ export default function StaffHomeScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<StaffHomeNavProp>();
-  // Lấy danh sách workSlots thật trong tuần hiện tại từ BE (đã được map về WorkSlot trong StaffScheduleContext).
+  // Lấy danh sách workSlots từ BE (đã map về WorkSlot trong StaffScheduleContext; Home chỉ hiện hôm nay/ngày mai).
   // - workSlots: mảng các ca làm việc, mỗi ca có thông tin buildingName, task, ticketId, ...
   // - Nếu API lỗi hoặc chưa load xong, workSlots sẽ là null → UI tóm tắt lịch sẽ hiển thị rỗng.
   const { workSlots } = useStaffSchedule();

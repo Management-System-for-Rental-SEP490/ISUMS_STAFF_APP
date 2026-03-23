@@ -1,6 +1,6 @@
 /**
  * Chuyển WorkSlotFromApi (API) sang WorkSlot (hiển thị trên lịch).
- * Lọc theo tuần hiện tại.
+ * Có thể lọc theo tuần (Calendar dùng full list, màn khác có thể lọc local).
  */
 import type { WorkSlotFromApi } from "../../../shared/types/api";
 import type { WorkSlot, SlotType } from "./mockStaffData";
@@ -119,7 +119,15 @@ export function mapWorkSlotsFromApiForWeek(
 }
 
 /**
- * Lọc theo tuần hiện tại rồi map sang WorkSlot. Dùng cho StaffScheduleContext.
+ * Map toàn bộ slot từ API sang WorkSlot (không lọc tuần).
+ * Lịch tuần trên CalendarScreen tự gán theo ngày đang hiển thị.
+ */
+export function mapWorkSlotsFromApi(apiSlots: WorkSlotFromApi[]): WorkSlot[] {
+  return apiSlots.map(mapWorkSlotFromApiToWorkSlot);
+}
+
+/**
+ * Lọc theo tuần hiện tại rồi map sang WorkSlot.
  */
 export function mapWorkSlotsFromApiForCurrentWeek(apiSlots: WorkSlotFromApi[]): WorkSlot[] {
   return filterWorkSlotsByCurrentWeek(apiSlots).map(mapWorkSlotFromApiToWorkSlot);

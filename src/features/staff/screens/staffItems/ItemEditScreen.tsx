@@ -2,7 +2,7 @@
  * Màn hình chỉnh sửa thiết bị (Staff), hiển thị dạng modal.
  * - Nhận `item` từ route params (AssetItemFromApi).
  * - Form pre-fill; PUT /api/asset/items/:id qua useUpdateAssetItem.
- * - Nút "Xóa thiết bị": Alert xác nhận → cập nhật status từ "AVAILABLE" → "DISPOSED" (xóa mềm) → goBack.
+ * - Nút "Xóa thiết bị": Alert xác nhận → PUT cập nhật status → DISPOSED (xóa mềm) → goBack.
  */
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
@@ -57,13 +57,14 @@ import type {
 } from "../../../../shared/types/api";
 import type { HouseFromApi } from "../../../../shared/types/api";
 import type { UpdateAssetItemRequest } from "../../../../shared/types/api";
+import { normalizeAssetItemStatusFromApi } from "../../../../shared/types/api";
 import { mergeFunctionalAreasForHouse, sortFunctionalAreasForDisplay } from "../../../../shared/utils";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemEdit">;
 type ItemEditRouteProp = RouteProp<RootStackParamList, "ItemEdit">;
 
-// AssetStatus: bỏ "AVAILABLE". Backend có thể trả về thêm ACTIVE/BROKEN/DELETED.
-const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED", "DELETED"] as const;
+/** AssetStatus (BE): IN_USE, ACTIVE, BROKEN, DISPOSED — không AVAILABLE / DELETED. */
+const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED"] as const;
 
 export default function ItemEditScreen() {
   const { t } = useTranslation();
@@ -111,9 +112,8 @@ export default function ItemEditScreen() {
   const [nfcId, setNfcId] = useState(latestItem.nfcTag ?? "");
   const [qrId, setQrId] = useState(latestItem.qrTag ?? "");
   const [conditionPercent, setConditionPercent] = useState(String(latestItem.conditionPercent));
-  // AssetStatus: normalize "AVAILABLE" -> "IN_USE"
   const [status, setStatus] = useState<string>(
-    latestItem.status === "AVAILABLE" ? "IN_USE" : latestItem.status || STATUS_OPTIONS[0]
+    normalizeAssetItemStatusFromApi(latestItem.status) || STATUS_OPTIONS[0]
   );
   const [functionAreaId, setFunctionAreaId] = useState<string | null>(
     latestItem.functionAreaId ?? null
@@ -137,11 +137,7 @@ export default function ItemEditScreen() {
     setNfcId(latestItem.nfcTag ?? "");
     setQrId(latestItem.qrTag ?? "");
     setConditionPercent(String(latestItem.conditionPercent));
-    setStatus(
-      latestItem.status === "AVAILABLE"
-        ? "IN_USE"
-        : latestItem.status || STATUS_OPTIONS[0]
-    );
+    setStatus(normalizeAssetItemStatusFromApi(latestItem.status) || STATUS_OPTIONS[0]);
     if (!functionAreaUserTouchedRef.current) {
       setFunctionAreaId(latestItem.functionAreaId ?? null);
     }
@@ -198,8 +194,8 @@ export default function ItemEditScreen() {
       if (s === "IN_USE") return t("staff_item_create.status_in_use");
       if (s === "ACTIVE") return t("staff_item_create.status_active");
       if (s === "BROKEN") return t("staff_item_create.status_broken");
-      if (s === "DELETED") return t("staff_item_create.status_deleted");
-      return t("staff_item_create.status_disposed");
+      if (s === "DISPOSED") return t("staff_item_create.status_disposed");
+      return s || "—";
     },
     [t]
   );
@@ -440,8 +436,7 @@ export default function ItemEditScreen() {
               qrTag: qrId.trim() ? qrId.trim() : null,
               qrId: qrId.trim() ? qrId.trim() : null,
               conditionPercent: Number.isNaN(percent) ? item.conditionPercent : percent,
-              // Xóa mềm theo enum mới: DELETED
-              status: "DELETED",
+              status: "DISPOSED",
               functionAreaId,
             };
             updateMutation.mutate(
@@ -468,7 +463,7 @@ export default function ItemEditScreen() {
     !Number.isNaN(parseInt(conditionPercent, 10));
 
   // Chỉ cho phép "xóa" khi thiết bị chưa ở trạng thái DISPOSED.
-  const canDelete = status !== "DELETED";
+  const canDelete = status !== "DISPOSED";
 
   const handleDetachNfc = () => {
     const trimmed = nfcId.trim();

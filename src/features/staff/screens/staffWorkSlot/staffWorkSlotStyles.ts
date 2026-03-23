@@ -12,6 +12,12 @@ export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   NEED_RESCHEDULE: { bg: brandTintBg, text: brandPrimary },
   IN_PROGRESS: { bg: brandTintBg, text: brandPrimary },
   COMPLETED: { bg: brandTintBg, text: brandPrimary },
+  // Issue/ticket states
+  WAITING_MANAGER_APPROVAL: { bg: brandTintBg, text: brandSecondary },
+  WAITING_TENANT_APPROVAL: { bg: brandTintBg, text: brandSecondary },
+  WAITING_PAYMENT: { bg: brandTintBg, text: brandSecondary },
+  DONE: { bg: brandTintBg, text: brandPrimary },
+  CLOSED: { bg: brandTintBg, text: brandPrimary },
   FAILED: { bg: "#FEE2E2", text: "#DC2626" },
   CANCELLED: { bg: "#F3F4F6", text: "#6B7280" },
   OVERDUE: { bg: "#FEE2E2", text: "#B91C1C" },

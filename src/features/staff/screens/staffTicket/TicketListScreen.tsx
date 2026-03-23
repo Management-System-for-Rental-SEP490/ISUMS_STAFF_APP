@@ -29,7 +29,11 @@ import {
   neutral,
 } from "../../../../shared/theme/color";
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
-import { getTotalPages, slicePage } from "../../../../shared/utils";
+import {
+  formatStaffTicketListCreatedAt,
+  getTotalPages,
+  slicePage,
+} from "../../../../shared/utils";
 
 type TicketListNavProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Ticket">,
@@ -48,32 +52,27 @@ function getPriorityStyle(priority: string) {
 }
 // String về status ticket
 function getStatusStyle(status: string) {
-  switch (status) {
-    case "pending":
+  const s = String(status || "").toUpperCase();
+  switch (s) {
+    case "CREATED":
       return { bg: brandTintBg, color: brandPrimary };
-    case "assigned":
+    case "NEED_RESCHEDULE":
+    case "SCHEDULED":
       return { bg: brandTintBg, color: brandSecondary };
-    case "scheduled":
+    case "IN_PROGRESS":
+      return { bg: brandTintBg, color: brandPrimary };
+    case "WAITING_MANAGER_APPROVAL":
+    case "WAITING_TENANT_APPROVAL":
+    case "WAITING_PAYMENT":
       return { bg: brandTintBg, color: brandSecondary };
-    case "in_progress":
+    case "DONE":
+    case "CLOSED":
       return { bg: brandTintBg, color: brandPrimary };
-    case "completed":
-      return { bg: brandTintBg, color: brandPrimary };
-    case "cancelled":
+    case "CANCELLED":
       return { bg: neutral.background, color: neutral.textSecondary };
     default:
       return { bg: neutral.background, color: neutral.textSecondary };
   }
-}
-
-function formatDate(d: Date, t: (key: string, options?: Record<string, number>) => string): string {
-  const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  const days = Math.floor(diff / (24 * 60 * 60 * 1000)); // trả về khoảng thời gian giữa d và bây giờ, bỏ phần lẻ
-  if (days === 0) return t("staff_ticket_list.today");
-  if (days === 1) return t("staff_ticket_list.yesterday");
-  if (days < 7) return t("staff_ticket_list.days_ago", { n: days }); //
-  return d.toLocaleDateString(); // chuyển đổi ngày thành chuỗi theo locale
 }
 
 export default function TicketListScreen() {
@@ -125,18 +124,10 @@ export default function TicketListScreen() {
         ? t("staff_ticket_list.priority_medium")
         : t("staff_ticket_list.priority_low");
 
+    const statusKey = `staff_ticket_list.status_${String(item.status || "").toUpperCase()}`;
+    const translatedStatus = t(statusKey);
     const statusLabel =
-      item.status === "pending"
-        ? t("staff_ticket_list.status_pending")
-        : item.status === "assigned"
-        ? t("staff_ticket_list.status_assigned")
-        : item.status === "scheduled"
-        ? t("staff_ticket_list.status_scheduled")
-        : item.status === "in_progress"
-        ? t("staff_ticket_list.status_in_progress")
-        : item.status === "completed"
-        ? t("staff_ticket_list.status_completed")
-        : t("staff_ticket_list.status_cancelled");
+      translatedStatus !== statusKey ? translatedStatus : String(item.status || "");
 
     return (
       <TouchableOpacity
@@ -159,7 +150,7 @@ export default function TicketListScreen() {
           {item.buildingName} • {item.deviceName}
         </Text>
         <Text style={ticketListStyles.cardMeta}>
-          {t("staff_ticket_list.tenant")}: {item.tenantName} • {formatDate(item.createdAt, t)}
+          {t("staff_ticket_list.tenant")}: {item.tenantName} • {formatStaffTicketListCreatedAt(item.createdAt, t)}
         </Text>
         <Text style={ticketListStyles.cardDescription} numberOfLines={2}>
           {item.description}

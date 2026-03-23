@@ -1,9 +1,9 @@
 /**
  * Màn hình Chi tiết Work Slot của Staff.
- * Hiển thị đầy đủ thông tin work slot và job (lấy từ API GET /api/maintenances/jobs/{jobId}).
- * jobId lấy từ work slot API: GET /api/schedules/work_slots/staff/{staffId}.
+ * Hiển thị đầy đủ thông tin work slot và ticket/issue (lấy từ API GET /api/issues/tickets/{ticketId}).
+ * ticketId lấy từ work slot API: GET /api/schedules/work_slots/staff/{staffId}.
  */
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -13,17 +13,20 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
+import { useRoute, useNavigation, RouteProp, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
+import { getIssueTicketById, updateIssueTicketStatus } from "../../../../shared/services/issuesApi";
 import { getJobById, updateJobStatus } from "../../../../shared/services/maintenanceApi";
 import { CustomAlert } from "../../../../shared/components/alert";
-import type { JobFromApi, HouseFromApi } from "../../../../shared/types/api";
+import type { HouseFromApi, IssueTicketFromApi, JobFromApi } from "../../../../shared/types/api";
 import Icons from "../../../../shared/theme/icon";
 import { iconStyles } from "../../../../shared/styles/iconStyles";
 import { staffWorkSlotStyles, STATUS_COLORS } from "./staffWorkSlotStyles";
 import { brandPrimary, brandTintBg, neutral } from "../../../../shared/theme/color";
+import { formatIsoDueDateVi, formatViTicketCreatedAt } from "../../../../shared/utils";
 import { useHouses } from "../../../../shared/hooks/useHouses";
+import { getAssetItemById } from "../../../../shared/services/assetItemApi";
 import {
   StackScreenTitleBadge,
   StackScreenTitleBarBalance,
@@ -35,15 +38,22 @@ import {
   stackScreenTitleSideSlotStyle,
 } from "../../../../shared/components/StackScreenTitleBadge";
 
+function getIssueStatusLabel(status: string | undefined, t: (k: string) => string): string {
+  const s = String(status || "").toUpperCase();
+  const i18nKey = `staff_ticket_list.status_${s}`;
+  const translated = t(i18nKey);
+  return translated !== i18nKey ? translated : status ?? "";
+}
+
 const JOB_STATUS_KEYS = new Set([
   "CREATED", "SCHEDULED", "NEED_RESCHEDULE", "IN_PROGRESS", "COMPLETED",
   "FAILED", "CANCELLED", "OVERDUE", "AVAILABLE", "BOOKED",
 ]);
 
-function getJobStatusKey(status: string | undefined): string {
-  if (!status) return "staff_calendar.job_status_OTHER";
+function getJobStatusLabel(status: string | undefined, t: (k: string) => string): string {
+  if (!status) return t("staff_calendar.job_status_OTHER");
   const key = `staff_calendar.job_status_${status.toUpperCase()}`;
-  return JOB_STATUS_KEYS.has(status.toUpperCase()) ? key : "staff_calendar.job_status_OTHER";
+  return JOB_STATUS_KEYS.has(status.toUpperCase()) ? t(key) : t("staff_calendar.job_status_OTHER");
 }
 
 function getStatusColors(status: string | undefined): { bg: string; text: string } {
@@ -60,8 +70,11 @@ export default function WorkSlotDetailScreen() {
   const route = useRoute<WorkSlotDetailRouteProp>();
   const navigation = useNavigation<NavProp>();
   const { slot } = route.params;
+  const isIssueSlot = String(slot.task || "").toUpperCase() === "ISSUE";
 
   const [job, setJob] = useState<JobFromApi | null>(null);
+  const [ticket, setTicket] = useState<IssueTicketFromApi | null>(null);
+  const [assetDisplayName, setAssetDisplayName] = useState<string>("");
   const [loading, setLoading] = useState(!!slot.ticketId);
   const [error, setError] = useState<string | null>(null);
   const [updateLoading, setUpdateLoading] = useState(false);
@@ -70,16 +83,62 @@ export default function WorkSlotDetailScreen() {
   const { data: housesResp } = useHouses();
   const houses: HouseFromApi[] = housesResp?.data ?? [];
 
-  const refetchJob = () => {
+  const refetchItem = () => {
     if (!slot.ticketId?.trim()) return;
+    if (isIssueSlot) {
+      getIssueTicketById(slot.ticketId)
+        .then(async (res) => {
+          if (!res?.success || !res?.data) return;
+          setTicket(res.data);
+          setJob(null);
+          // Asset display name (optional) - BE có thể không trả đủ assetName trong ticket
+          if (res.data.assetId?.trim()) {
+            const asset = await getAssetItemById(res.data.assetId);
+            setAssetDisplayName(asset?.displayName ?? res.data.assetId);
+          } else {
+            setAssetDisplayName("");
+          }
+        })
+        .catch(() => {});
+      return;
+    }
+
     getJobById(slot.ticketId)
-      .then((res) => { if (res.success && res.data) setJob(res.data); })
+      .then((res) => {
+        if (!res?.success || !res?.data) return;
+        setJob(res.data);
+        setTicket(null);
+        setAssetDisplayName("");
+      })
       .catch(() => {});
   };
 
-  const handleUpdateStatus = async (newStatus: "IN_PROGRESS" | "COMPLETED") => {
-    if (!job?.id || !slot.ticketId) return;
+  const handleStartWork = async () => {
+    if (!slot.ticketId) return;
+    if (isIssueSlot) {
+      if (!ticket?.id) return;
+      const current = (ticket.status ?? "").toUpperCase();
+      const newStatus = "IN_PROGRESS";
+      if (current !== "SCHEDULED") {
+        CustomAlert.alert(t("staff_work_slot_detail.cannot_update_status"), "", [{ text: t("common.close") }]);
+        return;
+      }
+      setUpdateLoading(true);
+      try {
+        await updateIssueTicketStatus(ticket.id, newStatus);
+        CustomAlert.alert(t("staff_work_slot_detail.update_success"), "", [{ text: t("common.close") }]);
+        refetchItem();
+      } catch (err) {
+        CustomAlert.alert(t("staff_work_slot_detail.update_error"), err instanceof Error ? err.message : "", [{ text: t("common.close") }]);
+      } finally {
+        setUpdateLoading(false);
+      }
+      return;
+    }
+
+    if (!job?.id) return;
     const current = (job.status ?? "").toUpperCase();
+    const newStatus = current === "IN_PROGRESS" ? "COMPLETED" : "IN_PROGRESS";
     if (newStatus === "IN_PROGRESS" && current !== "SCHEDULED") {
       CustomAlert.alert(t("staff_work_slot_detail.cannot_update_status"), "", [{ text: t("common.close") }]);
       return;
@@ -92,7 +151,7 @@ export default function WorkSlotDetailScreen() {
     try {
       await updateJobStatus(job.id, newStatus);
       CustomAlert.alert(t("staff_work_slot_detail.update_success"), "", [{ text: t("common.close") }]);
-      refetchJob();
+      refetchItem();
     } catch (err) {
       CustomAlert.alert(t("staff_work_slot_detail.update_error"), err instanceof Error ? err.message : "", [{ text: t("common.close") }]);
     } finally {
@@ -108,10 +167,23 @@ export default function WorkSlotDetailScreen() {
     let cancelled = false;
     setError(null);
     setLoading(true);
-    getJobById(slot.ticketId)
-      .then((res) => {
-        if (!cancelled && res.success && res.data) {
-          setJob(res.data);
+    (isIssueSlot ? getIssueTicketById(slot.ticketId) : getJobById(slot.ticketId))
+      .then(async (res) => {
+        if (cancelled || !res?.success || !res?.data) return;
+        if (isIssueSlot) {
+          const issue = res.data as IssueTicketFromApi;
+          setTicket(issue);
+          setJob(null);
+          if (issue.assetId?.trim()) {
+            const asset = await getAssetItemById(issue.assetId);
+            if (!cancelled) setAssetDisplayName(asset?.displayName ?? issue.assetId);
+          } else if (!cancelled) {
+            setAssetDisplayName("");
+          }
+        } else {
+          setJob(res.data as JobFromApi);
+          setTicket(null);
+          setAssetDisplayName("");
         }
       })
       .catch((err) => {
@@ -124,6 +196,7 @@ export default function WorkSlotDetailScreen() {
                 ? err.message
                 : t("staff_work_slot_detail.job_load_error");
           setError(message);
+          setTicket(null);
           setJob(null);
         }
       })
@@ -131,15 +204,31 @@ export default function WorkSlotDetailScreen() {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [slot.ticketId, t]);
+  }, [isIssueSlot, slot.ticketId, t]);
 
-  const jobStatusKey = getJobStatusKey(slot.status);
-  const slotStatusKey = getJobStatusKey(job?.status ?? slot.status);
+  const slotStatusLabel = isIssueSlot
+    ? getIssueStatusLabel(slot.status, t)
+    : getJobStatusLabel(slot.status, t);
+  const itemStatusLabel = isIssueSlot
+    ? getIssueStatusLabel(ticket?.status ?? slot.status, t)
+    : getJobStatusLabel(job?.status ?? slot.status, t);
 
   // Tên căn nhà hiển thị ở phần chi tiết công việc: ưu tiên lấy từ houseId của job.
-  const houseDisplayName = job?.houseId
-    ? houses.find((h) => h.id === job.houseId)?.name ?? job.houseId
+  const houseId = isIssueSlot ? ticket?.houseId : job?.houseId;
+  const houseDisplayName = houseId
+    ? houses.find((h) => h.id === houseId)?.name ?? houseId
     : "";
+  const hasDetailItem = isIssueSlot ? !!ticket : !!job;
+  const canShowActions = isIssueSlot
+    ? !!ticket && (ticket.status === "SCHEDULED" || ticket.status === "IN_PROGRESS")
+    : !!job && (job.status === "SCHEDULED" || job.status === "IN_PROGRESS");
+
+  useFocusEffect(
+    useCallback(() => {
+      refetchItem();
+      return undefined;
+    }, [slot.ticketId, isIssueSlot])
+  );
 
   return (
     <View style={staffWorkSlotStyles.container}>
@@ -194,7 +283,7 @@ export default function WorkSlotDetailScreen() {
             <InfoRow
               icon={<Icons.flag size={18} color={neutral.slate500} />}
               label={t("staff_work_slot_detail.status")}
-              value={t(jobStatusKey)}
+              value={slotStatusLabel}
               isStatus
               statusRaw={slot.status}
             />
@@ -218,30 +307,56 @@ export default function WorkSlotDetailScreen() {
             <View style={staffWorkSlotStyles.errorCard}>
               <Text style={staffWorkSlotStyles.errorText}>{error}</Text>
             </View>
-          ) : job ? (
+          ) : hasDetailItem ? (
             <View style={staffWorkSlotStyles.card}>
-              {/* Ẩn Job ID và Plan ID vì không cần thiết cho Staff */}
               <InfoRow
                 icon={<Icons.home size={18} color={neutral.slate500} />}
-                label={t("staff_work_slot_detail.house_id")}
+                label={isIssueSlot ? t("staff_ticket_detail.building") : t("staff_work_slot_detail.house_id")}
                 value={houseDisplayName}
               />
-              <InfoRow icon={<Icons.event size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.period_start")} value={job.periodStartDate} />
-              <InfoRow icon={<Icons.calendar size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.due_date")} value={formatDueDate(job.dueDate)} />
+              {isIssueSlot ? (
+                <>
+                  <InfoRow
+                    icon={<Icons.assignment size={18} color={neutral.slate500} />}
+                    label={t("staff_ticket_detail.title_label")}
+                    value={ticket?.title ?? ""}
+                  />
+                  <InfoRow
+                    icon={<Icons.workOutline size={18} color={neutral.slate500} />}
+                    label={t("staff_ticket_detail.description")}
+                    value={ticket?.description ?? ""}
+                  />
+                  <InfoRow
+                    icon={<Icons.tag size={18} color={neutral.slate500} />}
+                    label={t("staff_ticket_detail.device")}
+                    value={assetDisplayName || ticket?.assetId || ""}
+                  />
+                  <InfoRow
+                    icon={<Icons.calendar size={18} color={neutral.slate500} />}
+                    label={t("staff_ticket_detail.created_at")}
+                    value={ticket?.createdAt ? formatViTicketCreatedAt(new Date(ticket.createdAt)) : ""}
+                  />
+                </>
+              ) : (
+                <>
+                  <InfoRow icon={<Icons.event size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.period_start")} value={job?.periodStartDate ?? ""} />
+                  <InfoRow icon={<Icons.calendar size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.due_date")} value={job?.dueDate ? formatIsoDueDateVi(job.dueDate) : ""} />
+                </>
+              )}
               <InfoRow
                 icon={<Icons.flag size={18} color={neutral.slate500} />}
-                label={t("staff_work_slot_detail.job_status")}
-                value={t(slotStatusKey)}
+                label={isIssueSlot ? t("staff_ticket_detail.status") : t("staff_work_slot_detail.job_status")}
+                value={itemStatusLabel}
                 isStatus
-                statusRaw={job?.status ?? slot.status}
+                statusRaw={isIssueSlot ? ticket?.status ?? slot.status : job?.status ?? slot.status}
               />
-              {/* Nút cập nhật: SCHEDULED → Bắt đầu (IN_PROGRESS), IN_PROGRESS → Hoàn thành (COMPLETED) */}
-              {(job.status === "SCHEDULED" || job.status === "IN_PROGRESS") && (
+              {canShowActions ? (
                 <View style={[staffWorkSlotStyles.actionRow, { marginTop: 16 }]}>
-                  {job.status === "SCHEDULED" && (
+                  {((isIssueSlot && ticket?.status === "SCHEDULED")
+                    || (!isIssueSlot && job?.status === "SCHEDULED")) && (
                     <TouchableOpacity
                       style={[staffWorkSlotStyles.actionBtn, staffWorkSlotStyles.actionBtnPrimary, { marginRight: 6 }]}
-                      onPress={() => handleUpdateStatus("IN_PROGRESS")}
+                      onPress={handleStartWork}
                       disabled={updateLoading}
                     >
                       {updateLoading ? (
@@ -251,21 +366,42 @@ export default function WorkSlotDetailScreen() {
                       )}
                     </TouchableOpacity>
                   )}
-                  {job.status === "IN_PROGRESS" && (
+                  {((isIssueSlot && ticket?.status === "IN_PROGRESS")
+                    || (!isIssueSlot && job?.status === "IN_PROGRESS")) && (
                     <TouchableOpacity
                       style={[staffWorkSlotStyles.actionBtn, staffWorkSlotStyles.actionBtnSuccess, { marginRight: 6 }]}
-                      onPress={() => handleUpdateStatus("COMPLETED")}
+                      onPress={() => {
+                        if (isIssueSlot && ticket?.id && ticket.houseId && ticket.assetId) {
+                          navigation.navigate("StaffIssueNote", {
+                            issueId: ticket.id,
+                            houseId: ticket.houseId,
+                            assetId: ticket.assetId,
+                          });
+                          return;
+                        }
+                        if (isIssueSlot) {
+                          CustomAlert.alert(
+                            t("common.error"),
+                            "Thiếu thông tin issue để ghi nhận sửa chữa.",
+                            [{ text: t("common.close") }]
+                          );
+                          return;
+                        }
+                        void handleStartWork();
+                      }}
                       disabled={updateLoading}
                     >
                       {updateLoading ? (
                         <ActivityIndicator size="small" color={neutral.surface} />
                       ) : (
-                        <Text style={staffWorkSlotStyles.actionBtnText}>{t("staff_work_slot_detail.btn_complete")}</Text>
+                        <Text style={staffWorkSlotStyles.actionBtnText}>
+                          {isIssueSlot ? "Đang sửa chữa" : t("staff_work_slot_detail.btn_complete")}
+                        </Text>
                       )}
                     </TouchableOpacity>
                   )}
                 </View>
-              )}
+              ) : null}
             </View>
           ) : (
             <View style={staffWorkSlotStyles.emptyCard}>
@@ -319,18 +455,4 @@ function InfoRow({
       </View>
     </View>
   );
-}
-
-function formatDueDate(iso: string): string {
-  try {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  } catch {
-    return iso;
-  }
 }

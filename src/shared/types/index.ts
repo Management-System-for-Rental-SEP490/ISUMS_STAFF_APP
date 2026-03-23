@@ -64,6 +64,12 @@ export type RootStackParamList = AuthStackParamList & {
       houseId?: string;
     };
   };
+  /** Màn ghi nhận sửa chữa issue khi ticket đang IN_PROGRESS. */
+  StaffIssueNote: {
+    issueId: string;
+    houseId: string;
+    assetId: string;
+  };
   /** Màn form tạo danh mục thiết bị (Staff). Không tham số. */
   Category: undefined;
   /** Màn danh sách danh mục thiết bị (Staff). Không tham số. */
@@ -233,6 +239,7 @@ export interface RentalHouse {
 // Tại đây chỉ re-export lại để ai đang import từ "shared/types" vẫn dùng được.
 export type {
   ApiResponse,
+  HouseStatus,
   HouseFromApi,
   HousesApiResponse,
   FunctionalAreaFromApi,
@@ -242,6 +249,8 @@ export type {
   AssetItemFromApi,
   AssetItemsApiResponse,
   UserProfileResponse,
+  IssueStatus,
+  QuoteStatus,
 } from "./api";
 
 export type { TelemetryMessage, UsageData } from "./iot";

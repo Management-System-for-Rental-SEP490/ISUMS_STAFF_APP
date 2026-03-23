@@ -21,6 +21,7 @@ import {
 } from "../../../../shared/hooks";
 import { itemScreenStyles } from "./itemScreenStyles";
 import type { AssetItemFromApi } from "../../../../shared/types/api";
+import { normalizeAssetItemStatusFromApi } from "../../../../shared/types/api";
 import { getAssetItemById } from "../../../../shared/services/assetItemApi";
 import { brandPrimary } from "../../../../shared/theme/color";
 import {
@@ -157,24 +158,22 @@ export default function ItemDescriptionScreen() {
   }, [item.functionAreaId, functionalAreas, t]);
 
   const getStatusStyle = () => {
-    const normalizedStatus = item.status === "AVAILABLE" ? "IN_USE" : item.status;
+    const normalizedStatus = normalizeAssetItemStatusFromApi(item.status);
     if (normalizedStatus === "IN_USE" || normalizedStatus === "ACTIVE") {
       return itemScreenStyles.descriptionStatusInUse;
     }
     if (normalizedStatus === "DISPOSED" || normalizedStatus === "BROKEN") {
       return itemScreenStyles.descriptionStatusDisposed;
     }
-    if (normalizedStatus === "DELETED") return itemScreenStyles.descriptionStatusOther;
     return itemScreenStyles.descriptionStatusOther;
   };
 
   const getStatusLabel = () => {
-    const normalizedStatus = item.status === "AVAILABLE" ? "IN_USE" : item.status;
+    const normalizedStatus = normalizeAssetItemStatusFromApi(item.status);
     if (normalizedStatus === "IN_USE") return t("staff_item_create.status_in_use");
     if (normalizedStatus === "ACTIVE") return t("staff_item_create.status_active");
     if (normalizedStatus === "DISPOSED") return t("staff_item_create.status_disposed");
     if (normalizedStatus === "BROKEN") return t("staff_item_create.status_broken");
-    if (normalizedStatus === "DELETED") return t("staff_item_create.status_deleted");
     return normalizedStatus ?? "—";
   };
 

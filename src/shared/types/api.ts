@@ -19,6 +19,63 @@ export interface ApiResponse<T> {
   data: T;
 }
 
+/** Trạng thái ticket/issue từ BE (IssueStatus). */
+export type IssueStatus =
+  | "CREATED"
+  | "NEED_RESCHEDULE"
+  | "SCHEDULED"
+  | "IN_PROGRESS"
+  | "WAITING_MANAGER_APPROVAL"
+  | "WAITING_TENANT_APPROVAL"
+  | "WAITING_PAYMENT"
+  | "DONE"
+  | "CLOSED"
+  | "CANCELLED"
+  | string;
+
+/** Trạng thái ticket/issue có thể cập nhật từ Staff UI. */
+export type IssueTicketStatusUpdate = "IN_PROGRESS" | "DONE";
+
+/**
+ * Ticket/issue trả về từ GET /api/issues/tickets/{ticketId}.
+ * Ví dụ response (BE):
+ * {
+ *   data: { id, tenantId, houseId, assetId, assignedStaffId, slotId, type, status, title, description, createdAt },
+ *   message, statusCode, success
+ * }
+ */
+export interface IssueTicketFromApi {
+  id: string;
+  tenantId: string;
+  houseId: string;
+  assetId: string;
+  assignedStaffId: string;
+  slotId: string;
+  /** REPAIR | QUESTION | ... */
+  type: string;
+  status: IssueStatus;
+  title: string;
+  description: string;
+  createdAt: string; // ISO 8601
+}
+
+/** Response wrapper của GET /api/issues/tickets/{ticketId}. */
+export interface IssueTicketApiResponse {
+  data: IssueTicketFromApi;
+  message: string;
+  statusCode: number;
+  success: boolean;
+}
+
+/** Trạng thái báo giá từ BE (QuoteStatus) cho luồng quote + payment. */
+export type QuoteStatus =
+  | "DRAFT"
+  | "WAITING_MANAGER_APPROVAL"
+  | "WAITING_TENANT_APPROVAL"
+  | "APPROVED"
+  | "REJECTED"
+  | string;
+
 // =========================================================
 // User API
 // =========================================================
@@ -74,6 +131,9 @@ export interface FunctionalAreaFromApi {
 }
 
 /** Dữ liệu căn nhà trả về từ API GET /api/houses (dùng cho Staff). */
+export type HouseStatus = "AVAILABLE" | "RENTED" | "REPAIRED" | string;
+
+/** Dữ liệu căn nhà trả về từ API GET /api/houses (dùng cho Staff). */
 export interface HouseFromApi {
   /** ID căn nhà. */
   id: string;
@@ -93,8 +153,8 @@ export interface HouseFromApi {
   city?: string;
   /** Mô tả thêm về căn nhà. */
   description?: string;
-  /** Trạng thái: ví dụ "AVAILABLE", "RENTED", ... */
-  status?: string;
+  /** Trạng thái nhà theo HouseStatus BE. */
+  status?: HouseStatus;
   /** Danh sách khu vực chức năng trong nhà (phòng khách, bếp, phòng tắm...). */
   functionalAreas?: FunctionalAreaFromApi[];
 }
@@ -205,6 +265,21 @@ export type AssetItemsParams = {
   nfcId?: string;
 };
 
+/**
+ * Trạng thái thiết bị (asset) theo enum BE: không AVAILABLE / DELETED.
+ * BE cũ: `AVAILABLE` → IN_USE; `DELETED` → DISPOSED (chuẩn hóa trong `normalizeAssetItemStatusFromApi`).
+ */
+export type AssetStatus = "IN_USE" | "ACTIVE" | "BROKEN" | "DISPOSED";
+
+export function normalizeAssetItemStatusFromApi(
+  status: string | null | undefined
+): string {
+  const s = status != null ? String(status).trim() : "";
+  if (s === "" || s === "AVAILABLE") return "IN_USE";
+  if (s === "DELETED") return "DISPOSED";
+  return s;
+}
+
 /** Một thiết bị/item từ API GET /api/asset/items (có thể filter theo houseId, categoryId). */
 export interface AssetItemFromApi {
   /** ID thiết bị. */
@@ -225,7 +300,7 @@ export interface AssetItemFromApi {
   tags?: AssetTagFromApi[];
   /** Tình trạng còn lại (%), ví dụ 80 = còn tốt 80%. */
   conditionPercent: number;
-  /** Trạng thái: VD "AVAILABLE", "DISPOSED", ... */
+  /** Trạng thái (AssetStatus; sau khi qua service thường đã chuẩn hóa, không còn AVAILABLE). */
   status: string;
   /**
    * ID khu vực chức năng (phòng/bếp/…) trong nhà; null nếu chưa gán.
@@ -257,7 +332,7 @@ export interface CreateAssetItemRequest {
   nfcId?: string | null;
   qrId?: string | null;
   conditionPercent: number;
-  /** VD "AVAILABLE", "DISPOSED". */
+  /** Trạng thái (AssetStatus). */
   status: string;
   /** Gán thiết bị vào khu vực chức năng (tùy chọn). */
   functionAreaId?: string | null;

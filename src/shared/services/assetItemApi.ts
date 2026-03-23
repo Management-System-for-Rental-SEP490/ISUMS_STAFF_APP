@@ -4,27 +4,28 @@
  */
 import axiosClient from "../api/axiosClient";
 import { ASSETS_API_BASE, BACKEND_API_BASE } from "../api/config";
-import type {
-  AssetItemFromApi,
-  AssetItemsApiResponse,
-  AssetItemsParams,
-  CreateAssetItemRequest,
-  CreateAssetItemApiResponse,
-  UpdateAssetItemRequest,
-  UpdateAssetItemApiResponse,
-  IotDevicesByHouseApiResponse,
-  AttachAssetTagRequest,
-  AttachAssetTagApiResponse,
-  DetachAssetTagApiResponse,
-  GetAssetByTagValueApiResponse,
-  ApiResponse,
-  IotProvisionRequest,
-  IotProvisionApiResponse,
-  IotProvisionTokenRequest,
-  IotProvisionTokenApiResponse,
-  IotControllerByHouseApiResponse,
-  IotProvisionNodeRequest,
-  IotProvisionNodeApiResponse,
+import {
+  normalizeAssetItemStatusFromApi,
+  type AssetItemFromApi,
+  type AssetItemsApiResponse,
+  type AssetItemsParams,
+  type CreateAssetItemRequest,
+  type CreateAssetItemApiResponse,
+  type UpdateAssetItemRequest,
+  type UpdateAssetItemApiResponse,
+  type IotDevicesByHouseApiResponse,
+  type AttachAssetTagRequest,
+  type AttachAssetTagApiResponse,
+  type DetachAssetTagApiResponse,
+  type GetAssetByTagValueApiResponse,
+  type ApiResponse,
+  type IotProvisionRequest,
+  type IotProvisionApiResponse,
+  type IotProvisionTokenRequest,
+  type IotProvisionTokenApiResponse,
+  type IotControllerByHouseApiResponse,
+  type IotProvisionNodeRequest,
+  type IotProvisionNodeApiResponse,
 } from "../types/api";
 
 /**
@@ -93,6 +94,7 @@ function normalizeAssetItemFromResponse(
     ...raw,
     nfcTag: nfcStr !== "" ? nfcStr : null,
     qrTag: qrStr !== "" ? qrStr : null,
+    status: normalizeAssetItemStatusFromApi(raw.status),
     functionAreaId:
       functionAreaId != null && String(functionAreaId).trim() !== ""
         ? String(functionAreaId).trim()
