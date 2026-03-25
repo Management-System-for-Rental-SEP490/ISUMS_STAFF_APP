@@ -4,12 +4,40 @@
  * - PUT /api/issues/tickets/{ticketId}/status?status={status} - cập nhật trạng thái (nếu BE hỗ trợ)
  */
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE } from "../api/config";
+import { ASSETS_API_BASE, BACKEND_API_BASE } from "../api/config";
 import type {
+  ApiResponse,
+  CreateIssueQuoteApiResponse,
+  CreateIssueQuotePayload,
+  IssueBannerFromApi,
   IssueTicketApiResponse,
   IssueTicketFromApi,
   IssueTicketStatusUpdate,
 } from "../types/api";
+
+export type IssueTicketImageFromApi = {
+  id: string;
+  url: string;
+  createdAt?: string | null;
+};
+
+/**
+ * Lấy danh sách ảnh đính kèm theo ticket/issue.
+ * Endpoint: GET /issues/tickets/:id/images
+ */
+export const getIssueTicketImages = async (
+  ticketId: string,
+): Promise<IssueTicketImageFromApi[]> => {
+  if (!ticketId?.trim()) return [];
+
+  const url = `${ASSETS_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}/images`;
+  const response = await axiosClient.get<ApiResponse<IssueTicketImageFromApi[]>>(url);
+
+  if (response.data?.success && Array.isArray(response.data.data)) {
+    return response.data.data;
+  }
+  return [];
+};
 
 /**
  * Lấy chi tiết ticket/issue theo id.
@@ -18,7 +46,7 @@ export const getIssueTicketById = async (
   ticketId: string
 ): Promise<IssueTicketApiResponse> => {
   const response = await axiosClient.get<IssueTicketApiResponse>(
-    `${BACKEND_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}`
+    `${ASSETS_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}`
   );
   return response.data;
 };
@@ -34,7 +62,7 @@ export const updateIssueTicketStatus = async (
   status: IssueTicketStatusUpdate
 ): Promise<{ success: boolean; message?: string }> => {
   const response = await axiosClient.put<{ success: boolean; message?: string }>(
-    `${BACKEND_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}/status`,
+    `${ASSETS_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}/status`,
     null,
     { params: { status } }
   );
@@ -82,7 +110,36 @@ export const createIssueExecution = async (
   payload: CreateIssueExecutionPayload
 ): Promise<CreateIssueExecutionResponse> => {
   const response = await axiosClient.post<CreateIssueExecutionResponse>(
-    `${BACKEND_API_BASE}/issues/executions/${encodeURIComponent(issueId)}/execution`,
+    `${ASSETS_API_BASE}/issues/executions/${encodeURIComponent(issueId)}/execution`,
+    payload
+  );
+  return response.data;
+};
+
+/**
+ * Lấy danh sách banner báo giá.
+ * GET /api/issues/banners
+ */
+export const getIssueBanners = async (): Promise<IssueBannerFromApi[]> => {
+  const response = await axiosClient.get<ApiResponse<IssueBannerFromApi[]>>(
+    `${ASSETS_API_BASE}/issues/banners`
+  );
+  if (response.data?.success && Array.isArray(response.data.data)) {
+    return response.data.data;
+  }
+  return [];
+};
+
+/**
+ * Tạo báo giá cho issue.
+ * POST /api/issues/quotes/{issueId}/quote
+ */
+export const createIssueQuote = async (
+  issueId: string,
+  payload: CreateIssueQuotePayload
+): Promise<CreateIssueQuoteApiResponse> => {
+  const response = await axiosClient.post<CreateIssueQuoteApiResponse>(
+    `${ASSETS_API_BASE}/issues/quotes/${encodeURIComponent(issueId)}/quote`,
     payload
   );
   return response.data;

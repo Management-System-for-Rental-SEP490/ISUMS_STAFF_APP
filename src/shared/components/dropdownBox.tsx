@@ -78,7 +78,12 @@ type SectionBlock = {
 };
 
 function norm(s: string) {
-  return s.trim().toLowerCase();
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
 }
 
 function itemMatches(item: DropdownBoxItem, q: string) {

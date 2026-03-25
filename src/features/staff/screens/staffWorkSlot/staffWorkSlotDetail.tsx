@@ -5,6 +5,8 @@
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Image,
+  Modal,
   View,
   Text,
   ScrollView,
@@ -16,7 +18,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRoute, useNavigation, RouteProp, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
-import { getIssueTicketById, updateIssueTicketStatus } from "../../../../shared/services/issuesApi";
+import {
+  getIssueTicketById,
+  getIssueTicketImages,
+  type IssueTicketImageFromApi,
+  updateIssueTicketStatus,
+} from "../../../../shared/services/issuesApi";
 import { getJobById, updateJobStatus } from "../../../../shared/services/maintenanceApi";
 import { CustomAlert } from "../../../../shared/components/alert";
 import type { HouseFromApi, IssueTicketFromApi, JobFromApi } from "../../../../shared/types/api";
@@ -78,6 +85,9 @@ export default function WorkSlotDetailScreen() {
   const [loading, setLoading] = useState(!!slot.ticketId);
   const [error, setError] = useState<string | null>(null);
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [ticketImages, setTicketImages] = useState<IssueTicketImageFromApi[]>([]);
+  const [ticketImagesLoading, setTicketImagesLoading] = useState(false);
+  const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
 
   // Danh sách houses từ BE (dùng để map houseId -> tên căn nhà hiển thị cho người dùng).
   const { data: housesResp } = useHouses();
@@ -205,6 +215,32 @@ export default function WorkSlotDetailScreen() {
       });
     return () => { cancelled = true; };
   }, [isIssueSlot, slot.ticketId, t]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!isIssueSlot || !ticket?.id) {
+        setTicketImages([]);
+        return;
+      }
+
+      setTicketImagesLoading(true);
+      try {
+        const imgs = await getIssueTicketImages(ticket.id);
+        if (!cancelled) setTicketImages(imgs);
+      } catch (e) {
+        console.error("[WorkSlotDetail] load ticket images failed", e);
+        if (!cancelled) setTicketImages([]);
+      } finally {
+        if (!cancelled) setTicketImagesLoading(false);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [isIssueSlot, ticket?.id]);
 
   const slotStatusLabel = isIssueSlot
     ? getIssueStatusLabel(slot.status, t)
@@ -336,6 +372,33 @@ export default function WorkSlotDetailScreen() {
                     label={t("staff_ticket_detail.created_at")}
                     value={ticket?.createdAt ? formatViTicketCreatedAt(new Date(ticket.createdAt)) : ""}
                   />
+
+                  <View style={{ marginTop: 6 }}>
+                    <Text style={staffWorkSlotStyles.imageSectionTitle}>
+                      {t("staff_ticket_detail.images_label")}
+                    </Text>
+                    {ticketImagesLoading ? (
+                      <View style={staffWorkSlotStyles.imageLoadingRow}>
+                        <ActivityIndicator size="small" color={neutral.iconMuted} />
+                        <Text style={staffWorkSlotStyles.imageEmptyText}>{t("common.loading")}</Text>
+                      </View>
+                    ) : ticketImages.length > 0 ? (
+                      <View style={staffWorkSlotStyles.ticketImagesGrid}>
+                        {ticketImages.map((img) => (
+                          <TouchableOpacity
+                            key={img.id}
+                            style={staffWorkSlotStyles.ticketImageThumb}
+                            activeOpacity={0.85}
+                            onPress={() => setActiveImageUrl(img.url)}
+                          >
+                            <Image source={{ uri: img.url }} style={staffWorkSlotStyles.ticketImage} resizeMode="cover" />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    ) : (
+                      <Text style={staffWorkSlotStyles.imageEmptyText}>{t("staff_ticket_detail.images_empty")}</Text>
+                    )}
+                  </View>
                 </>
               ) : (
                 <>
@@ -362,7 +425,11 @@ export default function WorkSlotDetailScreen() {
                       {updateLoading ? (
                         <ActivityIndicator size="small" color={neutral.surface} />
                       ) : (
-                        <Text style={staffWorkSlotStyles.actionBtnText}>{t("staff_work_slot_detail.btn_start_maintenance")}</Text>
+                        <Text style={staffWorkSlotStyles.actionBtnText}>
+                          {isIssueSlot
+                            ? t("staff_work_slot_detail.btn_start_issue")
+                            : t("staff_work_slot_detail.btn_start_maintenance")}
+                        </Text>
                       )}
                     </TouchableOpacity>
                   )}
@@ -410,6 +477,43 @@ export default function WorkSlotDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={activeImageUrl != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveImageUrl(null)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={staffWorkSlotStyles.imageModalBackdrop}
+          onPress={() => setActiveImageUrl(null)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => {
+              e.stopPropagation();
+            }}
+            style={staffWorkSlotStyles.imageModalContent}
+          >
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={staffWorkSlotStyles.imageModalClose}
+              onPress={() => setActiveImageUrl(null)}
+            >
+              <Text style={staffWorkSlotStyles.imageModalCloseText}>×</Text>
+            </TouchableOpacity>
+
+            {activeImageUrl && (
+              <Image
+                source={{ uri: activeImageUrl }}
+                style={staffWorkSlotStyles.imageModalImage}
+                resizeMode="contain"
+              />
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }

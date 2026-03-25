@@ -226,4 +226,82 @@ export const staffWorkSlotStyles = StyleSheet.create({
   actionBtnTextDisabled: {
     color: "#94a3b8",
   },
+
+  /** Ticket images (issue handling) */
+  imageSectionTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#64748b",
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  imageLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  imageEmptyText: {
+    fontSize: 14,
+    color: "#64748b",
+    fontStyle: "italic",
+  },
+  ticketImagesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    paddingVertical: 6,
+  },
+  ticketImageThumb: {
+    width: "48%",
+    aspectRatio: 1,
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
+  },
+  ticketImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  imageModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(2, 6, 23, 0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  imageModalContent: {
+    width: "100%",
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#ffffff",
+  },
+  imageModalClose: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    zIndex: 2,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+  },
+  imageModalCloseText: {
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: "800",
+    lineHeight: 20,
+  },
+  imageModalImage: {
+    width: "100%",
+    height: 320,
+  },
 });

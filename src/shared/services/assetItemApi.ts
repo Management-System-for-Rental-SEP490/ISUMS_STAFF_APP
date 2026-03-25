@@ -4,6 +4,8 @@
  */
 import axiosClient from "../api/axiosClient";
 import { ASSETS_API_BASE, BACKEND_API_BASE } from "../api/config";
+import i18n from "../i18n";
+import { useAuthStore } from "../../store/useAuthStore";
 import {
   normalizeAssetItemStatusFromApi,
   type AssetItemFromApi,
@@ -548,5 +550,89 @@ export const provisionIotNodeByHouseId = async (
     payload
   );
   return response.data;
+};
+
+export type AssetItemImageToUpload = {
+  uri: string;
+  fileName?: string;
+  mimeType?: string;
+};
+
+export type AssetItemImageFromApi = {
+  id: string;
+  url: string;
+  createdAt?: string | null;
+};
+
+/**
+ * Lấy danh sách ảnh của asset item.
+ * Endpoint (theo Postman trong ảnh bạn gửi): GET /api/assets/items/:id/images
+ */
+export const getAssetItemImages = async (itemId: string): Promise<AssetItemImageFromApi[]> => {
+  if (!itemId?.trim()) return [];
+  const url = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
+  const response = await axiosClient.get<ApiResponse<AssetItemImageFromApi[]>>(url);
+  if (response.data?.success && Array.isArray(response.data.data)) {
+    return response.data.data;
+  }
+  return [];
+};
+
+/**
+ * Upload ảnh đính kèm cho asset item.
+ * Endpoint (theo Postman trong ảnh bạn gửi): POST /api/assets/items/:id/images
+ * FormData key: `files`, mỗi phần tử là file ảnh dạng jpg/png...
+ */
+export const uploadAssetItemImages = async (
+  itemId: string,
+  images: AssetItemImageToUpload[],
+): Promise<void> => {
+  if (!itemId?.trim() || images.length === 0) return;
+
+  const token = useAuthStore.getState().token;
+  if (!token) {
+    throw new Error("Missing auth token for asset item image upload");
+  }
+
+  const url = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
+  const formData = new FormData();
+
+  images.forEach((img, idx) => {
+    const name = img.fileName ?? `asset-${itemId}-${idx}.jpg`;
+    const type = img.mimeType ?? "image/jpeg";
+    formData.append(
+      "files",
+      {
+        uri: img.uri,
+        name,
+        type,
+      } as any,
+    );
+  });
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Accept-Language": i18n.language || "vi",
+    },
+    body: formData,
+  });
+
+  const rawText = await response.text();
+  let parsed: any = null;
+  try {
+    parsed = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    parsed = rawText;
+  }
+
+  const success = parsed && typeof parsed === "object" ? parsed.success : undefined;
+  const message =
+    parsed && typeof parsed === "object" && "message" in parsed ? (parsed as { message: string }).message : undefined;
+
+  if (!response.ok || success === false) {
+    throw new Error(message || `Upload asset item images failed (HTTP ${response.status})`);
+  }
 };
 

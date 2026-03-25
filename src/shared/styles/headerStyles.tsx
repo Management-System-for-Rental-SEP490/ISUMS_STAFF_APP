@@ -25,6 +25,10 @@ const headerStyles = StyleSheet.create({
   headerRowCentered: {
     justifyContent: "center",
   },
+  headerRowWrap: {
+    position: "relative",
+    width: "100%",
+  },
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -69,6 +73,20 @@ const headerStyles = StyleSheet.create({
     padding: 2,
     borderRadius: 10,
     backgroundColor: neutral.slate200,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionButton: {
+    position: "absolute",
+    right: 0,
+    top: "50%",
+    marginTop: -18,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.45)",
     alignItems: "center",
     justifyContent: "center",
   },

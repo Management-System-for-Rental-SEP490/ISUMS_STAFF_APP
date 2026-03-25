@@ -340,12 +340,25 @@ export default function BuildingDetailScreen() {
 
   const categoryFilterSection = useMemo((): DropdownBoxSection | null => {
     if (rawItemsAll.length === 0 || devicesByCategoryAll.length === 0) return null;
+    const categoryDeviceNameSearchMap = new Map<string, string>();
+    for (const group of devicesByCategoryAll) {
+      const uniqueNames = Array.from(
+        new Set(
+          group.items
+            .map((it) => String(it.displayName ?? "").trim())
+            .filter((name) => name.length > 0)
+        )
+      );
+      categoryDeviceNameSearchMap.set(group.categoryId, uniqueNames.join(" · "));
+    }
     return {
       id: "category",
       title: t("dropdown_box.section_category"),
       items: devicesByCategoryAll.map(({ categoryId, categoryName }) => ({
         id: categoryId,
         label: categoryName,
+        // Giúp ô search của DropdownBox match được theo tên thiết bị trong từng danh mục.
+        detail: categoryDeviceNameSearchMap.get(categoryId),
       })),
       selectedId: selectedCategoryId,
       showAllOption: true,

@@ -67,6 +67,50 @@ export interface IssueTicketApiResponse {
   success: boolean;
 }
 
+/** Banner báo giá từ API GET /api/issues/banners. */
+export interface IssueBannerFromApi {
+  id: string;
+  name: string;
+  currentPrice: number;
+}
+
+/** Một item trong payload tạo báo giá (POST /api/issues/quotes/{issueId}/quote). */
+export interface CreateIssueQuoteItemPayload {
+  /** Có banner thì gửi bannerId. */
+  bannerId?: string;
+  /** Ngoài banner thì gửi itemName + cost + price. */
+  itemName?: string;
+  cost?: number;
+  price?: number;
+}
+
+/** Payload tạo báo giá cho issue. */
+export interface CreateIssueQuotePayload {
+  isTenantFault: boolean;
+  items: CreateIssueQuoteItemPayload[];
+}
+
+/** Response tối thiểu của API tạo báo giá. */
+export interface CreateIssueQuoteApiResponse {
+  data?: {
+    id: string;
+    issueId: string;
+    status: QuoteStatus | string;
+    isTenantFault: boolean;
+    totalPrice: number;
+    createdAt: string;
+    items?: Array<{
+      id: string;
+      itemName: string;
+      description?: string | null;
+      price: number;
+    }>;
+  };
+  message?: string;
+  statusCode?: number;
+  success?: boolean;
+}
+
 /** Trạng thái báo giá từ BE (QuoteStatus) cho luồng quote + payment. */
 export type QuoteStatus =
   | "DRAFT"

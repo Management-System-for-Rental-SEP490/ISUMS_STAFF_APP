@@ -184,21 +184,17 @@ export default function CalendarScreen() {
 
   return (
     <View style={staffCalendarStyles.container}>
-      <Header variant="default" />
+      <Header
+        variant="default"
+        showActionButton
+        onActionPress={() => setDayOffActionVisible(true)}
+        actionAccessibilityLabel={t("staff_calendar.add_menu_open")}
+      />
       {/* Phần cố định: title + week nav + danh sách ngày - không scroll */}
       <View style={staffCalendarStyles.fixedTopSection}>
-        <View style={staffCalendarStyles.titleRow}>
-          <Text style={staffCalendarStyles.sectionTitle}>
-            {t("staff_calendar.weekly_timetable")}
-          </Text>
-          <TouchableOpacity
-            style={staffCalendarStyles.addButton}
-            onPress={() => setDayOffActionVisible(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={staffCalendarStyles.addButtonText}>+</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={staffCalendarStyles.sectionTitle}>
+          {t("staff_calendar.weekly_timetable")}
+        </Text>
 
         {weekStart && weekEnd && (
           <View style={staffCalendarStyles.weekNavRow}>

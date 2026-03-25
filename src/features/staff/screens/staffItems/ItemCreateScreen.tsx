@@ -12,7 +12,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
@@ -43,6 +45,7 @@ import type {
   HouseFromApi,
   FunctionalAreaFromApi,
 } from "../../../../shared/types/api";
+import { uploadAssetItemImages, type AssetItemImageToUpload } from "../../../../shared/services/assetItemApi";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemCreate">;
 
@@ -63,6 +66,9 @@ export default function ItemCreateScreen() {
   const [conditionPercent, setConditionPercent] = useState("");
   const [status, setStatus] = useState<string>(STATUS_OPTIONS[0]);
   const [functionAreaId, setFunctionAreaId] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<AssetItemImageToUpload[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const { data: housesData } = useHouses();
   const houses = housesData?.data ?? [];
@@ -219,7 +225,58 @@ export default function ItemCreateScreen() {
   const isSuccess = createMutation.isSuccess;
   const error = createMutation.error;
 
-  const handleSubmit = () => {
+  const addPickedImages = (assets: ImagePicker.ImagePickerAsset[]) => {
+    const normalized: AssetItemImageToUpload[] = assets
+      .filter((a) => Boolean(a.uri))
+      .map((a) => ({
+        uri: a.uri as string,
+        fileName: a.fileName ?? undefined,
+        mimeType: a.mimeType ?? undefined,
+      }));
+
+    setSelectedImages((prev) => {
+      const merged = [...prev, ...normalized];
+      // Hard cap để hạn chế payload lớn.
+      return merged.slice(0, 6);
+    });
+  };
+
+  const handlePickFromLibrary = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== "granted") {
+      setUploadError(t("staff_item_create.library_permission_no_permission") ?? "No access to photo library");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"] as ImagePicker.MediaType[],
+      allowsMultipleSelection: true,
+      quality: 0.45,
+    });
+
+    if (!result.canceled) {
+      addPickedImages(result.assets);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (perm.status !== "granted") {
+      setUploadError(t("camera.no_permission") ?? "No camera access");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"] as ImagePicker.MediaType[],
+      quality: 0.45,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      addPickedImages(result.assets);
+    }
+  };
+
+  const handleSubmit = async () => {
     if (!houseId.trim() || !categoryId.trim() || !displayName.trim() || !serialNumber.trim()) {
       createMutation.reset();
       return;
@@ -231,8 +288,10 @@ export default function ItemCreateScreen() {
     }
     const trimmedNfc = nfcId.trim();
     const trimmedQr = qrId.trim();
-    createMutation.mutate(
-      {
+    setUploadError(null);
+    setUploadingImages(false);
+    try {
+      const created = await createMutation.mutateAsync({
         houseId: houseId.trim(),
         categoryId: categoryId.trim(),
         displayName: displayName.trim(),
@@ -244,13 +303,21 @@ export default function ItemCreateScreen() {
         conditionPercent: percent,
         status: status || "IN_USE",
         functionAreaId,
-      },
-      {
-        onSuccess: () => {
-          navigation.goBack();
-        },
+      });
+
+      const createdId = created?.data?.id;
+      if (createdId && selectedImages.length > 0) {
+        setUploadingImages(true);
+        await uploadAssetItemImages(createdId, selectedImages);
       }
-    );
+
+      navigation.goBack();
+    } catch (e) {
+      const msg = e instanceof Error && e.message ? e.message : t("staff_item_create.error_message");
+      setUploadError(msg);
+    } finally {
+      setUploadingImages(false);
+    }
   };
 
   const canSubmit =
@@ -410,13 +477,69 @@ export default function ItemCreateScreen() {
               />
             </View>
 
+            <View style={itemScreenStyles.imagesSection}>
+              <Text style={itemScreenStyles.label}>{t("staff_item_create.images_label")}</Text>
+
+              <View style={itemScreenStyles.imageButtonsRow}>
+                <TouchableOpacity
+                  style={itemScreenStyles.imageButton}
+                  onPress={handleTakePhoto}
+                  activeOpacity={0.9}
+                  disabled={isPending || uploadingImages}
+                >
+                  <Text style={itemScreenStyles.imageButtonText}>{t("staff_item_create.images_camera")}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={itemScreenStyles.imageButton}
+                  onPress={handlePickFromLibrary}
+                  activeOpacity={0.9}
+                  disabled={isPending || uploadingImages}
+                >
+                  <Text style={itemScreenStyles.imageButtonText}>
+                    {t("staff_item_create.images_library")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {selectedImages.length > 0 ? (
+                <View style={itemScreenStyles.imageGrid}>
+                  {selectedImages.map((img, idx) => (
+                    <View key={`${img.uri}-${idx}`} style={itemScreenStyles.imageThumb}>
+                      <View style={itemScreenStyles.imageThumbInner}>
+                        <Image source={{ uri: img.uri }} style={itemScreenStyles.imageThumbImg} resizeMode="cover" />
+                      </View>
+
+                      <TouchableOpacity
+                        style={itemScreenStyles.removeImageBtn}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        onPress={() =>
+                          setSelectedImages((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                        activeOpacity={0.8}
+                      >
+                        <Text style={itemScreenStyles.removeImageBtnText}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={itemScreenStyles.imagesHint}>{t("staff_item_create.images_empty")}</Text>
+              )}
+
+              <Text style={itemScreenStyles.imagesHint}>{t("staff_item_create.images_hint")}</Text>
+            </View>
+
             <TouchableOpacity
-              style={[itemScreenStyles.submitBtn, (!canSubmit || isPending) && itemScreenStyles.submitBtnDisabled]}
+              style={[
+                itemScreenStyles.submitBtn,
+                (!canSubmit || isPending || uploadingImages) && itemScreenStyles.submitBtnDisabled,
+              ]}
               onPress={handleSubmit}
-              disabled={!canSubmit || isPending}
+              disabled={!canSubmit || isPending || uploadingImages}
               activeOpacity={0.8}
             >
-              {isPending ? (
+              {isPending || uploadingImages ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <Text style={itemScreenStyles.submitBtnText}>{t("staff_item_create.submit")}</Text>
@@ -428,6 +551,9 @@ export default function ItemCreateScreen() {
             )}
             {error && (
               <Text style={itemScreenStyles.errorText}>{t("staff_item_create.error_message")}</Text>
+            )}
+            {uploadError && (
+              <Text style={itemScreenStyles.errorText}>{uploadError}</Text>
             )}
           </View>
         </ScrollView>
