@@ -247,7 +247,11 @@ export default {
         "remove_nfc_error": "Failed to detach NFC tag. Please try again.",
         "error_100_percent_in_use": "Device with 100% condition cannot be set to In Use status.",
         "area_not_saved_title": "Placement area may not be saved",
-        "area_not_saved_message": "The app sent a functional area, but the server response is missing functionAreaId or looks like a different API (e.g. asset-images). Loading areas by house (GET functionalAreas) is fine — the problem is the PUT update item on your current backend. Fix the API or point the app to the server you verified in Postman."
+        "area_not_saved_message": "The app sent a functional area, but the server response is missing functionAreaId or looks like a different API (e.g. asset-images). Loading areas by house (GET functionalAreas) is fine — the problem is the PUT update item on your current backend. Fix the API or point the app to the server you verified in Postman.",
+        "delete_image_btn": "Delete image",
+        "delete_image_confirm_title": "Confirm image deletion",
+        "delete_image_confirm_message": "Are you sure you want to delete this image from the device?",
+        "delete_image_error": "Cannot delete image. Please try again."
     },
     "staff_item_description": {
         "title": "Device information",

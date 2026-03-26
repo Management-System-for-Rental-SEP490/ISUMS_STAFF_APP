@@ -173,6 +173,14 @@ export const itemScreenStyles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 10,
   },
+  imageStrip: {
+    flexDirection: "row",
+    gap: 10,
+    paddingVertical: 4,
+  },
+  imageStripScroll: {
+    maxHeight: 170,
+  },
   imageThumb: {
     width: "48%",
     aspectRatio: 1,
@@ -181,6 +189,25 @@ export const itemScreenStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
     backgroundColor: "#F8FAFC",
+  },
+  imageThumbHorizontal: {
+    width: 150,
+    aspectRatio: 1,
+  },
+  imageMoreBtn: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#F8FAFC",
+  },
+  imageMoreBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
   },
   imageThumbInner: {
     width: "100%",

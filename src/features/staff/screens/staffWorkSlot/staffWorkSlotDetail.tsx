@@ -383,18 +383,29 @@ export default function WorkSlotDetailScreen() {
                         <Text style={staffWorkSlotStyles.imageEmptyText}>{t("common.loading")}</Text>
                       </View>
                     ) : ticketImages.length > 0 ? (
-                      <View style={staffWorkSlotStyles.ticketImagesGrid}>
-                        {ticketImages.map((img) => (
-                          <TouchableOpacity
-                            key={img.id}
-                            style={staffWorkSlotStyles.ticketImageThumb}
-                            activeOpacity={0.85}
-                            onPress={() => setActiveImageUrl(img.url)}
-                          >
-                            <Image source={{ uri: img.url }} style={staffWorkSlotStyles.ticketImage} resizeMode="cover" />
-                          </TouchableOpacity>
-                        ))}
-                      </View>
+                      <>
+                        <ScrollView
+                          horizontal
+                          nestedScrollEnabled
+                          showsHorizontalScrollIndicator={false}
+                          style={staffWorkSlotStyles.ticketImagesScroll}
+                          contentContainerStyle={staffWorkSlotStyles.ticketImagesStrip}
+                        >
+                          {ticketImages.map((img) => (
+                            <TouchableOpacity
+                              key={img.id}
+                              style={[
+                                staffWorkSlotStyles.ticketImageThumb,
+                                staffWorkSlotStyles.ticketImageThumbHorizontal,
+                              ]}
+                              activeOpacity={0.85}
+                              onPress={() => setActiveImageUrl(img.url)}
+                            >
+                              <Image source={{ uri: img.url }} style={staffWorkSlotStyles.ticketImage} resizeMode="cover" />
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      </>
                     ) : (
                       <Text style={staffWorkSlotStyles.imageEmptyText}>{t("staff_ticket_detail.images_empty")}</Text>
                     )}

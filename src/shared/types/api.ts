@@ -584,10 +584,10 @@ export interface ScheduleTemplateApiResponse {
 }
 
 // =========================================================
-// Work Slots API (/api/schedules/work_slots/staff/{staffId})
+// Work Slots API (/api/schedules/work_slots/staff)
 // =========================================================
 
-/** Một work slot trả về từ GET /api/schedules/work_slots/staff/{staffId}. */
+/** Một work slot trả về từ GET /api/schedules/work_slots/staff. */
 export interface WorkSlotFromApi {
   id: string;
   staffId: string;
@@ -604,7 +604,7 @@ export interface WorkSlotFromApi {
   status: string;
 }
 
-/** Response body của GET /api/schedules/work_slots/staff/{staffId}. */
+/** Response body của GET /api/schedules/work_slots/staff. */
 export interface WorkSlotsApiResponse {
   data: WorkSlotFromApi[];
   message: string;

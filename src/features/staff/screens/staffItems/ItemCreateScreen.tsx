@@ -503,26 +503,36 @@ export default function ItemCreateScreen() {
               </View>
 
               {selectedImages.length > 0 ? (
-                <View style={itemScreenStyles.imageGrid}>
-                  {selectedImages.map((img, idx) => (
-                    <View key={`${img.uri}-${idx}`} style={itemScreenStyles.imageThumb}>
-                      <View style={itemScreenStyles.imageThumbInner}>
-                        <Image source={{ uri: img.uri }} style={itemScreenStyles.imageThumbImg} resizeMode="cover" />
-                      </View>
-
-                      <TouchableOpacity
-                        style={itemScreenStyles.removeImageBtn}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        onPress={() =>
-                          setSelectedImages((prev) => prev.filter((_, i) => i !== idx))
-                        }
-                        activeOpacity={0.8}
+                <>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={itemScreenStyles.imageStripScroll}
+                    contentContainerStyle={itemScreenStyles.imageStrip}
+                  >
+                    {selectedImages.map((img, idx) => (
+                      <View
+                        key={`${img.uri}-${idx}`}
+                        style={[itemScreenStyles.imageThumb, itemScreenStyles.imageThumbHorizontal]}
                       >
-                        <Text style={itemScreenStyles.removeImageBtnText}>×</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
+                        <View style={itemScreenStyles.imageThumbInner}>
+                          <Image source={{ uri: img.uri }} style={itemScreenStyles.imageThumbImg} resizeMode="cover" />
+                        </View>
+
+                        <TouchableOpacity
+                          style={itemScreenStyles.removeImageBtn}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          onPress={() =>
+                            setSelectedImages((prev) => prev.filter((_, i) => i !== idx))
+                          }
+                          activeOpacity={0.8}
+                        >
+                          <Text style={itemScreenStyles.removeImageBtnText}>×</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </>
               ) : (
                 <Text style={itemScreenStyles.imagesHint}>{t("staff_item_create.images_empty")}</Text>
               )}

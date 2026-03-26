@@ -568,14 +568,39 @@ export type AssetItemImageFromApi = {
  * Lấy danh sách ảnh của asset item.
  * Endpoint (theo Postman trong ảnh bạn gửi): GET /api/assets/items/:id/images
  */
-export const getAssetItemImages = async (itemId: string): Promise<AssetItemImageFromApi[]> => {
+export const getAssetItemImages = async (
+  itemId: string,
+  cacheBust?: number,
+): Promise<AssetItemImageFromApi[]> => {
   if (!itemId?.trim()) return [];
-  const url = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
-  const response = await axiosClient.get<ApiResponse<AssetItemImageFromApi[]>>(url);
-  if (response.data?.success && Array.isArray(response.data.data)) {
-    return response.data.data;
+  const baseUrl = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
+  const url = cacheBust ? `${baseUrl}?t=${encodeURIComponent(String(cacheBust))}` : baseUrl;
+  const devLog =
+    typeof __DEV__ !== "undefined" && __DEV__
+      ? (...args: any[]) => console.log(...args)
+      : null;
+
+  try {
+    devLog?.("[assetItemApi] getAssetItemImages -> GET", { itemId, url });
+    const response = await axiosClient.get<ApiResponse<AssetItemImageFromApi[]>>(url);
+    const ok = Boolean(response?.data?.success);
+    const count = Array.isArray(response?.data?.data) ? response.data.data.length : -1;
+    devLog?.("[assetItemApi] getAssetItemImages <-", {
+      itemId,
+      ok,
+      count,
+      statusCode: response?.data?.statusCode,
+      message: response?.data?.message,
+    });
+
+    if (ok && Array.isArray(response.data.data)) {
+      return response.data.data;
+    }
+    return [];
+  } catch (e) {
+    devLog?.("[assetItemApi] getAssetItemImages ERROR", { itemId, url, error: String(e) });
+    return [];
   }
-  return [];
 };
 
 /**
@@ -633,6 +658,30 @@ export const uploadAssetItemImages = async (
 
   if (!response.ok || success === false) {
     throw new Error(message || `Upload asset item images failed (HTTP ${response.status})`);
+  }
+};
+
+/**
+ * Xóa 1 ảnh của asset item.
+ * Endpoint (theo Postman bạn gửi): DELETE /api/assets/items/:itemId/image/:imageId
+ */
+export const deleteAssetItemImage = async (
+  itemId: string,
+  imageId: string,
+): Promise<void> => {
+  const normalizedItemId = String(itemId ?? "").trim();
+  const normalizedImageId = String(imageId ?? "").trim();
+  if (!normalizedItemId || !normalizedImageId) {
+    throw new Error("Missing itemId or imageId for deleting asset item image");
+  }
+
+  const url = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(normalizedItemId)}/image/${encodeURIComponent(normalizedImageId)}`;
+  const response = await axiosClient.delete<ApiResponse<null>>(url);
+  const ok = Boolean(response?.data?.success);
+  if (!ok) {
+    throw new Error(
+      response?.data?.message || "Delete asset item image failed",
+    );
   }
 };
 

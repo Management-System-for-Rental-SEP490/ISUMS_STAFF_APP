@@ -30,7 +30,11 @@ import {
 import { itemScreenStyles } from "./itemScreenStyles";
 import type { AssetItemFromApi } from "../../../../shared/types/api";
 import { normalizeAssetItemStatusFromApi } from "../../../../shared/types/api";
-import { getAssetItemById, getAssetItemImages, type AssetItemImageFromApi } from "../../../../shared/services/assetItemApi";
+import {
+  getAssetItemById,
+  getAssetItemImages,
+  type AssetItemImageFromApi,
+} from "../../../../shared/services/assetItemApi";
 import { brandPrimary } from "../../../../shared/theme/color";
 import {
   StackScreenTitleBadge,
@@ -303,20 +307,27 @@ export default function ItemDescriptionScreen() {
                   <Text style={itemScreenStyles.imagesHint}>{t("common.loading")}</Text>
                 </View>
               ) : itemImages.length > 0 ? (
-                <View style={itemScreenStyles.imageGrid}>
-                  {itemImages.map((img) => (
-                    <TouchableOpacity
-                      key={img.id}
-                      style={itemScreenStyles.imageThumb}
-                      activeOpacity={0.85}
-                      onPress={() => setActiveImageUrl(img.url)}
-                    >
-                      <View style={itemScreenStyles.imageThumbInner}>
-                        <Image source={{ uri: img.url }} style={itemScreenStyles.imageThumbImg} resizeMode="cover" />
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={itemScreenStyles.imageStripScroll}
+                    contentContainerStyle={itemScreenStyles.imageStrip}
+                  >
+                    {itemImages.map((img) => (
+                      <TouchableOpacity
+                        key={img.id}
+                        style={[itemScreenStyles.imageThumb, itemScreenStyles.imageThumbHorizontal]}
+                        activeOpacity={0.85}
+                        onPress={() => setActiveImageUrl(img.url)}
+                      >
+                        <View style={itemScreenStyles.imageThumbInner}>
+                          <Image source={{ uri: img.url }} style={itemScreenStyles.imageThumbImg} resizeMode="cover" />
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
               ) : (
                 <Text style={itemScreenStyles.imagesHint}>{t("staff_item_create.images_empty")}</Text>
               )}

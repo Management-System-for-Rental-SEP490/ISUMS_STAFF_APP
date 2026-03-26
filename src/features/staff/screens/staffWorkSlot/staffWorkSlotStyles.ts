@@ -253,6 +253,15 @@ export const staffWorkSlotStyles = StyleSheet.create({
     gap: 10,
     paddingVertical: 6,
   },
+  ticketImagesScroll: {
+    maxHeight: 170,
+  },
+  ticketImagesStrip: {
+    flexDirection: "row",
+    gap: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+  },
   ticketImageThumb: {
     width: "48%",
     aspectRatio: 1,
@@ -261,6 +270,25 @@ export const staffWorkSlotStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2E8F0",
     backgroundColor: "#F8FAFC",
+  },
+  ticketImageThumbHorizontal: {
+    width: 150,
+    aspectRatio: 1,
+  },
+  ticketImagesMoreBtn: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#F8FAFC",
+  },
+  ticketImagesMoreBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
   },
   ticketImage: {
     width: "100%",

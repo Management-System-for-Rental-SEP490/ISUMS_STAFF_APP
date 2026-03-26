@@ -90,9 +90,9 @@ function itemMatches(item: DropdownBoxItem, q: string) {
   if (!q) return true;
   const n = norm(q);
   return (
-    item.label.toLowerCase().includes(n) ||
-    item.id.toLowerCase().includes(n) ||
-    (item.detail ?? "").toLowerCase().includes(n)
+    norm(item.label).includes(n) ||
+    norm(item.id).includes(n) ||
+    norm(item.detail ?? "").includes(n)
   );
 }
 

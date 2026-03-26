@@ -223,7 +223,6 @@ export default {
         "images_camera": "Chụp ảnh",
         "images_library": "Chọn từ thư viện",
         "images_remove": "Xóa ảnh",
-        "images_hint": "Không bắt buộc. Bạn có thể thêm tối đa 6 ảnh.",
         "images_empty": "Chưa có ảnh",
         "library_permission_no_permission": "Không có quyền truy cập thư viện ảnh",
         "submit": "Thêm thiết bị",
@@ -247,7 +246,11 @@ export default {
         "remove_nfc_error": "Không thể gỡ thẻ NFC. Vui lòng thử lại.",
         "error_100_percent_in_use": "Thiết bị có tình trạng 100% không thể để trạng thái Đang sử dụng (IN_USE).",
         "area_not_saved_title": "Khu vực có thể chưa được lưu",
-        "area_not_saved_message": "Ứng dụng đã gửi khu vực chức năng lên server, nhưng phản hồi không chứa functionAreaId (hoặc message không đúng API cập nhật thiết bị). Việc lấy danh sách khu vực theo nhà (GET functionalAreas) vẫn đúng — lỗi nằm ở PUT cập nhật item trên môi trường bạn đang dùng (vd. api-dev). Hãy kiểm tra backend hoặc trỏ app sang server đã xác nhận bằng Postman."
+        "area_not_saved_message": "Ứng dụng đã gửi khu vực chức năng lên server, nhưng phản hồi không chứa functionAreaId (hoặc message không đúng API cập nhật thiết bị). Việc lấy danh sách khu vực theo nhà (GET functionalAreas) vẫn đúng — lỗi nằm ở PUT cập nhật item trên môi trường bạn đang dùng (vd. api-dev). Hãy kiểm tra backend hoặc trỏ app sang server đã xác nhận bằng Postman.",
+        "delete_image_btn": "Xóa ảnh",
+        "delete_image_confirm_title": "Xác nhận xóa ảnh",
+        "delete_image_confirm_message": "Bạn có chắc muốn xóa ảnh này khỏi thiết bị?",
+        "delete_image_error": "Không thể xóa ảnh. Vui lòng thử lại."
     },
     "staff_item_description": {
         "title": "Thông tin thiết bị",

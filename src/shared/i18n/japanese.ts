@@ -248,7 +248,11 @@ export default {
         "remove_nfc_error": "NFCタグの解除に失敗しました。もう一度お試しください。",
         "error_100_percent_in_use": "状態が100%のデバイスは「使用中」に設定できません。",
         "area_not_saved_title": "エリアが保存されていない可能性",
-        "area_not_saved_message": "アプリは機能エリアを送信しましたが、応答に functionAreaId が含まれないか、別APIのメッセージのようです。家別エリア一覧（GET functionalAreas）は問題ありません。利用中の環境の PUT（アイテム更新）を修正するか、Postmanで確認済みのサーバー向けに設定してください。"
+        "area_not_saved_message": "アプリは機能エリアを送信しましたが、応答に functionAreaId が含まれないか、別APIのメッセージのようです。家別エリア一覧（GET functionalAreas）は問題ありません。利用中の環境の PUT（アイテム更新）を修正するか、Postmanで確認済みのサーバー向けに設定してください。",
+        "delete_image_btn": "画像を削除",
+        "delete_image_confirm_title": "画像削除の確認",
+        "delete_image_confirm_message": "この画像をデバイスから削除してもよろしいですか？",
+        "delete_image_error": "画像を削除できませんでした。もう一度お試しください。"
     },
     "staff_item_description": {
         "title": "デバイス情報",
