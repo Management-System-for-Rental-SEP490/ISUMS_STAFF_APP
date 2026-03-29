@@ -1,5 +1,5 @@
 /**
- * Wrapper hiển thị sơ đồ nhà: ảnh house.png làm nền, các khu vực theo position.
+ * Wrapper hiển thị sơ đồ nhà: Cover_Floor_Plan.png làm nền, các khu vực theo position.
  * Mặc định vào Tầng 1, hiển thị "Tất cả tầng" cho đến khi user bấm chọn khu vực cụ thể.
  */
 import React, { useMemo } from "react";

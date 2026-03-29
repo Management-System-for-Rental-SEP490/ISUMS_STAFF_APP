@@ -3,7 +3,7 @@
  * GET /api/assets/items, POST, PUT, DELETE /api/assets/items/:id.
  */
 import axiosClient from "../api/axiosClient";
-import { ASSETS_API_BASE, BACKEND_API_BASE } from "../api/config";
+import { ASSETS_API_BASE, BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
 import i18n from "../i18n";
 import { useAuthStore } from "../../store/useAuthStore";
 import {
@@ -166,7 +166,7 @@ export const getAssetItemsByHouseId = async (
 export const getIotDevicesByHouseId = async (
   houseId: string
 ): Promise<IotDevicesByHouseApiResponse> => {
-  const url = `${BACKEND_API_BASE}/assets/iot-devices/house/${encodeURIComponent(houseId)}`;
+  const url = `${FALLBACK_BACKEND_URL}/assets/iot-devices/house/${encodeURIComponent(houseId)}`;
   const response = await axiosClient.get<IotDevicesByHouseApiResponse>(url);
   return response.data;
 };
@@ -178,7 +178,7 @@ export const getIotDevicesByHouseId = async (
 export const getAssetItemById = async (id: string): Promise<AssetItemFromApi | undefined> => {
   try {
     const response = await axiosClient.get<UpdateAssetItemApiResponse | AssetItemFromApi>(
-      `${ASSETS_API_BASE}/assets/items/${id}`
+      `${FALLBACK_BACKEND_URL}/assets/items/${id}`
     );
     const envelope = response.data as unknown;
     let rawUnknown: unknown;
@@ -229,7 +229,7 @@ export const getAssetItemByTag = async (
 
   try {
     const response = await axiosClient.get<GetAssetByTagValueApiResponse>(
-      `${ASSETS_API_BASE}/assets/tags/asset/${encodeURIComponent(apiTagValue)}`
+      `${FALLBACK_BACKEND_URL}/assets/tags/asset/${encodeURIComponent(apiTagValue)}`
     );
 
     const responseData = response.data.data;
@@ -328,7 +328,7 @@ export const createAssetItem = async (
       };
 
   const response = await axiosClient.post<CreateAssetItemApiResponse>(
-    `${ASSETS_API_BASE}/assets/items`,
+    `${FALLBACK_BACKEND_URL}/assets/items`,
     body
   );
   const res = response.data;
@@ -395,7 +395,7 @@ export const updateAssetItem = async (
         functional_area_id: functionAreaId,
       };
 
-  const putUrl = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(id)}`;
+  const putUrl = `${FALLBACK_BACKEND_URL}/assets/items/${encodeURIComponent(id)}`;
 
   const response = await axiosClient.put<UpdateAssetItemApiResponse>(putUrl, body);
   const res = response.data;
@@ -426,7 +426,7 @@ export const transferAssetItemHouse = async (
   newHouseId: string
 ): Promise<UpdateAssetItemApiResponse> => {
   const response = await axiosClient.put<UpdateAssetItemApiResponse>(
-    `${ASSETS_API_BASE}/assets/items/${id}/transfer`,
+    `${FALLBACK_BACKEND_URL}/assets/items/${id}/transfer`,
     { newHouseId }
   );
   const res = response.data;
@@ -452,7 +452,7 @@ export const transferAssetItemHouse = async (
  */
 export const deleteAssetItem = async (id: string): Promise<{ success: boolean; message?: string }> => {
   const response = await axiosClient.delete<{ success: boolean; message?: string }>(
-    `${ASSETS_API_BASE}/assets/items/${id}`
+    `${FALLBACK_BACKEND_URL}/assets/items/${id}`
   );
   return response.data;
 };
@@ -470,7 +470,7 @@ export const attachAssetTag = async (
     tagType: payload.tagType,
   };
   const response = await axiosClient.post<AttachAssetTagApiResponse>(
-    `${ASSETS_API_BASE}/assets/tags`,
+    `${FALLBACK_BACKEND_URL}/assets/tags`,
     body
   );
   return response.data;
@@ -485,7 +485,7 @@ export const detachAssetTag = async (
 ): Promise<DetachAssetTagApiResponse> => {
   const normalized = normalizeTagValueForApi(tagValue.trim());
   const response = await axiosClient.put<DetachAssetTagApiResponse>(
-    `${ASSETS_API_BASE}/assets/tags/detach/${encodeURIComponent(normalized)}`
+    `${FALLBACK_BACKEND_URL}/assets/tags/detach/${encodeURIComponent(normalized)}`
   );
   return response.data;
 };
@@ -498,7 +498,7 @@ export const deprovisionIotControllerByHouseId = async (
   houseId: string
 ): Promise<ApiResponse<string>> => {
   const response = await axiosClient.delete<ApiResponse<string>>(
-    `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
+    `${FALLBACK_BACKEND_URL}/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
   );
   return response.data;
 };

@@ -4,7 +4,12 @@
  */
 
 import { Device, DeviceStatus, DeviceType } from "../../../shared/types";
-import { formatTimeRangeFromMinutes } from "../../../shared/utils";
+import {
+  buildScheduleTemplateMinuteRanges,
+  formatTimeRangeFromMinutes,
+  parseScheduleTimeToMinutes,
+  parseScheduleWorkingDaysToSet,
+} from "../../../shared/utils";
 import type { IssueStatus, ScheduleTemplateData } from "../../../shared/types/api";
 
 /** Căn nhà / tòa nhà trong hệ thống (staff quản lý nhiều căn) */
@@ -156,59 +161,6 @@ const MOCK_TICKET_ASSIGNMENTS: TicketAssignment[] = [
   { date: weekDays[2].date, timeRange: "10:00 - 12:00", ticketId: "T003", task: "Xử lý ticket #T003 - Ổ cắm chập", buildingName: "Nhà A - Tòa 1" },
 ];
 
-/** Parse "HH:mm" hoặc "HH:mm:ss" sang phút từ 0h */
-function parseTimeToMinutes(timeStr: string): number {
-  const match = timeStr.trim().match(/(\d{1,2}):(\d{2})(?::\d{2})?/);
-  if (!match) return 8 * 60;
-  const [, h, m] = match.map(Number);
-  return h * 60 + m;
-}
-
-/** Parse workingDays "MON, TUE, WED..." thành Set dayOfWeek (1=T2...7=CN) */
-function parseWorkingDaysToSet(workingDays: string): Set<number> {
-  const map: Record<string, number> = {
-    MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6, SUN: 7,
-  };
-  const set = new Set<number>();
-  workingDays.split(",").forEach((d) => {
-    const key = d.trim().toUpperCase();
-    if (map[key]) set.add(map[key]);
-  });
-  return set;
-}
-
-/**
- * Sinh các khung giờ từ template.
- * - openTime → breakStart: slot 1 (openTime → openTime+slotMinutes), buffer 15min, slot 2 (9:15→10:15), ...
- * - breakEnd → closeTime: tương tự sau giờ nghỉ.
- * Mỗi slot = slotMinutes, giữa các slot có bufferMinutes (nghỉ giữa giờ).
- */
-function buildTimeRangesFromTemplate(t: ScheduleTemplateData): { startMinutes: number; endMinutes: number }[] {
-  const open = parseTimeToMinutes(t.openTime);
-  const breakStart = parseTimeToMinutes(t.breakStart);
-  const breakEnd = parseTimeToMinutes(t.breakEnd);
-  const close = parseTimeToMinutes(t.closeTime);
-  const slotM = t.slotMinutes || 60;
-  const bufferM = t.bufferMinutes ?? 0; //bufferMinutes là thời gian nghỉ giữa các slot
-  const ranges: { startMinutes: number; endMinutes: number }[] = [];
-
-  // Sáng: open → breakStart (slot + buffer luân phiên)
-  let m = open;
-  while (m < breakStart) {
-    const end = Math.min(m + slotM, breakStart);
-    ranges.push({ startMinutes: m, endMinutes: end });
-    m = end + bufferM;
-  }
-
-  // Chiều: breakEnd → close
-  m = breakEnd;
-  while (m < close) {
-    const end = Math.min(m + slotM, close);
-    ranges.push({ startMinutes: m, endMinutes: end });
-    m = end + bufferM;
-  }
-  return ranges;
-}
 
 /**
  * Export: Lấy các khung giờ chuẩn từ template BE.
@@ -234,7 +186,7 @@ export function getScheduleTimeSlotsFromTemplate(
       slotIndex: i + 1,
     }));
   }
-  const ranges = buildTimeRangesFromTemplate(template);
+  const ranges = buildScheduleTemplateMinuteRanges(template);
   return ranges.map((r, i) => ({
     ...r,
     timeRange: formatTimeRangeFromMinutes(r.startMinutes, r.endMinutes),
@@ -251,8 +203,8 @@ export function getScheduleTimelineRange(template?: ScheduleTemplateData | null)
   endHour: number;
 } {
   if (!template) return { startHour: 8, endHour: 18 };
-  const startM = parseTimeToMinutes(template.openTime);
-  const endM = parseTimeToMinutes(template.closeTime);
+  const startM = parseScheduleTimeToMinutes(template.openTime);
+  const endM = parseScheduleTimeToMinutes(template.closeTime);
   return {
     startHour: Math.floor(startM / 60),
     endHour: Math.ceil(endM / 60),
@@ -262,7 +214,7 @@ export function getScheduleTimelineRange(template?: ScheduleTemplateData | null)
 /** Lấy set ngày làm việc từ template (1=T2...7=CN) để biết ngày nào có slot. */
 export function getWorkingDaysFromTemplate(template?: ScheduleTemplateData | null): Set<number> {
   if (!template) return new Set([1, 2, 3, 4, 5, 6, 7]);
-  return parseWorkingDaysToSet(template.workingDays);
+  return parseScheduleWorkingDaysToSet(template.workingDays);
 }
 
 /**
@@ -280,11 +232,11 @@ export function getWorkScheduleThisWeek(
   const dayOffSet = new Set(dayOffDates.map((d) => d.trim()));
 
   const workDaySet = template
-    ? parseWorkingDaysToSet(template.workingDays)
+    ? parseScheduleWorkingDaysToSet(template.workingDays)
     : new Set([1, 2, 3, 4, 5, 6, 7]);
 
   const timeRanges = template
-    ? buildTimeRangesFromTemplate(template)
+    ? buildScheduleTemplateMinuteRanges(template)
     : DEFAULT_TIME_SLOTS.map((tr) => {
         const p = parseTimeRange(tr);
         return { startMinutes: p.startMinutes, endMinutes: p.endMinutes };

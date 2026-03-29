@@ -613,6 +613,34 @@ export interface WorkSlotsApiResponse {
 }
 
 // =========================================================
+// Generate work slots API (GET /api/schedules/work_slots/generate?start=&end=)
+// =========================================================
+
+/** Trạng thái slot do BE sinh (VD: AVAILABLE để staff chọn đăng ký issue). */
+export type GeneratedWorkSlotStatus = "AVAILABLE" | string;
+
+/** Một khung giờ trong ngày từ API generate. */
+export interface GeneratedWorkSlotTimeFromApi {
+  startTime: string;
+  endTime: string;
+  status: GeneratedWorkSlotStatus;
+}
+
+/** Một ngày và danh sách slot trống/đã book từ generate. */
+export interface GeneratedWorkSlotsDayFromApi {
+  date: string;
+  slots: GeneratedWorkSlotTimeFromApi[];
+}
+
+/** Response GET /api/schedules/work_slots/generate?start=YYYY-MM-DD&end=YYYY-MM-DD */
+export interface GenerateWorkSlotsApiResponse {
+  data: GeneratedWorkSlotsDayFromApi[];
+  message: string;
+  statusCode: number;
+  success: boolean;
+}
+
+// =========================================================
 // Leave API (GET /api/schedules/leave/staff/{staffId})
 // =========================================================
 

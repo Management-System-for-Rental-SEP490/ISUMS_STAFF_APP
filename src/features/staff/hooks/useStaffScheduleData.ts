@@ -5,16 +5,22 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getCurrentScheduleTemplate,
+  getGeneratedWorkSlots,
   getStaffIdForSchedule,
 } from "../../../shared/services/scheduleApi";
 import { STAFF_LEAVE_KEYS } from "../../../shared/hooks/useStaffLeave";
 import { fetchEnrichedWorkSlotsForStaff } from "../data/workSlotEnrichment";
-import type { ScheduleTemplateData } from "../../../shared/types/api";
+import type {
+  GeneratedWorkSlotsDayFromApi,
+  ScheduleTemplateData,
+} from "../../../shared/types/api";
 
 export const SCHEDULE_DATA_KEYS = {
   all: ["staffSchedule"] as const,
   template: (date: string) => [...SCHEDULE_DATA_KEYS.all, "template", date] as const,
   workSlots: (staffId: string) => [...SCHEDULE_DATA_KEYS.all, "workSlots", staffId] as const,
+  generatedSlots: (start: string, end: string) =>
+    [...SCHEDULE_DATA_KEYS.all, "generatedSlots", start, end] as const,
 };
 
 const scheduleQueryDefaults = {
@@ -43,6 +49,27 @@ export function useEnrichedWorkSlotsQuery() {
     queryKey: SCHEDULE_DATA_KEYS.workSlots(staffId),
     queryFn: () => fetchEnrichedWorkSlotsForStaff(staffId),
     enabled: Boolean(staffId),
+    ...scheduleQueryDefaults,
+  });
+}
+
+/**
+ * Slot sinh từ BE theo khoảng ngày (AVAILABLE, …). Dùng màn/modal đăng ký khung giờ xử lý issue.
+ */
+export function useGeneratedWorkSlotsQuery(
+  startYmd: string,
+  endYmd: string,
+  options?: { enabled?: boolean }
+) {
+  const enabled = options?.enabled !== false;
+  return useQuery({
+    queryKey: SCHEDULE_DATA_KEYS.generatedSlots(startYmd, endYmd),
+    queryFn: async (): Promise<GeneratedWorkSlotsDayFromApi[]> => {
+      const res = await getGeneratedWorkSlots(startYmd, endYmd);
+      if (res.success && Array.isArray(res.data)) return res.data;
+      return [];
+    },
+    enabled: enabled && Boolean(startYmd && endYmd),
     ...scheduleQueryDefaults,
   });
 }

@@ -4,7 +4,7 @@
  * - PUT /api/issues/tickets/{ticketId}/status?status={status} - cập nhật trạng thái (nếu BE hỗ trợ)
  */
 import axiosClient from "../api/axiosClient";
-import { ASSETS_API_BASE, BACKEND_API_BASE } from "../api/config";
+import { ASSETS_API_BASE, BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
 import type {
   ApiResponse,
   CreateIssueQuoteApiResponse,
@@ -30,7 +30,7 @@ export const getIssueTicketImages = async (
 ): Promise<IssueTicketImageFromApi[]> => {
   if (!ticketId?.trim()) return [];
 
-  const url = `${ASSETS_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}/images`;
+  const url = `${FALLBACK_BACKEND_URL}/issues/tickets/${encodeURIComponent(ticketId)}/images`;
   const response = await axiosClient.get<ApiResponse<IssueTicketImageFromApi[]>>(url);
 
   if (response.data?.success && Array.isArray(response.data.data)) {
@@ -46,7 +46,7 @@ export const getIssueTicketById = async (
   ticketId: string
 ): Promise<IssueTicketApiResponse> => {
   const response = await axiosClient.get<IssueTicketApiResponse>(
-    `${ASSETS_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}`
+    `${FALLBACK_BACKEND_URL}/issues/tickets/${encodeURIComponent(ticketId)}`
   );
   return response.data;
 };
@@ -62,7 +62,7 @@ export const updateIssueTicketStatus = async (
   status: IssueTicketStatusUpdate
 ): Promise<{ success: boolean; message?: string }> => {
   const response = await axiosClient.put<{ success: boolean; message?: string }>(
-    `${ASSETS_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}/status`,
+    `${FALLBACK_BACKEND_URL}/issues/tickets/${encodeURIComponent(ticketId)}/status`,
     null,
     { params: { status } }
   );
@@ -110,7 +110,7 @@ export const createIssueExecution = async (
   payload: CreateIssueExecutionPayload
 ): Promise<CreateIssueExecutionResponse> => {
   const response = await axiosClient.post<CreateIssueExecutionResponse>(
-    `${ASSETS_API_BASE}/issues/executions/${encodeURIComponent(issueId)}/execution`,
+    `${FALLBACK_BACKEND_URL}/issues/executions/${encodeURIComponent(issueId)}/execution`,
     payload
   );
   return response.data;
@@ -122,7 +122,7 @@ export const createIssueExecution = async (
  */
 export const getIssueBanners = async (): Promise<IssueBannerFromApi[]> => {
   const response = await axiosClient.get<ApiResponse<IssueBannerFromApi[]>>(
-    `${ASSETS_API_BASE}/issues/banners`
+    `${FALLBACK_BACKEND_URL}/issues/banners`
   );
   if (response.data?.success && Array.isArray(response.data.data)) {
     return response.data.data;
@@ -139,7 +139,7 @@ export const createIssueQuote = async (
   payload: CreateIssueQuotePayload
 ): Promise<CreateIssueQuoteApiResponse> => {
   const response = await axiosClient.post<CreateIssueQuoteApiResponse>(
-    `${ASSETS_API_BASE}/issues/quotes/${encodeURIComponent(issueId)}/quote`,
+    `${FALLBACK_BACKEND_URL}/issues/quotes/${encodeURIComponent(issueId)}/quote`,
     payload
   );
   return response.data;
