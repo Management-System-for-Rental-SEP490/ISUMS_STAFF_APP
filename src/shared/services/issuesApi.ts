@@ -12,6 +12,8 @@ import type {
   IssueBannerFromApi,
   IssueTicketApiResponse,
   IssueTicketFromApi,
+  IssueTicketListApiResponse,
+  IssueTicketListItemFromApi,
   IssueTicketStatusUpdate,
 } from "../types/api";
 
@@ -76,6 +78,24 @@ export const getIssueTicketDataById = async (
   const res = await getIssueTicketById(ticketId);
   if (res?.success && res.data) return res.data;
   return null;
+};
+
+/**
+ * Lấy danh sách ticket đã assign cho staff hiện tại.
+ * Endpoint: GET /api/issues/tickets/staff
+ */
+export const getIssueTicketsByStaff = async (): Promise<IssueTicketListApiResponse> => {
+  const response = await axiosClient.get<IssueTicketListApiResponse>(
+    `${FALLBACK_BACKEND_URL}/issues/tickets/staff`
+  );
+  return response.data;
+};
+
+/** Helper lấy data danh sách ticket staff (đã unwrap response). */
+export const getIssueTicketsDataByStaff = async (): Promise<IssueTicketListItemFromApi[]> => {
+  const res = await getIssueTicketsByStaff();
+  if (res?.success && Array.isArray(res.data)) return res.data;
+  return [];
 };
 
 export interface CreateIssueExecutionPayload {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, PermissionsAndroid, Platform, Text, TouchableOpacity, View } from "react-native";
 import { RouteProp, StackActions, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -49,6 +49,12 @@ export default function StaffIotProvisionWaitingScreen() {
   const SERVICE_UUID = "12345678-1234-1234-1234-123456789abc"; 
   const CHAR_UUID = "abcd1234-ab12-ab12-ab12-abcdef123456";
   const CHUNK_SIZE = 400;
+
+  const cancelRequestedRef = useRef(false);
+  const activeBleDeviceRef = useRef<Device | null>(null);
+  const throwIfCancelled = () => {
+    if (cancelRequestedRef.current) throw new Error("__CANCELLED__");
+  };
 
   const title = kind === "controller" ? t("staff_iot.provision_wait_controller_title") : t("staff_iot.provision_wait_node_title");
 
@@ -123,42 +129,76 @@ export default function StaffIotProvisionWaitingScreen() {
   };
 
   const describeError = (p: typeof phase, err: any): string => {
-    const raw = err?.message ? String(err.message) : "";
-    const rawTail = raw ? `\n\n${t("staff_iot.wait_error_details")}\n${raw}` : "";
+    const status = err?.response?.status ?? err?.status;
+    const rawFromResponse =
+      typeof err?.response?.data?.message === "string"
+        ? err.response.data.message
+        : typeof err?.response?.data === "string"
+          ? err.response.data
+          : undefined;
+    const raw = rawFromResponse ?? (err?.message ? String(err.message) : "");
+
+    const technicalLines: string[] = [];
+    technicalLines.push(`${t("staff_iot.wait_error_technical_phase")}: ${p}`);
+    if (typeof status === "number") {
+      technicalLines.push(`${t("staff_iot.wait_error_technical_status")}: ${status}`);
+    }
+    if (raw) {
+      technicalLines.push(`${t("staff_iot.wait_error_technical_raw")}: ${raw}`);
+    }
+    const technicalBlock = technicalLines.length
+      ? `\n\n${t("staff_iot.wait_error_details")}\n${technicalLines.join("\n")}`
+      : "";
+
+    if (status === 409) {
+      return `${t("staff_iot.wait_error_409")}${technicalBlock}`;
+    }
 
     switch (p) {
       case "scanning_ble":
-        return `${t("staff_iot.wait_error_ble_scan")}${rawTail}`;
+        return `${t("staff_iot.wait_error_ble_scan")}${technicalBlock}`;
       case "connecting":
-        return `${t("staff_iot.wait_error_ble_connect")}${rawTail}`;
+        return `${t("staff_iot.wait_error_ble_connect")}${technicalBlock}`;
       case "provisioning_aws":
-        return `${t("staff_iot.wait_error_aws")}${rawTail}`;
+        return `${t("staff_iot.wait_error_aws")}${technicalBlock}`;
       case "sending":
-        return `${t("staff_iot.wait_error_send")}${rawTail}`;
+        return `${t("staff_iot.wait_error_send")}${technicalBlock}`;
       case "fetching_token":
-        return `${t("staff_iot.wait_error_token")}${rawTail}`;
+        return `${t("staff_iot.wait_error_token")}${technicalBlock}`;
       case "finalizing":
-        return `${t("staff_iot.wait_error_finalize")}${rawTail}`;
+        return `${t("staff_iot.wait_error_finalize")}${technicalBlock}`;
       default:
-        return raw || t("staff_iot.provision_failed_message");
+        return `${t("staff_iot.provision_failed_message")}${technicalBlock}`;
     }
   };
 
   async function scanForDevice(match: (d: Device) => boolean): Promise<Device> {
     return new Promise((resolve, reject) => {
+      let settled = false;
       const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
         bleManager.stopDeviceScan();
         reject(new Error(t("staff_iot.ble_not_found")));
       }, 15000);
 
       bleManager.startDeviceScan([SERVICE_UUID], { allowDuplicates: false }, (err, dev) => {
+        if (settled) return;
+        if (cancelRequestedRef.current) {
+          settled = true;
+          bleManager.stopDeviceScan();
+          reject(new Error("__CANCELLED__"));
+          return;
+        }
         if (err) {
+          settled = true;
           clearTimeout(timeout);
           bleManager.stopDeviceScan();
           reject(err);
           return;
         }
         if (dev && match(dev)) {
+          settled = true;
           clearTimeout(timeout);
           bleManager.stopDeviceScan();
           resolve(dev);
@@ -169,17 +209,20 @@ export default function StaffIotProvisionWaitingScreen() {
 
   async function sendChunked(device: Device, payload: string) {
     for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
+      throwIfCancelled();
       const chunk = payload.slice(i, i + CHUNK_SIZE);
       const encoded = Buffer.from(chunk).toString("base64");
       await device.writeCharacteristicWithResponseForService(SERVICE_UUID, CHAR_UUID, encoded);
       await new Promise((r) => setTimeout(r, 50));
     }
+    throwIfCancelled();
     const endMarker = Buffer.from("<<END>>").toString("base64");
     await device.writeCharacteristicWithResponseForService(SERVICE_UUID, CHAR_UUID, endMarker).catch(() => {});
   }
 
   const start = async () => {
     console.log("[StaffIotProvisionWaiting] start:", { houseId, kind, areaId, areaName, deviceId, wifiSsid });
+    cancelRequestedRef.current = false;
     const hasBlePerm = await requestBlePermissions();
     if (!hasBlePerm) {
       CustomAlert.alert(t("common.error"), t("staff_iot.wait_error_ble_permission"), [{ text: t("common.close") }], {
@@ -210,6 +253,7 @@ export default function StaffIotProvisionWaitingScreen() {
           deviceId: String(deviceId).slice(0, 12),
         });
         const dev = await scanForDevice((d) => Boolean(d?.name?.startsWith("ISUMS-CTRL-")));
+        throwIfCancelled();
         setBleDeviceName(dev.name ?? null);
         iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 1 xong: đã tìm thấy controller", { name: dev.name });
 
@@ -218,7 +262,10 @@ export default function StaffIotProvisionWaitingScreen() {
         setPhase("connecting");
         iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 2: kết nối BLE + discover services/characteristics");
         const bleHandle = await dev.connect();
+        activeBleDeviceRef.current = bleHandle;
+        throwIfCancelled();
         await bleHandle.discoverAllServicesAndCharacteristics();
+        throwIfCancelled();
         const bleOk = await bleHandle.isConnected();
         if (!bleOk) {
           throw new Error(t("staff_iot.wait_error_ble_connect"));
@@ -233,6 +280,7 @@ export default function StaffIotProvisionWaitingScreen() {
             ssid,
           });
           const res = await provisionCtrlMutation.mutateAsync({ deviceId, areaId });
+          throwIfCancelled();
           const { thingName, certificatePem, privateKey } = res.data;
           if (!thingName || !certificatePem || !privateKey) throw new Error(t("staff_iot.provision_invalid_response"));
           iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 3 xong: AWS đã trả thing_name + cert + private_key");
@@ -252,6 +300,7 @@ export default function StaffIotProvisionWaitingScreen() {
           iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 4 xong: đã gửi xong payload BLE");
         } finally {
           await bleHandle.cancelConnection().catch(() => {});
+          if (activeBleDeviceRef.current === bleHandle) activeBleDeviceRef.current = null;
         }
 
         seqStep = 5;
@@ -264,6 +313,7 @@ export default function StaffIotProvisionWaitingScreen() {
           [{ text: t("common.close") }],
           { type: "success" }
         );
+        activeBleDeviceRef.current = null;
         navigation.dispatch(StackActions.pop(3));
         return;
       }
@@ -278,6 +328,7 @@ export default function StaffIotProvisionWaitingScreen() {
       seqStep = 2;
       iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 2: lấy token từ server (chuẩn bị payload — CHƯA đăng ký node lên AWS/backend)");
       const tokenRes = await tokenMutation.mutateAsync({ serial: deviceId });
+      throwIfCancelled();
       const token = tokenRes.data.token;
       if (!token) throw new Error(t("staff_iot.node_token_missing"));
       iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 2 xong: đã có token");
@@ -285,6 +336,7 @@ export default function StaffIotProvisionWaitingScreen() {
       seqStep = 3;
       iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 3: lấy deviceId controller (ctrl_mac) từ server");
       const ctrlRes = await controllerMutation.mutateAsync();
+      throwIfCancelled();
       const ctrlMac = ctrlRes.data.deviceId;
       if (!ctrlMac) throw new Error(t("staff_iot.node_controller_missing"));
       iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 3 xong: đã có ctrl_mac", { ctrlMac: String(ctrlMac).slice(0, 12) });
@@ -294,6 +346,7 @@ export default function StaffIotProvisionWaitingScreen() {
       setPhase("scanning_ble");
       iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 4: quét BLE, tìm node ISUMS-* (không phải CTRL)");
       const dev = await scanForDevice((d) => Boolean(d?.name?.startsWith("ISUMS-") && !d.name?.startsWith("ISUMS-CTRL-")));
+      throwIfCancelled();
       setBleDeviceName(dev.name ?? null);
       iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 4 xong: đã tìm thấy node", { name: dev.name });
 
@@ -302,7 +355,10 @@ export default function StaffIotProvisionWaitingScreen() {
       setPhase("connecting");
       iotProvSeqLog("node", seqStep, NODE_STEPS, "Bước 5: kết nối BLE + discover");
       const connected = await dev.connect();
+      activeBleDeviceRef.current = connected;
+      throwIfCancelled();
       await connected.discoverAllServicesAndCharacteristics();
+      throwIfCancelled();
       if (!(await connected.isConnected())) {
         throw new Error(t("staff_iot.wait_error_ble_connect"));
       }
@@ -322,6 +378,7 @@ export default function StaffIotProvisionWaitingScreen() {
       try {
         try {
           await connected.writeCharacteristicWithResponseForService(SERVICE_UUID, CHAR_UUID, encoded);
+          throwIfCancelled();
           bleWriteOk = true;
         } catch (e: any) {
           if (e?.message?.includes("write failed") || e?.message?.includes("disconnect")) {
@@ -337,11 +394,13 @@ export default function StaffIotProvisionWaitingScreen() {
         iotProvSeqLog("node", 6, NODE_STEPS, "Bước 6a xong: payload BLE đã xử lý xong");
       } finally {
         await connected.cancelConnection().catch(() => {});
+        if (activeBleDeviceRef.current === connected) activeBleDeviceRef.current = null;
       }
 
       lastPhase = "finalizing";
       setPhase("finalizing");
       iotProvSeqLog("node", 6, NODE_STEPS, "Bước 6b: CHỈ BÂY GIỜ mới gọi API đăng ký / đồng bộ node lên server (sau BLE)");
+      throwIfCancelled();
       await provisionNodeMutation.mutateAsync({ serial: deviceId, token, areaId });
       iotProvSeqLog("node", 6, NODE_STEPS, "Bước 6b xong: server đã nhận provision node");
 
@@ -351,9 +410,13 @@ export default function StaffIotProvisionWaitingScreen() {
         [{ text: t("common.close") }],
         { type: "success" }
       );
+      activeBleDeviceRef.current = null;
       navigation.dispatch(StackActions.pop(2));
     } catch (err: any) {
       console.log("[StaffIotProvisionWaiting] error:", err);
+      if (cancelRequestedRef.current || err?.message === "__CANCELLED__") {
+        return;
+      }
       if (kind === "controller") {
         iotProvSeqFail("controller", seqStep, CTRL_STEPS, lastPhase, err);
       } else {
@@ -373,6 +436,14 @@ export default function StaffIotProvisionWaitingScreen() {
     start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleCancel = () => {
+    cancelRequestedRef.current = true;
+    bleManager.stopDeviceScan();
+    activeBleDeviceRef.current?.cancelConnection().catch(() => {});
+    activeBleDeviceRef.current = null;
+    navigation.navigate("StaffIotList", { houseId, houseName });
+  };
 
   return (
     <View style={s.container}>
@@ -428,6 +499,17 @@ export default function StaffIotProvisionWaitingScreen() {
             );
           })}
         </View>
+
+        {!provisionCtrlMutation.isError && !provisionNodeMutation.isError ? (
+          <TouchableOpacity
+            style={s.waitCancelBtn}
+            onPress={handleCancel}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+          >
+            <Text style={s.waitCancelText}>{t("common.cancel")}</Text>
+          </TouchableOpacity>
+        ) : null}
 
         {(provisionCtrlMutation.isError || provisionNodeMutation.isError) ? (
           <TouchableOpacity

@@ -52,18 +52,27 @@ const DAY_FULL_KEYS: Record<number, string> = {
 };
 
 const JOB_STATUS_KEYS = new Set([
-  "CREATED", "SCHEDULED", "NEED_RESCHEDULE", "IN_PROGRESS", "COMPLETED",
-  "FAILED", "CANCELLED", "OVERDUE", "AVAILABLE", "BOOKED",
+  "PENDING", "WAITING_MANAGER_CONFIRM", "CONFIRMED", "BOOKED", "BLOCKED",
+  "CREATED", "SCHEDULED", "NEED_RESCHEDULE", "IN_PROGRESS", "COMPLETED", "DONE",
+  "FAILED", "CANCELLED", "OVERDUE", "AVAILABLE",
 ]);
 
 function getSlotColor(slotType?: SlotType): string {
   return slotType ? (SLOT_COLORS[slotType] ?? SLOT_COLORS.other) : SLOT_COLORS.other;
 }
 
+function normalizeWorkSlotStatusKey(status: string | undefined): string {
+  return String(status ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
+}
+
 function getJobStatusKey(status: string | undefined): string {
   if (!status) return "staff_calendar.job_status_OTHER";
-  const key = `staff_calendar.job_status_${status.toUpperCase()}`;
-  return JOB_STATUS_KEYS.has(status.toUpperCase()) ? key : "staff_calendar.job_status_OTHER";
+  const n = normalizeWorkSlotStatusKey(status);
+  const key = `staff_calendar.job_status_${n}`;
+  return JOB_STATUS_KEYS.has(n) ? key : "staff_calendar.job_status_OTHER";
 }
 
 /** Giữ để tương thích - workslot không hiển thị ticket nữa, chỉ status + time + jobType */

@@ -3,9 +3,10 @@
  * - GET /api/schedules/templates/current/{date} - mẫu lịch (giờ làm, ngày làm việc).
  * - GET /api/schedules/work_slots/staff - danh sách work slots đã gán (staff từ token).
  * - GET /api/schedules/work_slots/generate?start=&end= - slot theo ngày (AVAILABLE, …) cho đăng ký issue.
+ * - POST /api/schedules/work_slots/staff/confirm — staff đăng ký giờ xử lý ticket (`jobId` = ticket id).
  */
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
+import { FALLBACK_BACKEND_URL } from "../api/config";
 import { useAuthStore } from "../../store/useAuthStore";
 import type {
   ScheduleTemplateApiResponse,
@@ -16,6 +17,8 @@ import type {
   CreateLeaveRequestResponse,
   UpdateLeaveRequestPayload,
   UpdateLeaveRequestResponse,
+  ConfirmStaffWorkSlotPayload,
+  ConfirmStaffWorkSlotResponse,
 } from "../types/api";
 
 /**
@@ -82,7 +85,7 @@ export const getCurrentScheduleTemplate = async (
   date: string
 ): Promise<ScheduleTemplateApiResponse> => {
   const response = await axiosClient.get<ScheduleTemplateApiResponse>(
-    `${BACKEND_API_BASE}/schedules/templates/current/${encodeURIComponent(date)}`
+    `${FALLBACK_BACKEND_URL}/schedules/templates/current/${encodeURIComponent(date)}`
   );
   return response.data;
 };
@@ -100,7 +103,7 @@ export const getWorkSlotsByStaffId = async (
   // API mới: backend lấy staff từ token nên URL không còn cần staffId trong path.
   // (BE: GET /api/schedules/work_slots/staff)
   const response = await axiosClient.get<WorkSlotsApiResponse>(
-    `${BACKEND_API_BASE}/schedules/work_slots/staff`
+    `${FALLBACK_BACKEND_URL}/schedules/work_slots/staff`
   );
   return response.data;
 };
@@ -123,6 +126,19 @@ export const getGeneratedWorkSlots = async (
 };
 
 /**
+ * Staff xác nhận khung giờ xử lý ticket (issue). `jobId` = id ticket.
+ */
+export const confirmStaffWorkSlotForJob = async (
+  payload: ConfirmStaffWorkSlotPayload
+): Promise<ConfirmStaffWorkSlotResponse> => {
+  const response = await axiosClient.post<ConfirmStaffWorkSlotResponse>(
+    `${FALLBACK_BACKEND_URL}/schedules/work_slots/staff/confirm`,
+    payload
+  );
+  return response.data;
+};
+
+/**
  * Lấy danh sách yêu cầu nghỉ của staff.
  * Dùng để hiển thị "Xem yêu cầu nghỉ" và lấy ngày nghỉ đã duyệt cho lịch.
  *
@@ -134,7 +150,7 @@ export const getLeaveRequestsByStaffId = async (
   /** Tham số cache-bust để tránh lấy dữ liệu cũ khi refresh sau khi manager duyệt */
   cacheBust?: number
 ): Promise<LeaveRequestsApiResponse> => {
-  const url = `${BACKEND_API_BASE}/schedules/leave/staff/${encodeURIComponent(staffId)}`;
+  const url = `${FALLBACK_BACKEND_URL}/schedules/leave/staff/${encodeURIComponent(staffId)}`;
   const response = await axiosClient.get<LeaveRequestsApiResponse>(url, {
     params: cacheBust != null ? { _: cacheBust } : undefined,
   });
@@ -149,7 +165,7 @@ export const createLeaveRequest = async (
   payload: CreateLeaveRequestPayload
 ): Promise<CreateLeaveRequestResponse> => {
   const response = await axiosClient.post<CreateLeaveRequestResponse>(
-    `${BACKEND_API_BASE}/schedules/leave`,
+    `${FALLBACK_BACKEND_URL}/schedules/leave`,
     payload
   );
   return response.data;
@@ -164,7 +180,7 @@ export const updateLeaveRequestStatus = async (
   payload: UpdateLeaveRequestPayload
 ): Promise<UpdateLeaveRequestResponse> => {
   const response = await axiosClient.put<UpdateLeaveRequestResponse>(
-    `${BACKEND_API_BASE}/schedules/leave/${encodeURIComponent(leaveRequestId)}/status`,
+    `${FALLBACK_BACKEND_URL}/schedules/leave/${encodeURIComponent(leaveRequestId)}/status`,
     payload
   );
   return response.data;

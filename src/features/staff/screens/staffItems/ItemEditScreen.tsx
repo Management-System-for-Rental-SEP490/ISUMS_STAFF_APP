@@ -58,6 +58,7 @@ import {
 import { getHouseById } from "../../../../shared/services/houseApi";
 import { itemScreenStyles } from "./itemScreenStyles";
 import { brandPrimary } from "../../../../shared/theme/color";
+import { ImageCaptureModal } from "../../../modal/imageCapture/ImageCaptureModal";
 import {
   DropdownBox,
   type DropdownBoxSection,
@@ -85,6 +86,7 @@ export default function ItemEditScreen() {
   const route = useRoute<ItemEditRouteProp>();
   const queryClient = useQueryClient();
   const item = route.params.item as AssetItemFromApi;
+  const fromMaintenanceUpdate = route.params.fromMaintenanceUpdate === true;
   const transferHouseMutation = useTransferAssetItemHouse();
   const detachNfcMutation = useDetachAssetTag();
 
@@ -101,6 +103,7 @@ export default function ItemEditScreen() {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [imageCaptureVisible, setImageCaptureVisible] = useState(false);
 
   // Cập nhật lại item mỗi khi màn hình focus (để lấy nfcTag/qrTag mới nếu vừa đi Camera về)
   useFocusEffect(
@@ -223,11 +226,6 @@ export default function ItemEditScreen() {
       requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 56, animated: true }));
     });
   }, []);
-  const scrollItemEditMid = useCallback(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 160, animated: true }));
-    });
-  }, []);
   const scrollItemEditEnd = useCallback(() => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
@@ -258,17 +256,6 @@ export default function ItemEditScreen() {
       showAllOption: false,
     };
   }, [houses, houseId, t]);
-
-  const categoryDropdownSection = useMemo((): DropdownBoxSection | null => {
-    if (categories.length === 0) return null;
-    return {
-      id: "category",
-      title: t("dropdown_box.section_category"),
-      items: categories.map((c: AssetCategoryFromApi) => ({ id: c.id, label: c.name })),
-      selectedId: categoryId,
-      showAllOption: false,
-    };
-  }, [categories, categoryId, t]);
 
   const statusDropdownSection = useMemo((): DropdownBoxSection => {
     return {
@@ -318,15 +305,27 @@ export default function ItemEditScreen() {
     return `${t("dropdown_box.functional_area_short")}: ${label}`;
   }, [functionAreaId, functionalAreas, formatAreaDropdownLabel, t]);
 
-  const categoryDropdownSummary = useMemo(() => {
-    const c = categories.find((x: AssetCategoryFromApi) => x.id === categoryId);
-    return `${t("dropdown_box.category_short")}: ${c?.name ?? categoryId}`;
-  }, [categories, categoryId, t]);
+  const categoryReadonlyValue = useMemo(
+    () => categories.find((x: AssetCategoryFromApi) => x.id === categoryId)?.name ?? categoryId,
+    [categories, categoryId]
+  );
 
   const statusDropdownSummary = useMemo(
     () => `${t("dropdown_box.status_short")}: ${statusLabel(status)}`,
     [status, statusLabel, t]
   );
+
+  const readonlyNoteValue = useMemo(
+    () => (latestItem.note && latestItem.note.trim() ? latestItem.note : "—"),
+    [latestItem.note]
+  );
+
+  const readonlyUpdateAtValue = useMemo(() => {
+    if (!latestItem.updateAt) return t("staff_item_description.update_at_empty");
+    const d = new Date(latestItem.updateAt);
+    if (Number.isNaN(d.getTime())) return latestItem.updateAt;
+    return d.toLocaleString();
+  }, [latestItem.updateAt, t]);
 
   const onItemEditDropdownSelect = useCallback((sectionId: string, itemId: string | null) => {
     if (sectionId === "functionalArea") {
@@ -341,7 +340,6 @@ export default function ItemEditScreen() {
       functionAreaUserTouchedRef.current = true;
       return;
     }
-    if (sectionId === "category") setCategoryId(itemId);
     if (sectionId === "status") setStatus(itemId);
   }, []);
 
@@ -495,6 +493,10 @@ export default function ItemEditScreen() {
         const refreshedItem = await getAssetItemById(item.id);
         if (refreshedItem) {
           setLatestItem(refreshedItem);
+        }
+        if (fromMaintenanceUpdate) {
+          navigation.goBack();
+          return;
         }
         const houseIdForNav =
           (refreshedItem?.houseId && String(refreshedItem.houseId).trim()) ||
@@ -673,43 +675,9 @@ export default function ItemEditScreen() {
     }
   }, [latestItem?.id]);
 
-  const handlePickFromLibrary = async () => {
-    setUploadError(null);
-
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (perm.status !== "granted") {
-      setUploadError(t("staff_item_create.library_permission_no_permission"));
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"] as ImagePicker.MediaType[],
-      allowsMultipleSelection: true,
-      quality: 0.45,
-    });
-
-    if (result.canceled) return;
-    const picked = addPickedImages(result.assets);
-    setPendingImagePreviews((prev) => [...prev, ...picked].slice(0, 6));
-  };
-
   const handleTakePhoto = async () => {
     setUploadError(null);
-
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (perm.status !== "granted") {
-      setUploadError(t("camera.no_permission"));
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"] as ImagePicker.MediaType[],
-      quality: 0.45,
-    });
-
-    if (result.canceled || result.assets.length === 0) return;
-    const picked = addPickedImages(result.assets);
-    setPendingImagePreviews((prev) => [...prev, ...picked].slice(0, 6));
+    setImageCaptureVisible(true);
   };
 
   const handleDeleteServerImage = async (imageId: string) => {
@@ -791,6 +759,17 @@ export default function ItemEditScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={itemScreenStyles.formCard}>
+            {fromMaintenanceUpdate ? (
+              <TouchableOpacity
+                style={[itemScreenStyles.imageButton, { marginBottom: 12 }]}
+                onPress={() => navigation.goBack()}
+                activeOpacity={0.85}
+              >
+                <Text style={itemScreenStyles.imageButtonText}>
+                  {t("staff_work_slot_detail.back_to_maintenance_dropdown")}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
             <Text style={itemScreenStyles.label}>{t("staff_item_create.house_label")}</Text>
             {houseDropdownSection ? (
               <DropdownBox
@@ -817,16 +796,11 @@ export default function ItemEditScreen() {
 
             <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.category_label")}</Text>
-              {categoryDropdownSection ? (
-                <DropdownBox
-                  sections={[categoryDropdownSection]}
-                  summary={categoryDropdownSummary}
-                  onSelect={onItemEditDropdownSelect}
-                  style={{ marginBottom: 4 }}
-                  keyboardVerticalOffset={insets.top + 52}
-                  onSearchInputFocus={scrollItemEditMid}
-                />
-              ) : null}
+              <TextInput
+                style={[itemScreenStyles.input, itemScreenStyles.inputReadonlyDim]}
+                value={categoryReadonlyValue}
+                editable={false}
+              />
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
@@ -981,6 +955,25 @@ export default function ItemEditScreen() {
               />
             </View>
 
+            <View style={itemScreenStyles.fieldSpacer}>
+              <Text style={itemScreenStyles.label}>{t("staff_item_description.note_label")}</Text>
+              <TextInput
+                style={[itemScreenStyles.input, itemScreenStyles.inputReadonlyDim]}
+                value={readonlyNoteValue}
+                editable={false}
+                multiline
+              />
+            </View>
+
+            <View style={itemScreenStyles.fieldSpacer}>
+              <Text style={itemScreenStyles.label}>{t("staff_item_description.update_at_label")}</Text>
+              <TextInput
+                style={[itemScreenStyles.input, itemScreenStyles.inputReadonlyDim]}
+                value={readonlyUpdateAtValue}
+                editable={false}
+              />
+            </View>
+
             <View style={itemScreenStyles.imagesSection}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.images_label")}</Text>
 
@@ -992,15 +985,6 @@ export default function ItemEditScreen() {
                   disabled={isPending || uploadingImages}
                 >
                   <Text style={itemScreenStyles.imageButtonText}>{t("staff_item_create.images_camera")}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={itemScreenStyles.imageButton}
-                  onPress={handlePickFromLibrary}
-                  activeOpacity={0.9}
-                  disabled={isPending || uploadingImages}
-                >
-                  <Text style={itemScreenStyles.imageButtonText}>{t("staff_item_create.images_library")}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -1171,6 +1155,17 @@ export default function ItemEditScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      <ImageCaptureModal
+        visible={imageCaptureVisible}
+        onClose={() => setImageCaptureVisible(false)}
+        onPicked={(assets) => {
+          setUploadError(null);
+          const picked = addPickedImages(assets);
+          setPendingImagePreviews((prev) => [...prev, ...picked].slice(0, 6));
+        }}
+        libraryLabel={t("staff_item_create.images_library")}
+      />
     </View>
   );
 }

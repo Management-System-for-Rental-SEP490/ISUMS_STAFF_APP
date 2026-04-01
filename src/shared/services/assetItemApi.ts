@@ -28,6 +28,8 @@ import {
   type IotControllerByHouseApiResponse,
   type IotProvisionNodeRequest,
   type IotProvisionNodeApiResponse,
+  type AssetMaintenanceBatchUpdateRequest,
+  type AssetMaintenanceBatchUpdateApiResponse,
 } from "../types/api";
 
 /**
@@ -418,6 +420,20 @@ export const updateAssetItem = async (
 };
 
 /**
+ * Batch cập nhật thông tin bảo trì cho nhiều thiết bị.
+ * API: PUT /api/assets/items/maintenance/batch
+ */
+export const updateAssetItemsMaintenanceBatch = async (
+  payload: AssetMaintenanceBatchUpdateRequest
+): Promise<AssetMaintenanceBatchUpdateApiResponse> => {
+  const response = await axiosClient.put<AssetMaintenanceBatchUpdateApiResponse>(
+    `${FALLBACK_BACKEND_URL}/assets/items/maintenance/batch`,
+    payload
+  );
+  return response.data;
+};
+
+/**
  * Đổi nhà cho thiết bị (PUT /api/asset/items/:id/transfer).
  * Body: { newHouseId }. BE sẽ cập nhật houseId và trả lại thiết bị sau khi chuyển.
  */
@@ -498,7 +514,8 @@ export const deprovisionIotControllerByHouseId = async (
   houseId: string
 ): Promise<ApiResponse<string>> => {
   const response = await axiosClient.delete<ApiResponse<string>>(
-    `${FALLBACK_BACKEND_URL}/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
+    //`${FALLBACK_BACKEND_URL}/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
+    `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
   );
   return response.data;
 };
@@ -513,7 +530,8 @@ export const provisionIotControllerByHouseId = async (
   payload: IotProvisionRequest
 ): Promise<IotProvisionApiResponse> => {
   const response = await axiosClient.post<IotProvisionApiResponse>(
-    `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
+   // `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
+   `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
     payload
   );
   return response.data;
@@ -524,7 +542,8 @@ export const getIotProvisionTokenBySerial = async (
   payload: IotProvisionTokenRequest
 ): Promise<IotProvisionTokenApiResponse> => {
   const response = await axiosClient.post<IotProvisionTokenApiResponse>(
-    `${ASSETS_API_BASE}/assets/iot/provision-token`,
+    //`${ASSETS_API_BASE}/assets/iot/provision-token`,
+    'https://api-dev.isums.pro/api/assets/iot/provision-token',
     payload
   );
   return response.data;
@@ -535,7 +554,8 @@ export const getIotControllerByHouseId = async (
   houseId: string
 ): Promise<IotControllerByHouseApiResponse> => {
   const response = await axiosClient.get<IotControllerByHouseApiResponse>(
-    `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
+    //`${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
+    `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
   );
   return response.data;
 };
@@ -546,7 +566,8 @@ export const provisionIotNodeByHouseId = async (
   payload: IotProvisionNodeRequest
 ): Promise<IotProvisionNodeApiResponse> => {
   const response = await axiosClient.post<IotProvisionNodeApiResponse>(
-    `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
+    //`${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
+    `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
     payload
   );
   return response.data;

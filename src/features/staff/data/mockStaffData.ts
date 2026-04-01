@@ -10,7 +10,7 @@ import {
   parseScheduleTimeToMinutes,
   parseScheduleWorkingDaysToSet,
 } from "../../../shared/utils";
-import type { IssueStatus, ScheduleTemplateData } from "../../../shared/types/api";
+import type { ScheduleTemplateData } from "../../../shared/types/api";
 
 /** Căn nhà / tòa nhà trong hệ thống (staff quản lý nhiều căn) */
 export interface Building {
@@ -77,25 +77,6 @@ export function filterWorkSlotsByCurrentWeek(slots: WorkSlot[]): WorkSlot[] {
     const slotDate = new Date(today.getFullYear(), m - 1, d);
     return slotDate >= monday && slotDate <= sunday;
   });
-}
-
-/** Trạng thái ticket (theo IssueStatus BE). */
-export type TicketStatus = IssueStatus;
-
-export type TicketPriority = "low" | "medium" | "high";
-
-/** Ticket do tenant gửi, staff xem danh sách và xử lý */
-export interface StaffTicketListItem {
-  id: string;
-  title: string;
-  description: string;
-  priority: TicketPriority;
-  status: TicketStatus;
-  deviceName: string;
-  deviceLocation: string;
-  tenantName: string;
-  buildingName: string;
-  createdAt: Date;
 }
 
 // ---------- Mock: Lịch làm việc tuần này (mặc định 8h–18h mỗi ngày, trừ ngày nghỉ) ----------
@@ -297,92 +278,3 @@ export function getThisWeekDatesForPicker(): { dayOfWeek: number; date: string; 
 }
 
 // Nhà và thiết bị: đã dùng API (useHouses, useAssetItems). MOCK_BUILDINGS, MOCK_STAFF_ASSETS, getAssetsByBuilding đã xóa.
-
-// ---------- Mock: Danh sách ticket (tenant gửi) ----------
-const MOCK_STAFF_TICKETS_BASE: StaffTicketListItem[] = [
-  {
-    id: "T001",
-    title: "Máy lạnh không mát",
-    description: "Máy lạnh phòng 102 chạy nhưng không lạnh, có mùi hôi.",
-    priority: "high",
-    status: "SCHEDULED",
-    deviceName: "Máy lạnh - P102",
-    deviceLocation: "Tầng 1 - Phòng 102",
-    tenantName: "Nguyễn Văn A",
-    buildingName: "Nhà A - Tòa 1",
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-  },
-  {
-    id: "T002",
-    title: "Đồng hồ nước nhảy sai",
-    description: "Chỉ số đồng hồ nước tăng bất thường so với tháng trước.",
-    priority: "medium",
-    status: "CREATED",
-    deviceName: "Đồng hồ nước - P201",
-    deviceLocation: "Tầng 2 - Phòng 201",
-    tenantName: "Trần Thị B",
-    buildingName: "Nhà B - Tòa 2",
-    createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000),
-  },
-  {
-    id: "T003",
-    title: "Ổ cắm bị chập",
-    description: "Ổ cắm gần bếp đôi lúc mất điện.",
-    priority: "high",
-    status: "IN_PROGRESS",
-    deviceName: "Đồng hồ điện - P101",
-    deviceLocation: "Tầng 1 - Phòng 101",
-    tenantName: "Lê Văn C",
-    buildingName: "Nhà A - Tòa 1",
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-  },
-  {
-    id: "T004",
-    title: "Tủ lạnh kêu to",
-    description: "Tủ lạnh kêu rất to vào ban đêm.",
-    priority: "low",
-    status: "DONE",
-    deviceName: "Tủ lạnh - P202",
-    deviceLocation: "Tầng 2 - Phòng 202",
-    tenantName: "Phạm Thị D",
-    buildingName: "Nhà B - Tòa 2",
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-  },
-];
-
-/** Thêm bản ghi demo để kiểm tra phân trang UI (8+ trang @ 10/trang → dấu …). */
-const MOCK_STAFF_TICKETS_DEMO_EXTRA: StaffTicketListItem[] = Array.from({ length: 76 }, (_, i) => {
-  const n = i + 5;
-  const id = `T${String(n).padStart(3, "0")}`;
-  const priorities: TicketPriority[] = ["low", "medium", "high"];
-  const statuses: TicketStatus[] = [
-    "CREATED",
-    "NEED_RESCHEDULE",
-    "SCHEDULED",
-    "IN_PROGRESS",
-    "DONE",
-    "CANCELLED",
-  ];
-  return {
-    id,
-    title: `Báo cáo sự cố demo #${n}`,
-    description: "Nội dung mẫu cho phân trang danh sách ticket.",
-    priority: priorities[n % 3],
-    status: statuses[n % 6],
-    deviceName: `Thiết bị #${n}`,
-    deviceLocation: "Tầng 1",
-    tenantName: "Người thuê demo",
-    buildingName: "Nhà demo",
-    createdAt: new Date(Date.now() - n * 37 * 60 * 1000),
-  };
-});
-
-export const MOCK_STAFF_TICKETS: StaffTicketListItem[] = [
-  ...MOCK_STAFF_TICKETS_BASE,
-  ...MOCK_STAFF_TICKETS_DEMO_EXTRA,
-];
-
-/** Lấy ticket theo id (cho màn chi tiết). Khi có API thay bằng gọi BE. */
-export function getTicketById(ticketId: string): StaffTicketListItem | undefined {
-  return MOCK_STAFF_TICKETS.find((t) => t.id === ticketId);
-}

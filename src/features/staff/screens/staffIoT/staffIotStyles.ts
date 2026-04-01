@@ -542,6 +542,20 @@ export const staffIotStyles = StyleSheet.create({
     fontWeight: "900",
     color: neutral.text,
   },
+  waitCancelBtn: {
+    marginTop: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: neutral.surface,
+    borderWidth: 1,
+    borderColor: neutral.border,
+  },
+  waitCancelText: {
+    ...appTypography.buttonLabel,
+    fontWeight: "900",
+    color: neutral.textSecondary,
+  },
 
   // WiFi password input: nhét icon show/hide ngay trong khung input
   wifiPasswordInputWrap: {

@@ -48,6 +48,11 @@ export type DropdownBoxProps = {
   style?: StyleProp<ViewStyle>;
   onAfterSelect?: (sectionId: string, itemId: string | null) => void;
   /**
+   * Callback khi user nhập text vào ô search trong dropdown.
+   * Dùng để parent filter dữ liệu theo cùng query.
+   */
+  onSearchChange?: (query: string) => void;
+  /**
    * Bù chiều cao header/status bar cho KeyboardAvoidingView (iOS).
    * Gợi ý: `insets.top + ~52` khi màn có header stack.
    */
@@ -123,6 +128,7 @@ export function DropdownBox({
   onSelect,
   style,
   onAfterSelect,
+  onSearchChange,
   keyboardVerticalOffset = 0,
   onSearchInputFocus,
   itemLayout = "chips",
@@ -138,7 +144,10 @@ export function DropdownBox({
   const parentScrollForSearchDoneRef = useRef(false);
 
   useEffect(() => {
-    if (expanded) setSearch("");
+    if (expanded) {
+      setSearch("");
+      onSearchChange?.("");
+    }
   }, [expanded]);
 
   useEffect(() => {
@@ -207,7 +216,10 @@ export function DropdownBox({
               <Icons.search size={20} color={neutral.iconMuted} />
               <TextInput
                 value={search}
-                onChangeText={setSearch}
+                onChangeText={(text) => {
+                  setSearch(text);
+                  onSearchChange?.(text);
+                }}
                 placeholder={searchPlaceholder ?? t("dropdown_box.search_placeholder")}
                 placeholderTextColor={neutral.textSecondary}
                 style={styles.searchInput}
@@ -546,7 +558,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   listRowMetaBold: {
-    fontSize: 15,
+    ...appTypography.listTitle,
     fontWeight: "700",
     color: brandPrimary,
   },

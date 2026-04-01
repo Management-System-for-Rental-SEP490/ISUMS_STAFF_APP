@@ -25,7 +25,16 @@ import { CustomAlert } from "../../../../shared/components/alert";
 type RouteT = RouteProp<RootStackParamList, "StaffIotWifi">;
 type NavT = NativeStackNavigationProp<RootStackParamList, "StaffIotWifi">;
 
-type WifiNetwork = { SSID: string; level: number };
+type WifiNetwork = {
+  SSID: string;
+  level: number;
+  /**
+   * react-native-wifi-reborn thường có thêm `frequency` (MHz) và `capabilities`,
+   * nhưng type dự án hiện không khai báo nên mình bổ sung để lọc 2.4G chuẩn hơn.
+   */
+  frequency?: number;
+  capabilities?: string;
+};
 
 function isAndroidWifiNativeLinked(): boolean {
   if (Platform.OS !== "android") return false;
@@ -51,6 +60,39 @@ function dedupeSortNetworks(list: WifiNetwork[]): WifiNetwork[] {
       return true;
     })
     .sort((a, b) => b.level - a.level);
+}
+
+function is24GNetwork(n: WifiNetwork): boolean {
+  // 2.4G thường nằm trong khoảng ~2400-2500 MHz.
+  if (typeof n.frequency === "number" && Number.isFinite(n.frequency)) {
+    return n.frequency >= 2400 && n.frequency <= 2500;
+  }
+
+  // Fallback: cố gắng đoán từ SSID/capabilities.
+  const ssid = String(n.SSID ?? "").toLowerCase();
+  const caps = String(n.capabilities ?? "").toLowerCase();
+
+  // Nếu có dấu hiệu 5G rõ ràng thì loại.
+  const looks5g =
+    /\b5g\b/.test(ssid) ||
+    ssid.includes("5ghz") ||
+    ssid.includes("5g") ||
+    caps.includes("5g") ||
+    caps.includes("5ghz");
+  if (looks5g) return false;
+
+  // Nếu có dấu hiệu 2.4G rõ ràng thì giữ.
+  const looks24g =
+    ssid.includes("2.4") ||
+    ssid.includes("24g") ||
+    ssid.includes("2g") ||
+    ssid.includes("2.4ghz") ||
+    caps.includes("2.4") ||
+    caps.includes("24g");
+  if (looks24g) return true;
+
+  // Nếu không đủ thông tin để phân biệt thì loại để đảm bảo đúng 2.4G.
+  return false;
 }
 
 /**
@@ -102,9 +144,12 @@ async function androidFetchWifiList(): Promise<WifiNetwork[]> {
   const rawUnknown: unknown = await WifiManager.reScanAndLoadWifiList();
   if (typeof rawUnknown === "string") {
     const cached = (await WifiManager.loadWifiList()) as WifiNetwork[];
-    return dedupeSortNetworks(cached);
+    const filtered = cached.filter(is24GNetwork);
+    return dedupeSortNetworks(filtered);
   }
-  return dedupeSortNetworks(rawUnknown as WifiNetwork[]);
+  const list = rawUnknown as WifiNetwork[];
+  const filtered = list.filter(is24GNetwork);
+  return dedupeSortNetworks(filtered);
 }
 
 function isAndroidLocationServicesOffError(e: unknown): boolean {

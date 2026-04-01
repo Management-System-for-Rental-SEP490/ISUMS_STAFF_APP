@@ -40,6 +40,11 @@ function localIsoFromYmdAndTime(dateYmd: string, timeHms: string): string {
   return `${dateYmd}T${body}`;
 }
 
+function isAvailableStatus(status: string): boolean {
+  const normalized = String(status || "").trim().toUpperCase();
+  return normalized === "AVAILABLE" || normalized === "AVAIABLE";
+}
+
 /**
  * Gom mọi slot có status AVAILABLE để đổ FlatList / modal (giống logic mock chọn slot trống).
  */
@@ -51,7 +56,7 @@ export function listAvailableGeneratedSlotChoices(
   for (const day of days) {
     const dateYmd = day.date;
     for (const slot of day.slots) {
-      if (String(slot.status).toUpperCase() !== "AVAILABLE") continue;
+      if (!isAvailableStatus(slot.status)) continue;
       out.push({
         dateYmd,
         startTime: slot.startTime,

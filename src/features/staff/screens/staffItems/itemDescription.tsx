@@ -205,6 +205,13 @@ export default function ItemDescriptionScreen() {
     return normalizedStatus ?? "—";
   };
 
+  const updateAtLabel = useMemo(() => {
+    if (!item.updateAt) return t("staff_item_description.update_at_empty");
+    const d = new Date(item.updateAt);
+    if (Number.isNaN(d.getTime())) return item.updateAt;
+    return d.toLocaleString();
+  }, [item.updateAt, t]);
+
   // Helper to detect if string is likely a QR code (not pure Hex)
   const isQrCode = (tag: string | undefined | null) => {
     if (!tag) return false;
@@ -242,6 +249,14 @@ export default function ItemDescriptionScreen() {
     {
       label: t("staff_item_create.condition_label"),
       value: `${item.conditionPercent ?? 0}%`,
+    },
+    {
+      label: t("staff_item_description.note_label"),
+      value: item.note?.trim() ? item.note : "—",
+    },
+    {
+      label: t("staff_item_description.update_at_label"),
+      value: updateAtLabel,
     },
   ];
 

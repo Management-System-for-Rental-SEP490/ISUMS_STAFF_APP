@@ -81,7 +81,11 @@ export type RootStackParamList = AuthStackParamList & {
   /** Màn form thêm thiết bị (Staff). */
   ItemCreate: undefined;
   /** Màn chỉnh sửa thiết bị (Staff), hiện dạng modal. Param: item cần sửa. */
-  ItemEdit: { item: AssetItemFromApi };
+  ItemEdit: {
+    item: AssetItemFromApi;
+    /** true khi mở từ luồng cập nhật bảo trì ở WorkSlotDetail. */
+    fromMaintenanceUpdate?: boolean;
+  };
   /** Màn chỉ xem thông tin thiết bị (Staff), khi thợ quét NFC bằng nút Quét ở footer. Param: item. */
   ItemDescription: { item: AssetItemFromApi };
   /** Màn danh sách yêu cầu nghỉ của staff (từ API leave). */

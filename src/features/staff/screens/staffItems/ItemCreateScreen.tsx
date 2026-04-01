@@ -30,6 +30,7 @@ import {
 import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
 import { mergeFunctionalAreasForHouse, sortFunctionalAreasForDisplay } from "../../../../shared/utils";
 import { itemScreenStyles } from "./itemScreenStyles";
+import { ImageCaptureModal } from "../../../modal/imageCapture/ImageCaptureModal";
 import {
   StackScreenTitleBadge,
   StackScreenTitleBarBalance,
@@ -69,6 +70,7 @@ export default function ItemCreateScreen() {
   const [selectedImages, setSelectedImages] = useState<AssetItemImageToUpload[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [imageCaptureVisible, setImageCaptureVisible] = useState(false);
 
   const { data: housesData } = useHouses();
   const houses = housesData?.data ?? [];
@@ -241,39 +243,9 @@ export default function ItemCreateScreen() {
     });
   };
 
-  const handlePickFromLibrary = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (perm.status !== "granted") {
-      setUploadError(t("staff_item_create.library_permission_no_permission") ?? "No access to photo library");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"] as ImagePicker.MediaType[],
-      allowsMultipleSelection: true,
-      quality: 0.45,
-    });
-
-    if (!result.canceled) {
-      addPickedImages(result.assets);
-    }
-  };
-
   const handleTakePhoto = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (perm.status !== "granted") {
-      setUploadError(t("camera.no_permission") ?? "No camera access");
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"] as ImagePicker.MediaType[],
-      quality: 0.45,
-    });
-
-    if (!result.canceled && result.assets.length > 0) {
-      addPickedImages(result.assets);
-    }
+    setUploadError(null);
+    setImageCaptureVisible(true);
   };
 
   const handleSubmit = async () => {
@@ -489,17 +461,6 @@ export default function ItemCreateScreen() {
                 >
                   <Text style={itemScreenStyles.imageButtonText}>{t("staff_item_create.images_camera")}</Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={itemScreenStyles.imageButton}
-                  onPress={handlePickFromLibrary}
-                  activeOpacity={0.9}
-                  disabled={isPending || uploadingImages}
-                >
-                  <Text style={itemScreenStyles.imageButtonText}>
-                    {t("staff_item_create.images_library")}
-                  </Text>
-                </TouchableOpacity>
               </View>
 
               {selectedImages.length > 0 ? (
@@ -568,6 +529,16 @@ export default function ItemCreateScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ImageCaptureModal
+        visible={imageCaptureVisible}
+        onClose={() => setImageCaptureVisible(false)}
+        onPicked={(assets) => {
+          setUploadError(null);
+          addPickedImages(assets);
+        }}
+        libraryLabel={t("staff_item_create.images_library")}
+      />
     </View>
   );
 }
