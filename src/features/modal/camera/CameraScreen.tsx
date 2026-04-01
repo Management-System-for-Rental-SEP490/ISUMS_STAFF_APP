@@ -13,6 +13,7 @@ import { useAuthStore } from "../../../store/useAuthStore";
 import { getAssetItemByNfcId } from "../../../shared/services/assetItemApi";
 import { useAttachAssetTag } from "../../../shared/hooks";
 import type { AssetItemFromApi } from "../../../shared/types/api";
+import { normalizeAssetItemStatusFromApi } from "../../../shared/types/api";
 import { AssignNfcModal } from "../../staff/modal/assignNFC/AssignNfcModal";
 
 
@@ -96,19 +97,16 @@ const CameraScreen = () => {
   }, [scanMode]);
 
   /**
-   * Map trạng thái từ API (AVAILABLE, IN_USE, DISPOSED, MAINTENANCE, ...)
-   * sang DeviceStatus để tái sử dụng màn DeviceDetail/Ticket cũ.
+   * Map trạng thái asset (IN_USE, ACTIVE, BROKEN, DISPOSED, …) sang DeviceStatus.
    */
   const mapApiStatusToDeviceStatus = (apiStatus: string): DeviceStatus => {
-    // AssetStatus: API có thể trả về "AVAILABLE" hoặc status mới ACTIVE/BROKEN/DELETED.
-    const normalized = apiStatus === "AVAILABLE" ? "IN_USE" : apiStatus;
+    const normalized = normalizeAssetItemStatusFromApi(apiStatus);
     switch (normalized) {
       case "IN_USE":
       case "ACTIVE":
         return "active";
       case "DISPOSED":
       case "BROKEN":
-      case "DELETED":
       case "INACTIVE":
         return "inactive";
       case "MAINTENANCE":

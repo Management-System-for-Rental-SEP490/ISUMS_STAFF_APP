@@ -1,34 +1,77 @@
 /**
  * API lịch làm việc (schedule) từ Backend.
  * - GET /api/schedules/templates/current/{date} - mẫu lịch (giờ làm, ngày làm việc).
- * - GET /api/schedules/work_slots/staff/{staffId} - danh sách work slots của staff.
+ * - GET /api/schedules/work_slots/staff - danh sách work slots đã gán (staff từ token).
+ * - GET /api/schedules/work_slots/generate?start=&end= - slot theo ngày (AVAILABLE, …) cho đăng ký issue.
+ * - POST /api/schedules/work_slots/staff/confirm — staff đăng ký giờ xử lý ticket (`jobId` = ticket id).
  */
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE } from "../api/config";
+import { FALLBACK_BACKEND_URL } from "../api/config";
+import { useAuthStore } from "../../store/useAuthStore";
 import type {
   ScheduleTemplateApiResponse,
   WorkSlotsApiResponse,
+  GenerateWorkSlotsApiResponse,
   LeaveRequestsApiResponse,
   CreateLeaveRequestPayload,
   CreateLeaveRequestResponse,
   UpdateLeaveRequestPayload,
   UpdateLeaveRequestResponse,
+  ConfirmStaffWorkSlotPayload,
+  ConfirmStaffWorkSlotResponse,
 } from "../types/api";
 
 /**
- * StaffId dùng để test. Sau này lấy từ userId trong JWT token.
- * @see useAuthStore - khi BE trả userId/sub trong token, decode và dùng thay thế.
- */
-export const STAFF_ID_FOR_TEST = "11111111-1111-1111-1111-111111111111";
-
-/**
  * Lấy staffId cho các API lịch làm việc.
- * Hiện tại: dùng giá trị cố định để test.
- * Sau này: lấy từ userId/sub trong JWT token (cần decode token từ useAuthStore).
+ * Backend đang trả `staff id` (userId/sub) trong token -> client decode JWT để lấy.
  */
 export function getStaffIdForSchedule(): string {
-  // TODO: Khi BE hỗ trợ, lấy từ useAuthStore.getState() và decode JWT để lấy userId/sub
-  return STAFF_ID_FOR_TEST;
+  const { token, idToken } = useAuthStore.getState();
+  const jwt = idToken || token;
+  if (!jwt) return "";
+
+  const decoded = decodeJWT(jwt);
+  // BE hiện trả staff id ở claim `userId`.
+  // Vẫn giữ fallback để tương thích môi trường cũ.
+  const staffId =
+    typeof decoded?.userId === "string"
+      ? decoded.userId
+      : typeof decoded?.sub === "string"
+        ? decoded.sub
+        : typeof decoded?.userid === "string"
+          ? decoded.userid
+          : "";
+
+  return staffId;
+}
+
+// Decode JWT token (không verify chữ ký) để lấy claims.
+function decodeJWT(token: string): any {
+  try {
+    const base64Url = token.split(".")[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+
+    // React Native: dùng atob nếu có, hoặc Buffer nếu môi trường có polyfill.
+    const decodedBase64 =
+      typeof atob === "function"
+        ? atob(base64)
+        : typeof Buffer !== "undefined"
+          ? Buffer.from(base64, "base64").toString("utf8")
+          : null;
+
+    if (!decodedBase64) return null;
+
+    const jsonPayload = decodeURIComponent(
+      decodedBase64
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join(""),
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -42,7 +85,7 @@ export const getCurrentScheduleTemplate = async (
   date: string
 ): Promise<ScheduleTemplateApiResponse> => {
   const response = await axiosClient.get<ScheduleTemplateApiResponse>(
-    `${BACKEND_API_BASE}/schedules/templates/current/${encodeURIComponent(date)}`
+    `${FALLBACK_BACKEND_URL}/schedules/templates/current/${encodeURIComponent(date)}`
   );
   return response.data;
 };
@@ -51,14 +94,46 @@ export const getCurrentScheduleTemplate = async (
  * Lấy danh sách work slots (các ca làm việc đã đặt) của staff.
  * Dùng để hiển thị lịch tuần: staff phải làm việc gì, khung giờ nào.
  *
- * @param staffId UUID của staff. Test: dùng STAFF_ID_FOR_TEST. Sau: lấy từ userId trong JWT.
+ * @param _staffId UUID của staff (lấy từ userId/sub trong token).
  * @returns Promise<WorkSlotsApiResponse>
  */
 export const getWorkSlotsByStaffId = async (
-  staffId: string
+  _staffId: string
 ): Promise<WorkSlotsApiResponse> => {
+  // API mới: backend lấy staff từ token nên URL không còn cần staffId trong path.
+  // (BE: GET /api/schedules/work_slots/staff)
   const response = await axiosClient.get<WorkSlotsApiResponse>(
-    `${BACKEND_API_BASE}/schedules/work_slots/staff/${encodeURIComponent(staffId)}`
+    `${FALLBACK_BACKEND_URL}/schedules/work_slots/staff`
+  );
+  return response.data;
+};
+
+/**
+ * Sinh danh sách khung giờ làm việc trong khoảng ngày (theo template + trạng thái slot).
+ * Dùng cho luồng issue: staff chọn slot AVAILABLE để đăng ký xử lý ticket (sau này POST/PUT do BE).
+ *
+ * @param startYmd endYmd Định dạng YYYY-MM-DD, inclusive.
+ */
+export const getGeneratedWorkSlots = async (
+  startYmd: string,
+  endYmd: string
+): Promise<GenerateWorkSlotsApiResponse> => {
+  const response = await axiosClient.get<GenerateWorkSlotsApiResponse>(
+    `${FALLBACK_BACKEND_URL}/schedules/work_slots/generate`,
+    { params: { start: startYmd, end: endYmd } }
+  );
+  return response.data;
+};
+
+/**
+ * Staff xác nhận khung giờ xử lý ticket (issue). `jobId` = id ticket.
+ */
+export const confirmStaffWorkSlotForJob = async (
+  payload: ConfirmStaffWorkSlotPayload
+): Promise<ConfirmStaffWorkSlotResponse> => {
+  const response = await axiosClient.post<ConfirmStaffWorkSlotResponse>(
+    `${FALLBACK_BACKEND_URL}/schedules/work_slots/staff/confirm`,
+    payload
   );
   return response.data;
 };
@@ -75,7 +150,7 @@ export const getLeaveRequestsByStaffId = async (
   /** Tham số cache-bust để tránh lấy dữ liệu cũ khi refresh sau khi manager duyệt */
   cacheBust?: number
 ): Promise<LeaveRequestsApiResponse> => {
-  const url = `${BACKEND_API_BASE}/schedules/leave/staff/${encodeURIComponent(staffId)}`;
+  const url = `${FALLBACK_BACKEND_URL}/schedules/leave/staff/${encodeURIComponent(staffId)}`;
   const response = await axiosClient.get<LeaveRequestsApiResponse>(url, {
     params: cacheBust != null ? { _: cacheBust } : undefined,
   });
@@ -90,7 +165,7 @@ export const createLeaveRequest = async (
   payload: CreateLeaveRequestPayload
 ): Promise<CreateLeaveRequestResponse> => {
   const response = await axiosClient.post<CreateLeaveRequestResponse>(
-    `${BACKEND_API_BASE}/schedules/leave`,
+    `${FALLBACK_BACKEND_URL}/schedules/leave`,
     payload
   );
   return response.data;
@@ -105,7 +180,7 @@ export const updateLeaveRequestStatus = async (
   payload: UpdateLeaveRequestPayload
 ): Promise<UpdateLeaveRequestResponse> => {
   const response = await axiosClient.put<UpdateLeaveRequestResponse>(
-    `${BACKEND_API_BASE}/schedules/leave/${encodeURIComponent(leaveRequestId)}/status`,
+    `${FALLBACK_BACKEND_URL}/schedules/leave/${encodeURIComponent(leaveRequestId)}/status`,
     payload
   );
   return response.data;

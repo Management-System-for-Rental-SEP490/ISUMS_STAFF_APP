@@ -94,6 +94,14 @@ const Icons = {
   flag: ({ size = 24, color = 'black' }: IconProps = {}) => (
     <MaterialIcons name="flag" size={size} color={color} />
   ),
+  /** Ticket list: hoàn thành / success */
+  checkCircle: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="check-circle" size={size} color={color} />
+  ),
+  /** Camera: chuyển camera trước/sau */
+  flipCamera: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="flip-camera-android" size={size} color={color} />
+  ),
   /** Work Slot Detail: thông tin job (section header). */
   assignment: ({ size = 24, color = 'black' }: IconProps = {}) => (
     <MaterialIcons name="assignment" size={size} color={color} />

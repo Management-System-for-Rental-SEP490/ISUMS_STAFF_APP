@@ -46,6 +46,12 @@ type HeaderProps = {
   onSearchChange?: (text: string) => void;
   /** Placeholder tuỳ chỉnh theo ngữ cảnh của từng màn hình. */
   searchPlaceholder?: string;
+  /** Hiện nút hành động bên phải trên header (vd: dấu +). */
+  showActionButton?: boolean;
+  /** Callback khi nhấn nút hành động bên phải. */
+  onActionPress?: () => void;
+  /** Nhãn trợ năng cho nút hành động. */
+  actionAccessibilityLabel?: string;
 };
 
 const Header = ({
@@ -54,6 +60,9 @@ const Header = ({
   searchQuery,
   onSearchChange,
   searchPlaceholder,
+  showActionButton = false,
+  onActionPress,
+  actionAccessibilityLabel,
 }: HeaderProps) => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -61,6 +70,7 @@ const Header = ({
   const isSmallScreen = screenWidth < 375;
   const isSearchActive = showSearch && !!onSearchChange;
   const hasText = isSearchActive && !!searchQuery?.trim();
+  const showHeaderAction = showActionButton && typeof onActionPress === "function";
   const logoOuter = isSmallScreen ? 40 : 48;
   const logoInner = logoOuter - LOGO_RING_PADDING * 2;
   const logoRadiusOuter = logoOuter / 2;
@@ -78,81 +88,96 @@ const Header = ({
           isSmallScreen && { paddingHorizontal: 12 },
         ]}
       >
-        <View
-          style={[
-            headerStyles.headerRow,
-            !isSearchActive && headerStyles.headerRowCentered,
-            isSmallScreen && { gap: 8 },
-          ]}
-        >
-          <TouchableOpacity
-            style={headerStyles.brandRow}
-            activeOpacity={0.75}
-            onPress={() => navigateToStaffHome(navigation as NavigationProp<ParamListBase>)}
+        <View style={headerStyles.headerRowWrap}>
+          <View
+            style={[
+              headerStyles.headerRow,
+              !isSearchActive && headerStyles.headerRowCentered,
+              isSmallScreen && { gap: 8 },
+            ]}
           >
-            <View
-              style={[
-                headerStyles.logoRing,
-                {
-                  width: logoOuter,
-                  height: logoOuter,
-                  borderRadius: logoRadiusOuter,
-                },
-                isSmallScreen && { marginRight: 6 },
-              ]}
+            <TouchableOpacity
+              style={headerStyles.brandRow}
+              activeOpacity={0.75}
+              onPress={() => navigateToStaffHome(navigation as NavigationProp<ParamListBase>)}
             >
-              <Image
-                source={LOGO_ASSET}
-                style={{
-                  width: logoInner,
-                  height: logoInner,
-                  borderRadius: logoRadiusInner,
-                }}
-                resizeMode="cover"
-                accessibilityLabel="ISUMS logo"
-              />
-            </View>
-            <Text
-              style={[
-                headerStyles.brandTitle,
-                isSmallScreen && appTypography.sectionHeading,
-              ]}
-            >
-              ISUMS
-            </Text>
-          </TouchableOpacity>
-
-          {isSearchActive && (
-            <View
-              style={[
-                headerStyles.searchContainer,
-                isSmallScreen && { paddingHorizontal: 10, paddingVertical: 8 },
-              ]}
-            >
-              <Icons.search size={isSmallScreen ? 18 : 20} color={neutral.slate900} />
-              <TextInput
+              <View
                 style={[
-                  headerStyles.searchInput,
-                  isSmallScreen && { ...appTypography.body, marginLeft: 8 },
+                  headerStyles.logoRing,
+                  {
+                    width: logoOuter,
+                    height: logoOuter,
+                    borderRadius: logoRadiusOuter,
+                  },
+                  isSmallScreen && { marginRight: 6 },
                 ]}
-                placeholder={searchPlaceholder ?? "Tìm kiếm ..."}
-                placeholderTextColor="rgba(15, 23, 42, 0.45)"
-                returnKeyType="search"
-                value={searchQuery ?? ""}
-                onChangeText={onSearchChange}
-              />
-              {hasText && (
-                <TouchableOpacity
-                  onPress={() => onSearchChange?.("")}
-                  style={headerStyles.clearBtn}
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Icons.close size={14} color={neutral.slate500} />
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+              >
+                <Image
+                  source={LOGO_ASSET}
+                  style={{
+                    width: logoInner,
+                    height: logoInner,
+                    borderRadius: logoRadiusInner,
+                  }}
+                  resizeMode="cover"
+                  accessibilityLabel="ISUMS logo"
+                />
+              </View>
+              <Text
+                style={[
+                  headerStyles.brandTitle,
+                  isSmallScreen && appTypography.sectionHeading,
+                ]}
+              >
+                ISUMS
+              </Text>
+            </TouchableOpacity>
+
+            {isSearchActive && (
+              <View
+                style={[
+                  headerStyles.searchContainer,
+                  isSmallScreen && { paddingHorizontal: 10, paddingVertical: 8 },
+                ]}
+              >
+                <Icons.search size={isSmallScreen ? 18 : 20} color={neutral.slate900} />
+                <TextInput
+                  style={[
+                    headerStyles.searchInput,
+                    isSmallScreen && { ...appTypography.body, marginLeft: 8 },
+                  ]}
+                  placeholder={searchPlaceholder ?? "Tìm kiếm ..."}
+                  placeholderTextColor="rgba(15, 23, 42, 0.45)"
+                  returnKeyType="search"
+                  value={searchQuery ?? ""}
+                  onChangeText={onSearchChange}
+                />
+                {hasText && (
+                  <TouchableOpacity
+                    onPress={() => onSearchChange?.("")}
+                    style={headerStyles.clearBtn}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Icons.close size={14} color={neutral.slate500} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+
+          {showHeaderAction ? (
+            <TouchableOpacity
+              style={headerStyles.actionButton}
+              onPress={onActionPress}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={actionAccessibilityLabel}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Icons.plus size={22} color={neutral.surface} />
+            </TouchableOpacity>
+          ) : null}
         </View>
       </LinearGradient>
     </View>

@@ -1,12 +1,47 @@
 /**
- * Gọi API work slots rồi enrich thêm job + tên nhà (dùng cho lịch Home/Calendar).
+ * Gọi API work slots (toàn bộ khoảng thời gian BE trả về) rồi enrich job + tên nhà (Home/Calendar).
  */
 import { getWorkSlotsByStaffId } from "../../../shared/services/scheduleApi";
+import { getIssueTicketDataById } from "../../../shared/services/issuesApi";
 import { getJobById } from "../../../shared/services/maintenanceApi";
 import { getHouseById } from "../../../shared/services/houseApi";
-import type { JobFromApi, HouseFromApi } from "../../../shared/types/api";
+import type { HouseFromApi } from "../../../shared/types/api";
 import type { WorkSlot } from "./mockStaffData";
-import { mapWorkSlotsFromApiForCurrentWeek } from "./workSlotUtils";
+import { mapWorkSlotsFromApi } from "./workSlotUtils";
+
+type WorkSlotDetailEntity = {
+  houseId?: string;
+};
+
+async function resolveWorkItemBySlot(slot: WorkSlot): Promise<WorkSlotDetailEntity | null> {
+  const id = slot.ticketId?.trim();
+  if (!id) return null;
+  const task = String(slot.task || "").toUpperCase();
+
+  if (task === "MAINTENANCE") {
+    const res = await getJobById(id);
+    return res?.success && res.data ? res.data : null;
+  }
+
+  if (task === "ISSUE") {
+    const ticket = await getIssueTicketDataById(id);
+    return ticket ?? null;
+  }
+
+  // Fallback cho dữ liệu cũ: thử maintenance trước, fail thì issue.
+  try {
+    const res = await getJobById(id);
+    if (res?.success && res.data) return res.data;
+  } catch {
+    // ignore
+  }
+  try {
+    const ticket = await getIssueTicketDataById(id);
+    return ticket ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export async function fetchEnrichedWorkSlotsForStaff(staffId: string): Promise<WorkSlot[]> {
   const res = await getWorkSlotsByStaffId(staffId);
@@ -14,7 +49,7 @@ export async function fetchEnrichedWorkSlotsForStaff(staffId: string): Promise<W
     return [];
   }
 
-  const baseSlots = mapWorkSlotsFromApiForCurrentWeek(res.data);
+  const baseSlots = mapWorkSlotsFromApi(res.data);
 
   const jobIds = Array.from(
     new Set(
@@ -24,12 +59,20 @@ export async function fetchEnrichedWorkSlotsForStaff(staffId: string): Promise<W
     )
   );
 
-  const jobResults = await Promise.allSettled(jobIds.map((id) => getJobById(id)));
-  const jobMap = new Map<string, JobFromApi>();
+  const slotById = new Map<string, WorkSlot>(
+    baseSlots
+      .filter((s) => !!s.ticketId?.trim())
+      .map((s) => [s.ticketId!.trim(), s])
+  );
+
+  const jobResults = await Promise.allSettled(
+    jobIds.map((id) => resolveWorkItemBySlot(slotById.get(id)!))
+  );
+  const jobMap = new Map<string, WorkSlotDetailEntity>();
   const houseIdSet = new Set<string>();
   jobResults.forEach((r, idx) => {
-    if (r.status === "fulfilled" && r.value.success && r.value.data) {
-      const job = r.value.data;
+    if (r.status === "fulfilled" && r.value) {
+      const job = r.value;
       const jobId = jobIds[idx];
       jobMap.set(jobId, job);
       if (job.houseId) {

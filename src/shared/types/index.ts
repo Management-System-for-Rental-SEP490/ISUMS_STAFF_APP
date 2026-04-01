@@ -64,6 +64,12 @@ export type RootStackParamList = AuthStackParamList & {
       houseId?: string;
     };
   };
+  /** Màn ghi nhận sửa chữa issue khi ticket đang IN_PROGRESS. */
+  StaffIssueNote: {
+    issueId: string;
+    houseId: string;
+    assetId: string;
+  };
   /** Màn form tạo danh mục thiết bị (Staff). Không tham số. */
   Category: undefined;
   /** Màn danh sách danh mục thiết bị (Staff). Không tham số. */
@@ -75,7 +81,11 @@ export type RootStackParamList = AuthStackParamList & {
   /** Màn form thêm thiết bị (Staff). */
   ItemCreate: undefined;
   /** Màn chỉnh sửa thiết bị (Staff), hiện dạng modal. Param: item cần sửa. */
-  ItemEdit: { item: AssetItemFromApi };
+  ItemEdit: {
+    item: AssetItemFromApi;
+    /** true khi mở từ luồng cập nhật bảo trì ở WorkSlotDetail. */
+    fromMaintenanceUpdate?: boolean;
+  };
   /** Màn chỉ xem thông tin thiết bị (Staff), khi thợ quét NFC bằng nút Quét ở footer. Param: item. */
   ItemDescription: { item: AssetItemFromApi };
   /** Màn danh sách yêu cầu nghỉ của staff (từ API leave). */
@@ -233,6 +243,7 @@ export interface RentalHouse {
 // Tại đây chỉ re-export lại để ai đang import từ "shared/types" vẫn dùng được.
 export type {
   ApiResponse,
+  HouseStatus,
   HouseFromApi,
   HousesApiResponse,
   FunctionalAreaFromApi,
@@ -242,6 +253,8 @@ export type {
   AssetItemFromApi,
   AssetItemsApiResponse,
   UserProfileResponse,
+  IssueStatus,
+  QuoteStatus,
 } from "./api";
 
 export type { TelemetryMessage, UsageData } from "./iot";

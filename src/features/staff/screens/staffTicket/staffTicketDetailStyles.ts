@@ -1,5 +1,6 @@
 import { StyleSheet } from "react-native";
 import { brandPrimary } from "../../../../shared/theme/color";
+import { appTypography } from "../../../../shared/utils";
 
 /**
  * Styles cho màn hình Chi tiết Ticket của Staff.
@@ -40,15 +41,15 @@ export const staffTicketDetailStyles = StyleSheet.create({
     elevation: 2,
   },
   cardLabel: {
-    fontSize: 12,
+    ...appTypography.caption,
     fontWeight: "600",
     color: "#6B7280",
     marginBottom: 4,
   },
   cardValue: {
-    fontSize: 15,
+    ...appTypography.listTitle,
+    fontWeight: "500",
     color: "#1F2937",
-    lineHeight: 22,
   },
   row: {
     marginBottom: 14,
@@ -63,7 +64,7 @@ export const staffTicketDetailStyles = StyleSheet.create({
     borderRadius: 10,
   },
   statusText: {
-    fontSize: 13,
+    ...appTypography.secondary,
     fontWeight: "600",
   },
   priorityBadge: {
@@ -81,8 +82,149 @@ export const staffTicketDetailStyles = StyleSheet.create({
     alignItems: "center",
   },
   acceptBtnText: {
-    fontSize: 16,
+    ...appTypography.sectionHeading,
     fontWeight: "600",
     color: "#fff",
+  },
+  placeholderModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  placeholderModalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 16,
+    gap: 12,
+    maxHeight: "80%",
+  },
+  placeholderModalTitle: {
+    ...appTypography.sectionHeading,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  placeholderModalBody: {
+    ...appTypography.body,
+    fontWeight: "400",
+    color: "#64748b",
+  },
+  placeholderModalCloseBtn: {
+    backgroundColor: brandPrimary,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 110,
+    alignItems: "center",
+  },
+  placeholderModalCloseBtnDisabled: {
+    opacity: 0.6,
+  },
+  placeholderModalCloseText: {
+    ...appTypography.secondary,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  placeholderModalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  placeholderModalGhostBtn: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 88,
+    alignItems: "center",
+  },
+  placeholderModalGhostText: {
+    ...appTypography.secondary,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  slotLoadingWrap: {
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  slotLoadingText: {
+    ...appTypography.secondary,
+    color: "#64748b",
+  },
+  slotErrorText: {
+    ...appTypography.secondary,
+    color: "#b91c1c",
+  },
+  slotEmptyText: {
+    ...appTypography.secondary,
+    color: "#64748b",
+  },
+  slotSection: {
+    gap: 8,
+  },
+  slotSectionTitle: {
+    ...appTypography.secondary,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  dateListContent: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  dateChip: {
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#fff",
+  },
+  dateChipSelected: {
+    borderColor: brandPrimary,
+    backgroundColor: "#EEF2FF",
+  },
+  dateChipText: {
+    ...appTypography.caption,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  dateChipTextSelected: {
+    color: "#1E3A8A",
+  },
+  slotList: {
+    maxHeight: 240,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+  },
+  slotListContent: {
+    padding: 8,
+    gap: 8,
+  },
+  slotRow: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  slotRowSelected: {
+    borderColor: brandPrimary,
+    backgroundColor: "#EEF2FF",
+  },
+  slotRowText: {
+    ...appTypography.secondary,
+    color: "#334155",
+  },
+  slotRowTextSelected: {
+    color: "#1E3A8A",
+    fontWeight: "600",
   },
 });

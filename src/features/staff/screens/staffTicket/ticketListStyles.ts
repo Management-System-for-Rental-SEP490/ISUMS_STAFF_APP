@@ -1,5 +1,12 @@
 import { StyleSheet } from "react-native";
-import { brandPrimary, brandSecondary } from "../../../../shared/theme/color";
+import {
+  brandBlueMutedBg,
+  brandPrimary,
+  brandSecondary,
+  brandTintBg,
+  neutral,
+} from "../../../../shared/theme/color";
+import { appTypography } from "../../../../shared/utils";
 
 /**
  * Styles cho màn hình Danh sách Ticket của Staff.
@@ -8,88 +15,157 @@ import { brandPrimary, brandSecondary } from "../../../../shared/theme/color";
 export const ticketListStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: neutral.backgroundSubtle,
   },
   listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingHorizontal: 14,
+    paddingTop: 14,
     paddingBottom: 100,
   },
+  headerSection: {
+    gap: 8,
+    marginBottom: 12,
+  },
   title: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1e293b",
-    marginBottom: 16,
+    ...appTypography.screenHeader,
+    color: neutral.slate900,
+  },
+  subtitle: {
+    ...appTypography.caption,
+    color: neutral.slate500,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: neutral.surface,
+    borderRadius: 16,
+    borderCurve: "continuous",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 6,
+    boxShadow: "0 6px 16px rgba(0,0,0,0.06)",
+  },
+  summaryCardCompleted: {
+    flex: 1,
+    backgroundColor: neutral.surface,
+    borderRadius: 16,
+    borderCurve: "continuous",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 6,
+    boxShadow: "0 6px 16px rgba(0,0,0,0.06)",
+  },
+  summaryLabel: {
+    ...appTypography.micro,
+    color: neutral.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  summaryValue: {
+    ...appTypography.cardTitle,
+    color: neutral.heading,
   },
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    backgroundColor: neutral.surface,
+    borderRadius: 16,
+    borderCurve: "continuous",
     padding: 14,
     marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3, // Độ lệch của bóng
-    borderLeftWidth: 4,
-    borderLeftColor: brandPrimary,
-  },
-  cardHigh: {
-    borderLeftColor: brandPrimary,
-  },
-  cardMedium: {
-    borderLeftColor: brandSecondary,
-  },
-  cardLow: {
-    borderLeftColor: brandPrimary,
+    gap: 8,
+    boxShadow: "0 8px 18px rgba(15,23,42,0.07)",
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 8,
   },
   ticketId: {
-    fontSize: 12,
-    fontWeight: "600",
+    ...appTypography.badge,
     color: brandPrimary,
   },
-  priorityBadge: {
+  statusPill: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 10,
+    borderRadius: 999,
+    backgroundColor: brandTintBg,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
-  priorityText: {
-    fontSize: 11,
-    fontWeight: "600",
+  statusPillText: {
+    ...appTypography.badge,
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: brandTintBg,
+  },
+  typeText: {
+    ...appTypography.badge,
+    color: brandSecondary,
   },
   cardTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: 6,
+    ...appTypography.sectionHeading,
+    color: neutral.slate900,
   },
   cardMeta: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginBottom: 2,
+    ...appTypography.caption,
+    color: neutral.slate500,
   },
   cardDescription: {
-    fontSize: 13,
-    color: "#64748b",
-    lineHeight: 18,
-    marginTop: 6,
+    ...appTypography.listSubtitle,
+    color: neutral.slate600,
+  },
+  cardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  cardTimeWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  cardTime: {
+    ...appTypography.micro,
+    color: neutral.slate500,
   },
   statusBadge: {
-    alignSelf: "flex-start",
-    marginTop: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 10,
+    borderRadius: 999,
+  },
+  statusBadgePending: {
+    backgroundColor: brandTintBg,
+  },
+  statusBadgeProgress: {
+    backgroundColor: brandBlueMutedBg,
+  },
+  statusBadgeDone: {
+    backgroundColor: brandTintBg,
+  },
+  statusBadgeCancelled: {
+    backgroundColor: neutral.borderMuted,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: "600",
+    ...appTypography.badge,
+  },
+  statusTextPending: {
+    color: brandSecondary,
+  },
+  statusTextProgress: {
+    color: brandSecondary,
+  },
+  statusTextDone: {
+    color: brandPrimary,
+  },
+  statusTextCancelled: {
+    color: neutral.textSecondary,
   },
   emptyWrapper: {
     flex: 1,
@@ -98,8 +174,30 @@ export const ticketListStyles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyText: {
-    fontSize: 15,
-    color: "#94a3b8",
+    ...appTypography.body,
+    color: neutral.slate400,
     textAlign: "center",
+  },
+  stateWrapper: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  stateText: {
+    ...appTypography.body,
+    color: neutral.textSecondary,
+    textAlign: "center",
+  },
+  retryButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: brandPrimary,
+  },
+  retryButtonText: {
+    ...appTypography.buttonLabel,
+    color: neutral.surface,
   },
 });

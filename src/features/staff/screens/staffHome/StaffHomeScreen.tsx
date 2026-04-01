@@ -54,7 +54,7 @@ export default function StaffHomeScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<StaffHomeNavProp>();
-  // Lấy danh sách workSlots thật trong tuần hiện tại từ BE (đã được map về WorkSlot trong StaffScheduleContext).
+  // Lấy danh sách workSlots từ BE (đã map về WorkSlot trong StaffScheduleContext; Home chỉ hiện hôm nay/ngày mai).
   // - workSlots: mảng các ca làm việc, mỗi ca có thông tin buildingName, task, ticketId, ...
   // - Nếu API lỗi hoặc chưa load xong, workSlots sẽ là null → UI tóm tắt lịch sẽ hiển thị rỗng.
   const { workSlots } = useStaffSchedule();
@@ -361,14 +361,6 @@ export default function StaffHomeScreen() {
         <Text style={staffHomeStyles.scheduleSummaryHeadingText}>
           {t("staff_home.schedule_summary_title")}
         </Text>
-        <TouchableOpacity
-          style={staffHomeStyles.addButton}
-          onPress={() => setAddMenuVisible(true)}
-          activeOpacity={0.8}
-          accessibilityLabel={t("staff_home.add_menu_open")}
-        >
-          <Icons.plus size={22} color={neutral.surface} />
-        </TouchableOpacity>
       </View>
       <View style={staffHomeStyles.scheduleCard}>
         <View style={staffHomeStyles.scheduleTableHeader}>
@@ -438,7 +430,12 @@ export default function StaffHomeScreen() {
   if (loading) {
     return (
       <View style={staffHomeStyles.container}>
-        <Header variant="default" />
+        <Header
+          variant="default"
+          showActionButton
+          onActionPress={() => setAddMenuVisible(true)}
+          actionAccessibilityLabel={t("staff_home.add_menu_open")}
+        />
         <View style={staffHomeStyles.loadingContainer}>
           <ActivityIndicator size="large" color={brandPrimary} />
           <Text style={{ marginTop: 10, color: neutral.textSecondary }}>
@@ -452,7 +449,12 @@ export default function StaffHomeScreen() {
   if (isError) {
     return (
       <View style={staffHomeStyles.container}>
-        <Header variant="default" />
+        <Header
+          variant="default"
+          showActionButton
+          onActionPress={() => setAddMenuVisible(true)}
+          actionAccessibilityLabel={t("staff_home.add_menu_open")}
+        />
         <View style={[staffHomeStyles.loadingContainer, { padding: 24 }]}>
           <Text style={{ color: neutral.textSecondary, textAlign: "center" }}>
             {t("staff_home.buildings_error")}
@@ -470,7 +472,12 @@ export default function StaffHomeScreen() {
 
   return (
     <View style={staffHomeStyles.container}>
-      <Header variant="default" />
+      <Header
+        variant="default"
+        showActionButton
+        onActionPress={() => setAddMenuVisible(true)}
+        actionAccessibilityLabel={t("staff_home.add_menu_open")}
+      />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

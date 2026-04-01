@@ -1,191 +1,196 @@
-/**
- * Màn hình Danh sách Ticket dành cho Staff.
- * Hiển thị các ticket do người thuê gửi (báo cáo sự cố). Mock data từ mockStaffData.
- * Khi có API sẽ thay bằng dữ liệu thật; có thể navigate sang TicketDetail khi nhấn vào item.
- */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  ListRenderItem,
-  RefreshControl,
-} from "react-native";
+import { View, Text, FlatList, ListRenderItem, Pressable, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { IssueTicketListItemFromApi } from "../../../../shared/types/api";
 import { MainTabParamList, RootStackParamList } from "../../../../shared/types";
 import Header from "../../../../shared/components/header";
-import { MOCK_STAFF_TICKETS, StaffTicketListItem } from "../../data/mockStaffData";
 import { ticketListStyles } from "./ticketListStyles";
-import {
-  brandPrimary,
-  brandSecondary,
-  brandTintBg,
-  neutral,
-} from "../../../../shared/theme/color";
+import { brandPrimary, brandSecondary, neutral } from "../../../../shared/theme/color";
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
-import { getTotalPages, slicePage } from "../../../../shared/utils";
+import { formatStaffTicketListCreatedAt, getTotalPages, slicePage } from "../../../../shared/utils";
+import { useAssetItems } from "../../../../shared/hooks/useAssetItems";
+import { useHouses } from "../../../../shared/hooks/useHouses";
+import { useStaffIssueTickets } from "../../../../shared/hooks/useUserProfile";
+import Icons from "../../../../shared/theme/icon";
 
 type TicketListNavProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Ticket">,
   NativeStackNavigationProp<RootStackParamList>
 >;
-// String về priority ticket
-function getPriorityStyle(priority: string) {
-  switch (priority) {
-    case "high":
-      return { bg: brandTintBg, color: brandPrimary };
-    case "medium":
-      return { bg: brandTintBg, color: brandSecondary };
-    default:
-      return { bg: neutral.background, color: neutral.textSecondary };
-  }
-}
-// String về status ticket
-function getStatusStyle(status: string) {
-  switch (status) {
-    case "pending":
-      return { bg: brandTintBg, color: brandPrimary };
-    case "assigned":
-      return { bg: brandTintBg, color: brandSecondary };
-    case "scheduled":
-      return { bg: brandTintBg, color: brandSecondary };
-    case "in_progress":
-      return { bg: brandTintBg, color: brandPrimary };
-    case "completed":
-      return { bg: brandTintBg, color: brandPrimary };
-    case "cancelled":
-      return { bg: neutral.background, color: neutral.textSecondary };
-    default:
-      return { bg: neutral.background, color: neutral.textSecondary };
-  }
+
+function toDateSafe(raw: string): Date | null {
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
 }
 
-function formatDate(d: Date, t: (key: string, options?: Record<string, number>) => string): string {
-  const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  const days = Math.floor(diff / (24 * 60 * 60 * 1000)); // trả về khoảng thời gian giữa d và bây giờ, bỏ phần lẻ
-  if (days === 0) return t("staff_ticket_list.today");
-  if (days === 1) return t("staff_ticket_list.yesterday");
-  if (days < 7) return t("staff_ticket_list.days_ago", { n: days }); //
-  return d.toLocaleDateString(); // chuyển đổi ngày thành chuỗi theo locale
+function getStatusLabel(status: string, t: (key: string) => string): string {
+  const key = `staff_ticket_list.status_${status.toUpperCase()}`;
+  const translated = t(key);
+  return translated !== key ? translated : status;
+}
+
+function getStatusTextStyle(status: string) {
+  const s = status.toUpperCase();
+  if (s === "DONE" || s === "CLOSED") return ticketListStyles.statusTextDone;
+  if (s === "CANCELLED") return ticketListStyles.statusTextCancelled;
+  if (s === "IN_PROGRESS") return ticketListStyles.statusTextProgress;
+  return ticketListStyles.statusTextPending;
 }
 
 export default function TicketListScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<TicketListNavProp>();
-  const tickets = useMemo(() => MOCK_STAFF_TICKETS, []);
-  const [listPage, setListPage] = useState(1);
-  const [refreshing, setRefreshing] = useState(false);
+  const { data: ticketsData = [], isLoading, isError, refetch, isRefetching } = useStaffIssueTickets();
+  const { data: housesRes } = useHouses();
+  const { data: assetsRes } = useAssetItems();
 
-  const ticketTotalPages = getTotalPages(tickets.length);
-  const pagedTickets = useMemo(
-    () => slicePage(tickets, listPage),
-    [tickets, listPage]
-  );
+  const houseNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    (housesRes?.data ?? []).forEach((house) => {
+      map.set(house.id, house.name);
+    });
+    return map;
+  }, [housesRes?.data]);
+
+  const assetNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    (assetsRes?.data ?? []).forEach((asset) => {
+      map.set(asset.id, asset.displayName);
+    });
+    return map;
+  }, [assetsRes?.data]);
+
+  const sortedTickets = useMemo(() => {
+    return [...ticketsData].sort((a, b) => {
+      const aTime = toDateSafe(a.createdAt)?.getTime() ?? 0;
+      const bTime = toDateSafe(b.createdAt)?.getTime() ?? 0;
+      return bTime - aTime;
+    });
+  }, [ticketsData]);
+  const [listPage, setListPage] = useState(1);
+  const ticketTotalPages = getTotalPages(sortedTickets.length);
+  const pagedTickets = useMemo(() => slicePage(sortedTickets, listPage), [sortedTickets, listPage]);
+
+  const summary = useMemo(() => {
+    const total = sortedTickets.length;
+    const done = sortedTickets.filter((ticket) => {
+      const s = String(ticket.status || "").toUpperCase();
+      return s === "DONE" || s === "CLOSED";
+    }).length;
+    return { total, done };
+  }, [sortedTickets]);
 
   useEffect(() => {
     setListPage(1);
-  }, [tickets.length]);
+  }, [sortedTickets.length]);
+
   const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 450);
-  }, []);
+    void refetch();
+  }, [refetch]);
 
   const openTicketDetail = (ticketId: string) => {
     const root = navigation.getParent?.();
-    if (root && "navigate" in root) { // nếu root có navigate thì gọi navigate
+    if (root && "navigate" in root) {
       (root as { navigate: (name: string, params: { ticketId: string }) => void }).navigate(
-        "TicketDetail", // navigate đến màn hình chi tiết ticket
+        "TicketDetail",
         { ticketId }
       );
     }
   };
 
-  const renderItem: ListRenderItem<StaffTicketListItem> = ({ item }) => {
-    const priorityStyle = getPriorityStyle(item.priority);
-    const statusStyle = getStatusStyle(item.status);
-    const cardBorder =
-      item.priority === "high"
-        ? ticketListStyles.cardHigh
-        : item.priority === "medium"
-        ? ticketListStyles.cardMedium
-        : ticketListStyles.cardLow;
-
-    const priorityLabel =
-      item.priority === "high"
-        ? t("staff_ticket_list.priority_high")
-        : item.priority === "medium"
-        ? t("staff_ticket_list.priority_medium")
-        : t("staff_ticket_list.priority_low");
-
-    const statusLabel =
-      item.status === "pending"
-        ? t("staff_ticket_list.status_pending")
-        : item.status === "assigned"
-        ? t("staff_ticket_list.status_assigned")
-        : item.status === "scheduled"
-        ? t("staff_ticket_list.status_scheduled")
-        : item.status === "in_progress"
-        ? t("staff_ticket_list.status_in_progress")
-        : item.status === "completed"
-        ? t("staff_ticket_list.status_completed")
-        : t("staff_ticket_list.status_cancelled");
+  const renderItem: ListRenderItem<IssueTicketListItemFromApi> = ({ item }) => {
+    const createdAt = toDateSafe(item.createdAt);
+    const houseName = houseNameById.get(item.houseId) ?? t("staff_ticket_list.unknown_house");
+    const assetName = assetNameById.get(item.assetId) ?? t("staff_ticket_list.unknown_asset");
+    const createdAtLabel = createdAt
+      ? formatStaffTicketListCreatedAt(createdAt, t)
+      : t("staff_ticket_list.unknown_time");
 
     return (
-      <TouchableOpacity
-        activeOpacity={0.8}
-        style={[ticketListStyles.card, cardBorder]}
-        onPress={() => openTicketDetail(item.id)}
-      >
+      <Pressable style={ticketListStyles.card} onPress={() => openTicketDetail(item.id)}>
         <View style={ticketListStyles.cardHeader}>
-          <Text style={ticketListStyles.ticketId}>#{item.id}</Text>
-          <View style={[ticketListStyles.priorityBadge, { backgroundColor: priorityStyle.bg }]}>
-            <Text style={[ticketListStyles.priorityText, { color: priorityStyle.color }]}>
-              {priorityLabel}
+          <Text style={ticketListStyles.cardMeta}>{assetName}</Text>
+          <View style={ticketListStyles.statusPill}>
+            {String(item.status || "").toUpperCase() === "DONE" || String(item.status || "").toUpperCase() === "CLOSED" ? (
+              <Icons.checkCircle size={14} color={brandPrimary} />
+            ) : null}
+            <Text style={[ticketListStyles.statusPillText, getStatusTextStyle(String(item.status || ""))]}>
+              {getStatusLabel(String(item.status || ""), t)}
             </Text>
           </View>
         </View>
         <Text style={ticketListStyles.cardTitle} numberOfLines={2}>
           {item.title}
         </Text>
-        <Text style={ticketListStyles.cardMeta}>
-          {item.buildingName} • {item.deviceName}
-        </Text>
-        <Text style={ticketListStyles.cardMeta}>
-          {t("staff_ticket_list.tenant")}: {item.tenantName} • {formatDate(item.createdAt, t)}
-        </Text>
-        <Text style={ticketListStyles.cardDescription} numberOfLines={2}>
-          {item.description}
-        </Text>
-        <View style={[ticketListStyles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-          <Text style={[ticketListStyles.statusText, { color: statusStyle.color }]}>
-            {statusLabel}
-          </Text>
+        <Text style={ticketListStyles.cardMeta}>{houseName}</Text>
+        <View style={ticketListStyles.cardFooter}>
+          <View style={ticketListStyles.cardTimeWrap}>
+            <Icons.schedule size={14} color={neutral.slate400} />
+            <Text style={ticketListStyles.cardTime}>{createdAtLabel}</Text>
+          </View>
+          <Icons.chevronForward size={18} color={brandSecondary} />
         </View>
-      </TouchableOpacity>
+      </Pressable>
     );
   };
 
   const listHeader = (
-    <Text style={ticketListStyles.title}>
-      {t("staff_ticket_list.title")}
-    </Text>
+    <View style={ticketListStyles.headerSection}>
+      <Text style={ticketListStyles.title}>{t("staff_ticket_list.title")}</Text>
+      <Text style={ticketListStyles.subtitle}>{t("staff_ticket_list.subtitle")}</Text>
+
+      <View style={ticketListStyles.summaryRow}>
+        <View style={ticketListStyles.summaryCard}>
+          <Icons.ticket size={18} color={brandSecondary} />
+          <Text style={ticketListStyles.summaryLabel}>{t("staff_ticket_list.summary_total")}</Text>
+          <Text style={ticketListStyles.summaryValue}>{summary.total}</Text>
+        </View>
+        <View style={ticketListStyles.summaryCardCompleted}>
+          <Icons.checkCircle size={18} color={brandPrimary} />
+          <Text style={ticketListStyles.summaryLabel}>{t("staff_ticket_list.summary_done")}</Text>
+          <Text style={ticketListStyles.summaryValue}>{summary.done}</Text>
+        </View>
+      </View>
+    </View>
   );
 
   const listEmpty = (
     <View style={ticketListStyles.emptyWrapper}>
-      <Text style={ticketListStyles.emptyText}>
-        {t("staff_ticket_list.empty")}
-      </Text>
+      <Text style={ticketListStyles.emptyText}>{t("staff_ticket_list.empty")}</Text>
     </View>
   );
+
+  if (isLoading && sortedTickets.length === 0) {
+    return (
+      <View style={ticketListStyles.container}>
+        <Header variant="default" />
+        <View style={ticketListStyles.stateWrapper}>
+          <Text style={ticketListStyles.stateText}>{t("common.loading")}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (isError && sortedTickets.length === 0) {
+    return (
+      <View style={ticketListStyles.container}>
+        <Header variant="default" />
+        <View style={ticketListStyles.stateWrapper}>
+          <Text style={ticketListStyles.stateText}>{t("staff_ticket_list.load_error")}</Text>
+          <Pressable onPress={() => void refetch()} style={ticketListStyles.retryButton}>
+            <Text style={ticketListStyles.retryButtonText}>{t("common.try_again")}</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={ticketListStyles.container}>
@@ -205,14 +210,14 @@ export default function TicketListScreen() {
           />
         )}
         contentContainerStyle={
-          tickets.length === 0
+          sortedTickets.length === 0
             ? [ticketListStyles.listContent, { flex: 1 }]
             : ticketListStyles.listContent
         }
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
+            refreshing={isRefetching}
             onRefresh={onRefresh}
             tintColor={brandPrimary}
             colors={[brandPrimary]}

@@ -3,28 +3,33 @@
  * GET /api/assets/items, POST, PUT, DELETE /api/assets/items/:id.
  */
 import axiosClient from "../api/axiosClient";
-import { ASSETS_API_BASE, BACKEND_API_BASE } from "../api/config";
-import type {
-  AssetItemFromApi,
-  AssetItemsApiResponse,
-  AssetItemsParams,
-  CreateAssetItemRequest,
-  CreateAssetItemApiResponse,
-  UpdateAssetItemRequest,
-  UpdateAssetItemApiResponse,
-  IotDevicesByHouseApiResponse,
-  AttachAssetTagRequest,
-  AttachAssetTagApiResponse,
-  DetachAssetTagApiResponse,
-  GetAssetByTagValueApiResponse,
-  ApiResponse,
-  IotProvisionRequest,
-  IotProvisionApiResponse,
-  IotProvisionTokenRequest,
-  IotProvisionTokenApiResponse,
-  IotControllerByHouseApiResponse,
-  IotProvisionNodeRequest,
-  IotProvisionNodeApiResponse,
+import { ASSETS_API_BASE, BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
+import i18n from "../i18n";
+import { useAuthStore } from "../../store/useAuthStore";
+import {
+  normalizeAssetItemStatusFromApi,
+  type AssetItemFromApi,
+  type AssetItemsApiResponse,
+  type AssetItemsParams,
+  type CreateAssetItemRequest,
+  type CreateAssetItemApiResponse,
+  type UpdateAssetItemRequest,
+  type UpdateAssetItemApiResponse,
+  type IotDevicesByHouseApiResponse,
+  type AttachAssetTagRequest,
+  type AttachAssetTagApiResponse,
+  type DetachAssetTagApiResponse,
+  type GetAssetByTagValueApiResponse,
+  type ApiResponse,
+  type IotProvisionRequest,
+  type IotProvisionApiResponse,
+  type IotProvisionTokenRequest,
+  type IotProvisionTokenApiResponse,
+  type IotControllerByHouseApiResponse,
+  type IotProvisionNodeRequest,
+  type IotProvisionNodeApiResponse,
+  type AssetMaintenanceBatchUpdateRequest,
+  type AssetMaintenanceBatchUpdateApiResponse,
 } from "../types/api";
 
 /**
@@ -93,6 +98,7 @@ function normalizeAssetItemFromResponse(
     ...raw,
     nfcTag: nfcStr !== "" ? nfcStr : null,
     qrTag: qrStr !== "" ? qrStr : null,
+    status: normalizeAssetItemStatusFromApi(raw.status),
     functionAreaId:
       functionAreaId != null && String(functionAreaId).trim() !== ""
         ? String(functionAreaId).trim()
@@ -162,7 +168,7 @@ export const getAssetItemsByHouseId = async (
 export const getIotDevicesByHouseId = async (
   houseId: string
 ): Promise<IotDevicesByHouseApiResponse> => {
-  const url = `${BACKEND_API_BASE}/assets/iot-devices/house/${encodeURIComponent(houseId)}`;
+  const url = `${FALLBACK_BACKEND_URL}/assets/iot-devices/house/${encodeURIComponent(houseId)}`;
   const response = await axiosClient.get<IotDevicesByHouseApiResponse>(url);
   return response.data;
 };
@@ -174,7 +180,7 @@ export const getIotDevicesByHouseId = async (
 export const getAssetItemById = async (id: string): Promise<AssetItemFromApi | undefined> => {
   try {
     const response = await axiosClient.get<UpdateAssetItemApiResponse | AssetItemFromApi>(
-      `${ASSETS_API_BASE}/assets/items/${id}`
+      `${FALLBACK_BACKEND_URL}/assets/items/${id}`
     );
     const envelope = response.data as unknown;
     let rawUnknown: unknown;
@@ -225,7 +231,7 @@ export const getAssetItemByTag = async (
 
   try {
     const response = await axiosClient.get<GetAssetByTagValueApiResponse>(
-      `${ASSETS_API_BASE}/assets/tags/asset/${encodeURIComponent(apiTagValue)}`
+      `${FALLBACK_BACKEND_URL}/assets/tags/asset/${encodeURIComponent(apiTagValue)}`
     );
 
     const responseData = response.data.data;
@@ -324,7 +330,7 @@ export const createAssetItem = async (
       };
 
   const response = await axiosClient.post<CreateAssetItemApiResponse>(
-    `${ASSETS_API_BASE}/assets/items`,
+    `${FALLBACK_BACKEND_URL}/assets/items`,
     body
   );
   const res = response.data;
@@ -391,7 +397,7 @@ export const updateAssetItem = async (
         functional_area_id: functionAreaId,
       };
 
-  const putUrl = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(id)}`;
+  const putUrl = `${FALLBACK_BACKEND_URL}/assets/items/${encodeURIComponent(id)}`;
 
   const response = await axiosClient.put<UpdateAssetItemApiResponse>(putUrl, body);
   const res = response.data;
@@ -414,6 +420,20 @@ export const updateAssetItem = async (
 };
 
 /**
+ * Batch cập nhật thông tin bảo trì cho nhiều thiết bị.
+ * API: PUT /api/assets/items/maintenance/batch
+ */
+export const updateAssetItemsMaintenanceBatch = async (
+  payload: AssetMaintenanceBatchUpdateRequest
+): Promise<AssetMaintenanceBatchUpdateApiResponse> => {
+  const response = await axiosClient.put<AssetMaintenanceBatchUpdateApiResponse>(
+    `${FALLBACK_BACKEND_URL}/assets/items/maintenance/batch`,
+    payload
+  );
+  return response.data;
+};
+
+/**
  * Đổi nhà cho thiết bị (PUT /api/asset/items/:id/transfer).
  * Body: { newHouseId }. BE sẽ cập nhật houseId và trả lại thiết bị sau khi chuyển.
  */
@@ -422,7 +442,7 @@ export const transferAssetItemHouse = async (
   newHouseId: string
 ): Promise<UpdateAssetItemApiResponse> => {
   const response = await axiosClient.put<UpdateAssetItemApiResponse>(
-    `${ASSETS_API_BASE}/assets/items/${id}/transfer`,
+    `${FALLBACK_BACKEND_URL}/assets/items/${id}/transfer`,
     { newHouseId }
   );
   const res = response.data;
@@ -448,7 +468,7 @@ export const transferAssetItemHouse = async (
  */
 export const deleteAssetItem = async (id: string): Promise<{ success: boolean; message?: string }> => {
   const response = await axiosClient.delete<{ success: boolean; message?: string }>(
-    `${ASSETS_API_BASE}/assets/items/${id}`
+    `${FALLBACK_BACKEND_URL}/assets/items/${id}`
   );
   return response.data;
 };
@@ -466,7 +486,7 @@ export const attachAssetTag = async (
     tagType: payload.tagType,
   };
   const response = await axiosClient.post<AttachAssetTagApiResponse>(
-    `${ASSETS_API_BASE}/assets/tags`,
+    `${FALLBACK_BACKEND_URL}/assets/tags`,
     body
   );
   return response.data;
@@ -481,7 +501,7 @@ export const detachAssetTag = async (
 ): Promise<DetachAssetTagApiResponse> => {
   const normalized = normalizeTagValueForApi(tagValue.trim());
   const response = await axiosClient.put<DetachAssetTagApiResponse>(
-    `${ASSETS_API_BASE}/assets/tags/detach/${encodeURIComponent(normalized)}`
+    `${FALLBACK_BACKEND_URL}/assets/tags/detach/${encodeURIComponent(normalized)}`
   );
   return response.data;
 };
@@ -494,7 +514,8 @@ export const deprovisionIotControllerByHouseId = async (
   houseId: string
 ): Promise<ApiResponse<string>> => {
   const response = await axiosClient.delete<ApiResponse<string>>(
-    `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
+    //`${FALLBACK_BACKEND_URL}/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
+    `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
   );
   return response.data;
 };
@@ -509,7 +530,8 @@ export const provisionIotControllerByHouseId = async (
   payload: IotProvisionRequest
 ): Promise<IotProvisionApiResponse> => {
   const response = await axiosClient.post<IotProvisionApiResponse>(
-    `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
+   // `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
+   `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
     payload
   );
   return response.data;
@@ -520,7 +542,8 @@ export const getIotProvisionTokenBySerial = async (
   payload: IotProvisionTokenRequest
 ): Promise<IotProvisionTokenApiResponse> => {
   const response = await axiosClient.post<IotProvisionTokenApiResponse>(
-    `${ASSETS_API_BASE}/assets/iot/provision-token`,
+    //`${ASSETS_API_BASE}/assets/iot/provision-token`,
+    'https://api-dev.isums.pro/api/assets/iot/provision-token',
     payload
   );
   return response.data;
@@ -531,7 +554,8 @@ export const getIotControllerByHouseId = async (
   houseId: string
 ): Promise<IotControllerByHouseApiResponse> => {
   const response = await axiosClient.get<IotControllerByHouseApiResponse>(
-    `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
+    //`${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
+    `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
   );
   return response.data;
 };
@@ -542,9 +566,143 @@ export const provisionIotNodeByHouseId = async (
   payload: IotProvisionNodeRequest
 ): Promise<IotProvisionNodeApiResponse> => {
   const response = await axiosClient.post<IotProvisionNodeApiResponse>(
-    `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
+    //`${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
+    `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
     payload
   );
   return response.data;
+};
+
+export type AssetItemImageToUpload = {
+  uri: string;
+  fileName?: string;
+  mimeType?: string;
+};
+
+export type AssetItemImageFromApi = {
+  id: string;
+  url: string;
+  createdAt?: string | null;
+};
+
+/**
+ * Lấy danh sách ảnh của asset item.
+ * Endpoint (theo Postman trong ảnh bạn gửi): GET /api/assets/items/:id/images
+ */
+export const getAssetItemImages = async (
+  itemId: string,
+  cacheBust?: number,
+): Promise<AssetItemImageFromApi[]> => {
+  if (!itemId?.trim()) return [];
+  const baseUrl = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
+  const url = cacheBust ? `${baseUrl}?t=${encodeURIComponent(String(cacheBust))}` : baseUrl;
+  const devLog =
+    typeof __DEV__ !== "undefined" && __DEV__
+      ? (...args: any[]) => console.log(...args)
+      : null;
+
+  try {
+    devLog?.("[assetItemApi] getAssetItemImages -> GET", { itemId, url });
+    const response = await axiosClient.get<ApiResponse<AssetItemImageFromApi[]>>(url);
+    const ok = Boolean(response?.data?.success);
+    const count = Array.isArray(response?.data?.data) ? response.data.data.length : -1;
+    devLog?.("[assetItemApi] getAssetItemImages <-", {
+      itemId,
+      ok,
+      count,
+      statusCode: response?.data?.statusCode,
+      message: response?.data?.message,
+    });
+
+    if (ok && Array.isArray(response.data.data)) {
+      return response.data.data;
+    }
+    return [];
+  } catch (e) {
+    devLog?.("[assetItemApi] getAssetItemImages ERROR", { itemId, url, error: String(e) });
+    return [];
+  }
+};
+
+/**
+ * Upload ảnh đính kèm cho asset item.
+ * Endpoint (theo Postman trong ảnh bạn gửi): POST /api/assets/items/:id/images
+ * FormData key: `files`, mỗi phần tử là file ảnh dạng jpg/png...
+ */
+export const uploadAssetItemImages = async (
+  itemId: string,
+  images: AssetItemImageToUpload[],
+): Promise<void> => {
+  if (!itemId?.trim() || images.length === 0) return;
+
+  const token = useAuthStore.getState().token;
+  if (!token) {
+    throw new Error("Missing auth token for asset item image upload");
+  }
+
+  const url = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
+  const formData = new FormData();
+
+  images.forEach((img, idx) => {
+    const name = img.fileName ?? `asset-${itemId}-${idx}.jpg`;
+    const type = img.mimeType ?? "image/jpeg";
+    formData.append(
+      "files",
+      {
+        uri: img.uri,
+        name,
+        type,
+      } as any,
+    );
+  });
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Accept-Language": i18n.language || "vi",
+    },
+    body: formData,
+  });
+
+  const rawText = await response.text();
+  let parsed: any = null;
+  try {
+    parsed = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    parsed = rawText;
+  }
+
+  const success = parsed && typeof parsed === "object" ? parsed.success : undefined;
+  const message =
+    parsed && typeof parsed === "object" && "message" in parsed ? (parsed as { message: string }).message : undefined;
+
+  if (!response.ok || success === false) {
+    throw new Error(message || `Upload asset item images failed (HTTP ${response.status})`);
+  }
+};
+
+/**
+ * Xóa 1 ảnh của asset item.
+ * Endpoint (theo Postman bạn gửi): DELETE /api/assets/items/:itemId/image/:imageId
+ */
+export const deleteAssetItemImage = async (
+  itemId: string,
+  imageId: string,
+): Promise<void> => {
+  const normalizedItemId = String(itemId ?? "").trim();
+  const normalizedImageId = String(imageId ?? "").trim();
+  if (!normalizedItemId || !normalizedImageId) {
+    throw new Error("Missing itemId or imageId for deleting asset item image");
+  }
+
+  const url = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(normalizedItemId)}/image/${encodeURIComponent(normalizedImageId)}`;
+  const response = await axiosClient.delete<ApiResponse<null>>(url);
+  const ok = Boolean(response?.data?.success);
+  if (!ok) {
+    throw new Error(
+      response?.data?.message || "Delete asset item image failed",
+    );
+  }
 };
 

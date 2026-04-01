@@ -27,6 +27,7 @@ import type { WorkSlot, SlotType } from "../../data/mockStaffData";
 import { useStaffSchedule } from "../../context/StaffScheduleContext";
 import DayOffActionModal from "./modals/DayOffActionModal";
 import { staffCalendarStyles, SLOT_COLORS } from "./staffCalendarStyles";
+import { formatDateRangeDdMmYyyy, formatMonthYearSlashed } from "../../../../shared/utils";
 
 /** Key i18n cho ngày ngắn (T2, Mon, 月...) - 1=Mon..7=Sun */
 const DAY_SHORT_KEYS: Record<number, string> = {
@@ -51,33 +52,32 @@ const DAY_FULL_KEYS: Record<number, string> = {
 };
 
 const JOB_STATUS_KEYS = new Set([
-  "CREATED", "SCHEDULED", "NEED_RESCHEDULE", "IN_PROGRESS", "COMPLETED",
-  "FAILED", "CANCELLED", "OVERDUE", "AVAILABLE", "BOOKED",
+  "PENDING", "WAITING_MANAGER_CONFIRM", "CONFIRMED", "BOOKED", "BLOCKED",
+  "CREATED", "SCHEDULED", "NEED_RESCHEDULE", "IN_PROGRESS", "COMPLETED", "DONE",
+  "FAILED", "CANCELLED", "OVERDUE", "AVAILABLE",
 ]);
 
 function getSlotColor(slotType?: SlotType): string {
   return slotType ? (SLOT_COLORS[slotType] ?? SLOT_COLORS.other) : SLOT_COLORS.other;
 }
 
+function normalizeWorkSlotStatusKey(status: string | undefined): string {
+  return String(status ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
+}
+
 function getJobStatusKey(status: string | undefined): string {
   if (!status) return "staff_calendar.job_status_OTHER";
-  const key = `staff_calendar.job_status_${status.toUpperCase()}`;
-  return JOB_STATUS_KEYS.has(status.toUpperCase()) ? key : "staff_calendar.job_status_OTHER";
+  const n = normalizeWorkSlotStatusKey(status);
+  const key = `staff_calendar.job_status_${n}`;
+  return JOB_STATUS_KEYS.has(n) ? key : "staff_calendar.job_status_OTHER";
 }
 
 /** Giữ để tương thích - workslot không hiển thị ticket nữa, chỉ status + time + jobType */
 function formatTicketDisplay(_ticketId?: string): string {
   return "";
-}
-
-function formatDateRange(start: Date, end: Date): string {
-  const s = `${start.getDate().toString().padStart(2, "0")}/${(start.getMonth() + 1).toString().padStart(2, "0")}/${start.getFullYear()}`;
-  const e = `${end.getDate().toString().padStart(2, "0")}/${(end.getMonth() + 1).toString().padStart(2, "0")}/${end.getFullYear()}`;
-  return `${s} - ${e}`;
-}
-
-function formatMonthYear(d: Date): string {
-  return `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
 }
 
 export default function CalendarScreen() {
@@ -193,26 +193,22 @@ export default function CalendarScreen() {
 
   return (
     <View style={staffCalendarStyles.container}>
-      <Header variant="default" />
+      <Header
+        variant="default"
+        showActionButton
+        onActionPress={() => setDayOffActionVisible(true)}
+        actionAccessibilityLabel={t("staff_calendar.add_menu_open")}
+      />
       {/* Phần cố định: title + week nav + danh sách ngày - không scroll */}
       <View style={staffCalendarStyles.fixedTopSection}>
-        <View style={staffCalendarStyles.titleRow}>
-          <Text style={staffCalendarStyles.sectionTitle}>
-            {t("staff_calendar.weekly_timetable")}
-          </Text>
-          <TouchableOpacity
-            style={staffCalendarStyles.addButton}
-            onPress={() => setDayOffActionVisible(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={staffCalendarStyles.addButtonText}>+</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={staffCalendarStyles.sectionTitle}>
+          {t("staff_calendar.weekly_timetable")}
+        </Text>
 
         {weekStart && weekEnd && (
           <View style={staffCalendarStyles.weekNavRow}>
             <Text style={staffCalendarStyles.weekNavLabel}>
-              {t("staff_calendar.current_week")}: {formatDateRange(weekStart, weekEnd)}
+              {t("staff_calendar.current_week")}: {formatDateRangeDdMmYyyy(weekStart, weekEnd)}
             </Text>
             <View style={staffCalendarStyles.weekNavArrows}>
               <TouchableOpacity style={staffCalendarStyles.navArrow} onPress={() => navigateWeek(-1)} activeOpacity={0.7}>
@@ -225,7 +221,7 @@ export default function CalendarScreen() {
                 onPress={() => setSelectedDateYMD(null)}
                 activeOpacity={0.7}
               >
-                <Text style={staffCalendarStyles.monthText}>{formatMonthYear(weekStart)}</Text>
+                <Text style={staffCalendarStyles.monthText}>{formatMonthYearSlashed(weekStart)}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={staffCalendarStyles.navArrow} onPress={() => navigateWeek(1)} activeOpacity={0.7}>
                 <View style={staffCalendarStyles.navArrowInner}>

@@ -4,7 +4,7 @@
  * - PUT /api/maintenances/jobs/{jobId}/status?status={status} - cập nhật trạng thái job.
  */
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE } from "../api/config";
+import { BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
 import type { JobApiResponse } from "../types/api";
 
 /**
@@ -17,7 +17,7 @@ import type { JobApiResponse } from "../types/api";
  */
 export const getJobById = async (jobId: string): Promise<JobApiResponse> => {
   const response = await axiosClient.get<JobApiResponse>(
-    `${BACKEND_API_BASE}/maintenances/jobs/${encodeURIComponent(jobId)}`
+    `${FALLBACK_BACKEND_URL}/maintenances/jobs/${encodeURIComponent(jobId)}`
   );
   return response.data;
 };
@@ -36,7 +36,7 @@ export const updateJobStatus = async (
   status: JobStatusUpdate
 ): Promise<{ success: boolean; message?: string }> => {
   const response = await axiosClient.put<{ success: boolean; message?: string }>(
-    `${BACKEND_API_BASE}/maintenances/jobs/${encodeURIComponent(jobId)}/status`,
+    `${FALLBACK_BACKEND_URL}/maintenances/jobs/${encodeURIComponent(jobId)}/status`,
     null,
     { params: { status } }
   );

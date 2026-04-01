@@ -20,6 +20,7 @@ import { useIotDevicesByHouseId } from "../../../../shared/hooks";
 import Icons from "../../../../shared/theme/icon";
 import { brandPrimary, neutral } from "../../../../shared/theme/color";
 import { staffIotStyles as s } from "./staffIotStyles";
+import { formatLocaleIsoDateTime } from "../../../../shared/utils";
 import {
   StackScreenTitleBadge,
   StackScreenTitleBarBalance,
@@ -33,13 +34,6 @@ import {
 
 type StaffIotDetailRouteProp = RouteProp<RootStackParamList, "StaffIotDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "StaffIotDetail">;
-
-function formatIsoDate(raw: string | undefined, locale: string): string {
-  if (!raw?.trim()) return "";
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return raw;
-  return d.toLocaleString(locale);
-}
 
 function translateIotStatus(t: (k: string) => string, raw: string): string {
   const u = (raw ?? "").toUpperCase();
@@ -173,12 +167,12 @@ export default function StaffIotDetailScreen() {
             />
             <DetailField
               labelKey="staff_iot.detail_field_created_at"
-              value={formatIsoDate(c.createdAt, locale)}
+              value={formatLocaleIsoDateTime(c.createdAt, locale)}
               t={t}
             />
             <DetailField
               labelKey="staff_iot.detail_field_activated_at"
-              value={formatIsoDate(c.activatedAt, locale)}
+              value={formatLocaleIsoDateTime(c.activatedAt, locale)}
               t={t}
             />
             <DetailField

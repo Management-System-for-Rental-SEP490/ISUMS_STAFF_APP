@@ -48,6 +48,11 @@ export type DropdownBoxProps = {
   style?: StyleProp<ViewStyle>;
   onAfterSelect?: (sectionId: string, itemId: string | null) => void;
   /**
+   * Callback khi user nhập text vào ô search trong dropdown.
+   * Dùng để parent filter dữ liệu theo cùng query.
+   */
+  onSearchChange?: (query: string) => void;
+  /**
    * Bù chiều cao header/status bar cho KeyboardAvoidingView (iOS).
    * Gợi ý: `insets.top + ~52` khi màn có header stack.
    */
@@ -78,16 +83,21 @@ type SectionBlock = {
 };
 
 function norm(s: string) {
-  return s.trim().toLowerCase();
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
 }
 
 function itemMatches(item: DropdownBoxItem, q: string) {
   if (!q) return true;
   const n = norm(q);
   return (
-    item.label.toLowerCase().includes(n) ||
-    item.id.toLowerCase().includes(n) ||
-    (item.detail ?? "").toLowerCase().includes(n)
+    norm(item.label).includes(n) ||
+    norm(item.id).includes(n) ||
+    norm(item.detail ?? "").includes(n)
   );
 }
 
@@ -118,6 +128,7 @@ export function DropdownBox({
   onSelect,
   style,
   onAfterSelect,
+  onSearchChange,
   keyboardVerticalOffset = 0,
   onSearchInputFocus,
   itemLayout = "chips",
@@ -133,7 +144,10 @@ export function DropdownBox({
   const parentScrollForSearchDoneRef = useRef(false);
 
   useEffect(() => {
-    if (expanded) setSearch("");
+    if (expanded) {
+      setSearch("");
+      onSearchChange?.("");
+    }
   }, [expanded]);
 
   useEffect(() => {
@@ -202,7 +216,10 @@ export function DropdownBox({
               <Icons.search size={20} color={neutral.iconMuted} />
               <TextInput
                 value={search}
-                onChangeText={setSearch}
+                onChangeText={(text) => {
+                  setSearch(text);
+                  onSearchChange?.(text);
+                }}
                 placeholder={searchPlaceholder ?? t("dropdown_box.search_placeholder")}
                 placeholderTextColor={neutral.textSecondary}
                 style={styles.searchInput}
@@ -541,7 +558,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   listRowMetaBold: {
-    fontSize: 15,
+    ...appTypography.listTitle,
     fontWeight: "700",
     color: brandPrimary,
   },

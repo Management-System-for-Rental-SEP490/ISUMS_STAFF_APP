@@ -301,6 +301,22 @@ export default function BuildingDetailScreen() {
     return rows;
   }, [filteredDevicesByCategory]);
 
+  /** Dropdown tìm kiếm thiết bị theo tên (displayName). */
+  const deviceSearchSection = useMemo((): DropdownBoxSection | null => {
+    if (rawItems.length === 0) return null;
+    return {
+      id: "device",
+      title: "Devices",
+      selectedId: null,
+      showAllOption: false,
+      items: rawItems.map((it) => ({
+        id: it.id,
+        label: it.displayName ?? "",
+        detail: it.serialNumber ?? "",
+      })),
+    };
+  }, [rawItems]);
+
   const [deviceListPage, setDeviceListPage] = useState(1);
   const deviceTotalPages = getTotalPages(flatDeviceRows.length);
   const pagedDeviceRows = useMemo(
@@ -321,6 +337,17 @@ export default function BuildingDetailScreen() {
     navigation.navigate("ItemEdit", { item });
   };
 
+  /** Khi chọn thiết bị từ dropdown => mở trực tiếp màn chỉnh sửa. */
+  const handleDeviceDropdownSelect = useCallback(
+    (_sectionId: string, itemId: string | null) => {
+      if (!itemId) return;
+      const found = rawItems.find((it) => it.id === itemId);
+      if (!found) return;
+      navigation.navigate("ItemEdit", { item: found });
+    },
+    [rawItems, navigation]
+  );
+
   /** Dịch trạng thái căn nhà từ API (AVAILABLE, RENTED, ...). */
   const getHouseStatusLabel = (statusValue: string) => {
     const key =
@@ -328,6 +355,8 @@ export default function BuildingDetailScreen() {
         ? "house_status_available"
         : statusValue === "RENTED"
           ? "house_status_rented"
+          : statusValue === "REPAIRED"
+            ? "house_status_repaired"
           : "house_status_other";
     return t(`staff_building_detail.${key}`, { status: statusValue });
   };
@@ -338,12 +367,25 @@ export default function BuildingDetailScreen() {
 
   const categoryFilterSection = useMemo((): DropdownBoxSection | null => {
     if (rawItemsAll.length === 0 || devicesByCategoryAll.length === 0) return null;
+    const categoryDeviceNameSearchMap = new Map<string, string>();
+    for (const group of devicesByCategoryAll) {
+      const uniqueNames = Array.from(
+        new Set(
+          group.items
+            .map((it) => String(it.displayName ?? "").trim())
+            .filter((name) => name.length > 0)
+        )
+      );
+      categoryDeviceNameSearchMap.set(group.categoryId, uniqueNames.join(" · "));
+    }
     return {
       id: "category",
       title: t("dropdown_box.section_category"),
       items: devicesByCategoryAll.map(({ categoryId, categoryName }) => ({
         id: categoryId,
         label: categoryName,
+        // Giúp ô search của DropdownBox match được theo tên thiết bị trong từng danh mục.
+        detail: categoryDeviceNameSearchMap.get(categoryId),
       })),
       selectedId: selectedCategoryId,
       showAllOption: true,
@@ -603,6 +645,19 @@ export default function BuildingDetailScreen() {
                   />
                 </View>
               ) : null}
+              {deviceSearchSection ? (
+                <View style={{ marginHorizontal: 16, marginBottom: 8 }} collapsable={false}>
+                  <DropdownBox
+                    sections={[deviceSearchSection]}
+                    summary={t("staff_building_detail.devices_title", {
+                      count: rawItems.length,
+                    })}
+                    onSelect={handleDeviceDropdownSelect}
+                    keyboardVerticalOffset={insets.top + 52}
+                    itemLayout="list"
+                  />
+                </View>
+              ) : null}
             </>
           )}
         </View>
@@ -621,6 +676,19 @@ export default function BuildingDetailScreen() {
               onSelect={handleCategoryDropdownSelect}
               keyboardVerticalOffset={insets.top + 52}
               onSearchInputFocus={scrollFiltersIntoView}
+            />
+          </View>
+        ) : null}
+        {functionalAreas.length === 0 && deviceSearchSection ? (
+          <View style={{ marginHorizontal: 16, marginBottom: 8 }} collapsable={false}>
+            <DropdownBox
+              sections={[deviceSearchSection]}
+              summary={t("staff_building_detail.devices_title", {
+                count: rawItems.length,
+              })}
+              onSelect={handleDeviceDropdownSelect}
+              keyboardVerticalOffset={insets.top + 52}
+              itemLayout="list"
             />
           </View>
         ) : null}

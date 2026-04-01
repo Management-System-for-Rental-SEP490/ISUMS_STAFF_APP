@@ -14,6 +14,7 @@ import {
   DEFAULT_BE_TEXT_MAX_CHARS,
   getDisplayTextPreview,
 } from "../utils/truncateDisplayText";
+import { appTypography } from "../utils";
 
 export type ExpandableLongTextProps = {
   text: string | null | undefined;
@@ -76,9 +77,9 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
   },
   link: {
+    ...appTypography.body,
     marginTop: 6,
     color: brandPrimary,
-    fontSize: 14,
     fontWeight: "600",
   },
 });

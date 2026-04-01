@@ -5,7 +5,7 @@
             <div class="logo">
                 <img src="${url.resourcesPath}/img/logob.png" alt="ISUMS Logo" />
             </div>
-            <h1 class="app-name">ISUMS APP</h1>
+            <h1 class="app-name">${msg("appName")}</h1>
             <p class="tagline">${msg("loginTitle")}</p>
         </header>
     <#elseif section = "form">

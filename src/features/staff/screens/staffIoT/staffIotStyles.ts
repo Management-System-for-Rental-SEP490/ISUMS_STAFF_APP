@@ -3,7 +3,6 @@ import {
   BRAND_DANGER,
   brandFocusBorder,
   brandPrimary,
-  brandTintBg,
   neutral,
 } from "../../../../shared/theme/color";
 import { appTypography } from "../../../../shared/utils";
@@ -110,72 +109,6 @@ export const staffIotStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-  },
-
-  // ---------------- Modal add menu (Controller/Node) ----------------
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    justifyContent: "flex-end",
-  },
-  modalSheet: {
-    backgroundColor: neutral.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingTop: 14,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  modalTitle: {
-    ...appTypography.itemTitle,
-    fontWeight: "800",
-    color: neutral.text,
-    marginBottom: 10,
-  },
-  modalItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: neutral.border,
-    backgroundColor: neutral.surface,
-    marginBottom: 10,
-  },
-  modalItemIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: brandTintBg,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  modalItemTitle: {
-    ...appTypography.itemTitle,
-    fontWeight: "800",
-    color: neutral.text,
-  },
-  modalItemSub: {
-    ...appTypography.caption,
-    color: neutral.textSecondary,
-    marginTop: 2,
-  },
-  modalCancel: {
-    marginTop: 2,
-    paddingVertical: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    backgroundColor: neutral.background,
-    borderWidth: 1,
-    borderColor: neutral.border,
-  },
-  modalCancelText: {
-    ...appTypography.buttonLabel,
-    color: neutral.text,
   },
 
   areaCard: {
@@ -608,6 +541,20 @@ export const staffIotStyles = StyleSheet.create({
     ...appTypography.buttonLabel,
     fontWeight: "900",
     color: neutral.text,
+  },
+  waitCancelBtn: {
+    marginTop: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: neutral.surface,
+    borderWidth: 1,
+    borderColor: neutral.border,
+  },
+  waitCancelText: {
+    ...appTypography.buttonLabel,
+    fontWeight: "900",
+    color: neutral.textSecondary,
   },
 
   // WiFi password input: nhét icon show/hide ngay trong khung input

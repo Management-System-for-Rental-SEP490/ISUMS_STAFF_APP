@@ -2,7 +2,7 @@
  * Màn hình chỉnh sửa thiết bị (Staff), hiển thị dạng modal.
  * - Nhận `item` từ route params (AssetItemFromApi).
  * - Form pre-fill; PUT /api/asset/items/:id qua useUpdateAssetItem.
- * - Nút "Xóa thiết bị": Alert xác nhận → cập nhật status từ "AVAILABLE" → "DISPOSED" (xóa mềm) → goBack.
+ * - Nút "Xóa thiết bị": Alert xác nhận → PUT cập nhật status → DISPOSED (xóa mềm) → goBack.
  */
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
@@ -14,7 +14,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
+  Modal,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { CustomAlert as Alert } from "../../../../shared/components/alert";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -43,9 +46,19 @@ import {
   useDetachAssetTag,
   useFunctionalAreasByHouseId,
 } from "../../../../shared/hooks";
-import { getAssetItemByNfcId, getAssetItemById } from "../../../../shared/services/assetItemApi";
+import {
+  getAssetItemByNfcId,
+  getAssetItemById,
+  getAssetItemImages,
+  uploadAssetItemImages,
+  deleteAssetItemImage,
+  type AssetItemImageFromApi,
+  type AssetItemImageToUpload,
+} from "../../../../shared/services/assetItemApi";
+import { getHouseById } from "../../../../shared/services/houseApi";
 import { itemScreenStyles } from "./itemScreenStyles";
 import { brandPrimary } from "../../../../shared/theme/color";
+import { ImageCaptureModal } from "../../../modal/imageCapture/ImageCaptureModal";
 import {
   DropdownBox,
   type DropdownBoxSection,
@@ -57,13 +70,14 @@ import type {
 } from "../../../../shared/types/api";
 import type { HouseFromApi } from "../../../../shared/types/api";
 import type { UpdateAssetItemRequest } from "../../../../shared/types/api";
+import { normalizeAssetItemStatusFromApi } from "../../../../shared/types/api";
 import { mergeFunctionalAreasForHouse, sortFunctionalAreasForDisplay } from "../../../../shared/utils";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemEdit">;
 type ItemEditRouteProp = RouteProp<RootStackParamList, "ItemEdit">;
 
-// AssetStatus: bỏ "AVAILABLE". Backend có thể trả về thêm ACTIVE/BROKEN/DELETED.
-const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED", "DELETED"] as const;
+/** AssetStatus (BE): IN_USE, ACTIVE, BROKEN, DISPOSED — không AVAILABLE / DELETED. */
+const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED"] as const;
 
 export default function ItemEditScreen() {
   const { t } = useTranslation();
@@ -72,10 +86,24 @@ export default function ItemEditScreen() {
   const route = useRoute<ItemEditRouteProp>();
   const queryClient = useQueryClient();
   const item = route.params.item as AssetItemFromApi;
+  const fromMaintenanceUpdate = route.params.fromMaintenanceUpdate === true;
   const transferHouseMutation = useTransferAssetItemHouse();
   const detachNfcMutation = useDetachAssetTag();
 
   const [latestItem, setLatestItem] = useState<AssetItemFromApi>(item);
+
+  // Asset images (GET/POST /assets/items/:id/images)
+  const [imagesLoading, setImagesLoading] = useState(false);
+  const [itemImages, setItemImages] = useState<AssetItemImageFromApi[]>([]);
+  /** Ảnh local vừa chọn/chụp để preview ngay (optimistic UI). */
+  const [pendingImagePreviews, setPendingImagePreviews] = useState<AssetItemImageToUpload[]>([]);
+  /** Tăng version để bust cache (nếu BE overwrite URL cũ). */
+  const [imagesVersion, setImagesVersion] = useState(0);
+  const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [imageCaptureVisible, setImageCaptureVisible] = useState(false);
 
   // Cập nhật lại item mỗi khi màn hình focus (để lấy nfcTag/qrTag mới nếu vừa đi Camera về)
   useFocusEffect(
@@ -104,6 +132,27 @@ export default function ItemEditScreen() {
     }, [item.id, item.nfcTag, item.qrTag])
   );
 
+  // Refresh ảnh khi item được load/cập nhật từ API
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!latestItem?.id) return;
+      try {
+        setImagesLoading(true);
+        const imgs = await getAssetItemImages(latestItem.id);
+        if (!cancelled) setItemImages(imgs);
+      } catch {
+        if (!cancelled) setItemImages([]);
+      } finally {
+        if (!cancelled) setImagesLoading(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [latestItem.id]);
+
   const [houseId, setHouseId] = useState(latestItem.houseId);
   const [categoryId, setCategoryId] = useState(latestItem.categoryId);
   const [displayName, setDisplayName] = useState(latestItem.displayName);
@@ -111,9 +160,8 @@ export default function ItemEditScreen() {
   const [nfcId, setNfcId] = useState(latestItem.nfcTag ?? "");
   const [qrId, setQrId] = useState(latestItem.qrTag ?? "");
   const [conditionPercent, setConditionPercent] = useState(String(latestItem.conditionPercent));
-  // AssetStatus: normalize "AVAILABLE" -> "IN_USE"
   const [status, setStatus] = useState<string>(
-    latestItem.status === "AVAILABLE" ? "IN_USE" : latestItem.status || STATUS_OPTIONS[0]
+    normalizeAssetItemStatusFromApi(latestItem.status) || STATUS_OPTIONS[0]
   );
   const [functionAreaId, setFunctionAreaId] = useState<string | null>(
     latestItem.functionAreaId ?? null
@@ -137,11 +185,7 @@ export default function ItemEditScreen() {
     setNfcId(latestItem.nfcTag ?? "");
     setQrId(latestItem.qrTag ?? "");
     setConditionPercent(String(latestItem.conditionPercent));
-    setStatus(
-      latestItem.status === "AVAILABLE"
-        ? "IN_USE"
-        : latestItem.status || STATUS_OPTIONS[0]
-    );
+    setStatus(normalizeAssetItemStatusFromApi(latestItem.status) || STATUS_OPTIONS[0]);
     if (!functionAreaUserTouchedRef.current) {
       setFunctionAreaId(latestItem.functionAreaId ?? null);
     }
@@ -182,11 +226,6 @@ export default function ItemEditScreen() {
       requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 56, animated: true }));
     });
   }, []);
-  const scrollItemEditMid = useCallback(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 160, animated: true }));
-    });
-  }, []);
   const scrollItemEditEnd = useCallback(() => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
@@ -198,8 +237,8 @@ export default function ItemEditScreen() {
       if (s === "IN_USE") return t("staff_item_create.status_in_use");
       if (s === "ACTIVE") return t("staff_item_create.status_active");
       if (s === "BROKEN") return t("staff_item_create.status_broken");
-      if (s === "DELETED") return t("staff_item_create.status_deleted");
-      return t("staff_item_create.status_disposed");
+      if (s === "DISPOSED") return t("staff_item_create.status_disposed");
+      return s || "—";
     },
     [t]
   );
@@ -217,17 +256,6 @@ export default function ItemEditScreen() {
       showAllOption: false,
     };
   }, [houses, houseId, t]);
-
-  const categoryDropdownSection = useMemo((): DropdownBoxSection | null => {
-    if (categories.length === 0) return null;
-    return {
-      id: "category",
-      title: t("dropdown_box.section_category"),
-      items: categories.map((c: AssetCategoryFromApi) => ({ id: c.id, label: c.name })),
-      selectedId: categoryId,
-      showAllOption: false,
-    };
-  }, [categories, categoryId, t]);
 
   const statusDropdownSection = useMemo((): DropdownBoxSection => {
     return {
@@ -277,15 +305,27 @@ export default function ItemEditScreen() {
     return `${t("dropdown_box.functional_area_short")}: ${label}`;
   }, [functionAreaId, functionalAreas, formatAreaDropdownLabel, t]);
 
-  const categoryDropdownSummary = useMemo(() => {
-    const c = categories.find((x: AssetCategoryFromApi) => x.id === categoryId);
-    return `${t("dropdown_box.category_short")}: ${c?.name ?? categoryId}`;
-  }, [categories, categoryId, t]);
+  const categoryReadonlyValue = useMemo(
+    () => categories.find((x: AssetCategoryFromApi) => x.id === categoryId)?.name ?? categoryId,
+    [categories, categoryId]
+  );
 
   const statusDropdownSummary = useMemo(
     () => `${t("dropdown_box.status_short")}: ${statusLabel(status)}`,
     [status, statusLabel, t]
   );
+
+  const readonlyNoteValue = useMemo(
+    () => (latestItem.note && latestItem.note.trim() ? latestItem.note : "—"),
+    [latestItem.note]
+  );
+
+  const readonlyUpdateAtValue = useMemo(() => {
+    if (!latestItem.updateAt) return t("staff_item_description.update_at_empty");
+    const d = new Date(latestItem.updateAt);
+    if (Number.isNaN(d.getTime())) return latestItem.updateAt;
+    return d.toLocaleString();
+  }, [latestItem.updateAt, t]);
 
   const onItemEditDropdownSelect = useCallback((sectionId: string, itemId: string | null) => {
     if (sectionId === "functionalArea") {
@@ -300,7 +340,6 @@ export default function ItemEditScreen() {
       functionAreaUserTouchedRef.current = true;
       return;
     }
-    if (sectionId === "category") setCategoryId(itemId);
     if (sectionId === "status") setStatus(itemId);
   }, []);
 
@@ -387,6 +426,15 @@ export default function ItemEditScreen() {
         payload,
       });
 
+      // Chỉ upload ảnh mới khi user bấm "Cập nhật".
+      if (pendingImagePreviews.length > 0) {
+        setUploadError(null);
+        setUploadingImages(true);
+        await uploadAssetItemImages(item.id, pendingImagePreviews);
+        await refreshImages();
+        setPendingImagePreviews([]);
+      }
+
       const sentFaNorm =
         payload.functionAreaId != null && String(payload.functionAreaId).trim() !== ""
           ? String(payload.functionAreaId).trim()
@@ -399,9 +447,61 @@ export default function ItemEditScreen() {
       const areaMismatch =
         sentFaNorm !== "" && (backFaNorm === "" || backFaNorm !== sentFaNorm);
 
+      const navigateToHouseDetail = async (houseIdForNav: string) => {
+        const hid = String(houseIdForNav ?? "").trim();
+        if (!hid) {
+          navigation.goBack();
+          return;
+        }
+        try {
+          const res = await getHouseById(hid);
+          const house = res?.data;
+          if (!house || res?.success === false) {
+            navigation.goBack();
+            return;
+          }
+          const statusStr =
+            house.status !== undefined && house.status !== null
+              ? String(house.status)
+              : undefined;
+          const buildingParams = {
+            buildingId: house.id,
+            buildingName: house.name,
+            buildingAddress: house.address,
+            description: house.description,
+            ward: house.ward,
+            commune: house.commune,
+            city: house.city,
+            status: statusStr,
+            functionalAreas: house.functionalAreas ?? [],
+          };
+          const hasBuildingInStack = navigation
+            .getState()
+            .routes.some((r) => r.name === "BuildingDetail");
+          if (hasBuildingInStack) {
+            navigation.navigate("BuildingDetail", buildingParams);
+          } else {
+            navigation.replace("BuildingDetail", buildingParams);
+          }
+        } catch {
+          navigation.goBack();
+        }
+      };
+
       const finish = async () => {
         await queryClient.refetchQueries({ queryKey: ASSET_ITEM_KEYS.base });
-        navigation.goBack();
+        const refreshedItem = await getAssetItemById(item.id);
+        if (refreshedItem) {
+          setLatestItem(refreshedItem);
+        }
+        if (fromMaintenanceUpdate) {
+          navigation.goBack();
+          return;
+        }
+        const houseIdForNav =
+          (refreshedItem?.houseId && String(refreshedItem.houseId).trim()) ||
+          payload.houseId.trim();
+        await navigateToHouseDetail(houseIdForNav);
       };
 
       if (suspiciousBackend || areaMismatch) {
@@ -413,8 +513,12 @@ export default function ItemEditScreen() {
       } else {
         await finish();
       }
-    } catch {
-      /* lỗi đã xử lý qua mutation onError / toast nếu có */
+    } catch (e) {
+      const msg = e instanceof Error && e.message ? e.message : t("staff_item_create.error_message");
+      setUploadError(msg);
+      console.error("[ItemEditScreen] handleSubmit failed", e);
+    } finally {
+      setUploadingImages(false);
     }
   };
 
@@ -440,8 +544,7 @@ export default function ItemEditScreen() {
               qrTag: qrId.trim() ? qrId.trim() : null,
               qrId: qrId.trim() ? qrId.trim() : null,
               conditionPercent: Number.isNaN(percent) ? item.conditionPercent : percent,
-              // Xóa mềm theo enum mới: DELETED
-              status: "DELETED",
+              status: "DISPOSED",
               functionAreaId,
             };
             updateMutation.mutate(
@@ -468,7 +571,7 @@ export default function ItemEditScreen() {
     !Number.isNaN(parseInt(conditionPercent, 10));
 
   // Chỉ cho phép "xóa" khi thiết bị chưa ở trạng thái DISPOSED.
-  const canDelete = status !== "DELETED";
+  const canDelete = status !== "DISPOSED";
 
   const handleDetachNfc = () => {
     const trimmed = nfcId.trim();
@@ -548,6 +651,77 @@ export default function ItemEditScreen() {
     );
   };
 
+  const addPickedImages = (assets: ImagePicker.ImagePickerAsset[]): AssetItemImageToUpload[] => {
+    return assets
+      .filter((a) => Boolean(a.uri))
+      .map((a) => ({
+        uri: a.uri as string,
+        fileName: a.fileName ?? undefined,
+        mimeType: a.mimeType ?? undefined,
+      }));
+  };
+
+  const refreshImages = useCallback(async () => {
+    if (!latestItem?.id) return;
+    try {
+      setImagesLoading(true);
+      const imgs = await getAssetItemImages(latestItem.id, Date.now());
+      setItemImages(imgs);
+      setImagesVersion((v) => v + 1);
+    } catch {
+      setItemImages([]);
+    } finally {
+      setImagesLoading(false);
+    }
+  }, [latestItem?.id]);
+
+  const handleTakePhoto = async () => {
+    setUploadError(null);
+    setImageCaptureVisible(true);
+  };
+
+  const handleDeleteServerImage = async (imageId: string) => {
+    if (!latestItem?.id) return;
+    if (uploadingImages || deletingImageId != null) return;
+
+    setUploadError(null);
+    setDeletingImageId(imageId);
+    try {
+      await deleteAssetItemImage(latestItem.id, imageId);
+      await refreshImages();
+    } catch (e) {
+      const msg =
+        e instanceof Error && e.message
+          ? e.message
+          : t("staff_item_edit.delete_image_error");
+      setUploadError(msg);
+    } finally {
+      setDeletingImageId(null);
+    }
+  };
+
+  type EditPreviewCard =
+    | { key: string; uri: string; kind: "pending"; pendingIndex: number }
+    | { key: string; uri: string; kind: "server"; serverImageId: string };
+
+  const previewCards = useMemo<EditPreviewCard[]>(
+    () => [
+      ...pendingImagePreviews.map((img, idx) => ({
+        key: `pending-${img.uri}-${idx}`,
+        uri: img.uri,
+        kind: "pending" as const,
+        pendingIndex: idx,
+      })),
+      ...itemImages.map((img) => ({
+        key: img.id,
+        uri: `${img.url}${img.url.includes("?") ? "&" : "?"}t=${imagesVersion}`,
+        kind: "server" as const,
+        serverImageId: img.id,
+      })),
+    ],
+    [pendingImagePreviews, itemImages, imagesVersion]
+  );
+
   return (
     <View style={itemScreenStyles.container}>
       <StackScreenTitleHeaderStrip>
@@ -585,6 +759,17 @@ export default function ItemEditScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={itemScreenStyles.formCard}>
+            {fromMaintenanceUpdate ? (
+              <TouchableOpacity
+                style={[itemScreenStyles.imageButton, { marginBottom: 12 }]}
+                onPress={() => navigation.goBack()}
+                activeOpacity={0.85}
+              >
+                <Text style={itemScreenStyles.imageButtonText}>
+                  {t("staff_work_slot_detail.back_to_maintenance_dropdown")}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
             <Text style={itemScreenStyles.label}>{t("staff_item_create.house_label")}</Text>
             {houseDropdownSection ? (
               <DropdownBox
@@ -611,16 +796,11 @@ export default function ItemEditScreen() {
 
             <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.category_label")}</Text>
-              {categoryDropdownSection ? (
-                <DropdownBox
-                  sections={[categoryDropdownSection]}
-                  summary={categoryDropdownSummary}
-                  onSelect={onItemEditDropdownSelect}
-                  style={{ marginBottom: 4 }}
-                  keyboardVerticalOffset={insets.top + 52}
-                  onSearchInputFocus={scrollItemEditMid}
-                />
-              ) : null}
+              <TextInput
+                style={[itemScreenStyles.input, itemScreenStyles.inputReadonlyDim]}
+                value={categoryReadonlyValue}
+                editable={false}
+              />
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
@@ -775,15 +955,136 @@ export default function ItemEditScreen() {
               />
             </View>
 
+            <View style={itemScreenStyles.fieldSpacer}>
+              <Text style={itemScreenStyles.label}>{t("staff_item_description.note_label")}</Text>
+              <TextInput
+                style={[itemScreenStyles.input, itemScreenStyles.inputReadonlyDim]}
+                value={readonlyNoteValue}
+                editable={false}
+                multiline
+              />
+            </View>
+
+            <View style={itemScreenStyles.fieldSpacer}>
+              <Text style={itemScreenStyles.label}>{t("staff_item_description.update_at_label")}</Text>
+              <TextInput
+                style={[itemScreenStyles.input, itemScreenStyles.inputReadonlyDim]}
+                value={readonlyUpdateAtValue}
+                editable={false}
+              />
+            </View>
+
+            <View style={itemScreenStyles.imagesSection}>
+              <Text style={itemScreenStyles.label}>{t("staff_item_create.images_label")}</Text>
+
+              <View style={itemScreenStyles.imageButtonsRow}>
+                <TouchableOpacity
+                  style={itemScreenStyles.imageButton}
+                  onPress={handleTakePhoto}
+                  activeOpacity={0.9}
+                  disabled={isPending || uploadingImages}
+                >
+                  <Text style={itemScreenStyles.imageButtonText}>{t("staff_item_create.images_camera")}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {!!uploadError ? <Text style={itemScreenStyles.errorText}>{uploadError}</Text> : null}
+
+              {previewCards.length > 0 ? (
+                <>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={itemScreenStyles.imageStripScroll}
+                    contentContainerStyle={itemScreenStyles.imageStrip}
+                  >
+                    {previewCards.map((card) => (
+                      <View
+                        key={card.key}
+                        style={[itemScreenStyles.imageThumb, itemScreenStyles.imageThumbHorizontal]}
+                      >
+                        <TouchableOpacity
+                          style={{ flex: 1 }}
+                          activeOpacity={0.85}
+                          onPress={() => setActiveImageUrl(card.uri)}
+                        >
+                          <View style={itemScreenStyles.imageThumbInner}>
+                            <Image
+                              source={{ uri: card.uri }}
+                              style={itemScreenStyles.imageThumbImg}
+                              resizeMode="cover"
+                            />
+                          </View>
+                        </TouchableOpacity>
+                        {card.kind === "pending" ? (
+                          <TouchableOpacity
+                            style={itemScreenStyles.removeImageBtn}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            onPress={() =>
+                              setPendingImagePreviews((prev) =>
+                                prev.filter((_, i) => i !== card.pendingIndex)
+                              )
+                            }
+                            activeOpacity={0.8}
+                            disabled={uploadingImages}
+                            accessibilityRole="button"
+                            accessibilityLabel={t("staff_item_create.images_remove")}
+                          >
+                            <Text style={itemScreenStyles.removeImageBtnText}>×</Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            style={itemScreenStyles.removeImageBtn}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            onPress={() => {
+                              Alert.alert(
+                                t("staff_item_edit.delete_image_confirm_title"),
+                                t("staff_item_edit.delete_image_confirm_message"),
+                                [
+                                  { text: t("profile.cancel"), style: "cancel" },
+                                  {
+                                    text: t("staff_item_edit.delete_image_btn"),
+                                    style: "destructive",
+                                    onPress: () => void handleDeleteServerImage(card.serverImageId),
+                                  },
+                                ]
+                              );
+                            }}
+                            activeOpacity={0.8}
+                            disabled={uploadingImages || deletingImageId === card.serverImageId}
+                            accessibilityRole="button"
+                            accessibilityLabel={t("staff_item_edit.delete_image_btn")}
+                          >
+                            {deletingImageId === card.serverImageId ? (
+                              <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                              <Text style={itemScreenStyles.removeImageBtnText}>×</Text>
+                            )}
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                  </ScrollView>
+                </>
+              ) : imagesLoading ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 }}>
+                  <ActivityIndicator size="small" color={brandPrimary} />
+                  <Text style={itemScreenStyles.imagesHint}>{t("common.loading")}</Text>
+                </View>
+              ) : null}
+
+              
+            </View>
+
             <View style={[itemScreenStyles.actionBtnRow]}>
               <TouchableOpacity
                 style={[
                   itemScreenStyles.submitBtn,
                   itemScreenStyles.actionBtnHalf,
-                  (!canSubmit || isPending) && itemScreenStyles.submitBtnDisabled,
+                  (!canSubmit || isPending || uploadingImages) && itemScreenStyles.submitBtnDisabled,
                 ]}
                 onPress={handleSubmit}
-                disabled={!canSubmit || isPending}
+                disabled={!canSubmit || isPending || uploadingImages}
                 activeOpacity={0.8}
               >
                 {isPending ? (
@@ -797,10 +1098,10 @@ export default function ItemEditScreen() {
                 style={[
                   itemScreenStyles.deleteBtn,
                   itemScreenStyles.actionBtnHalf,
-                  (!canDelete || isPending) && itemScreenStyles.deleteBtnDisabled,
+                  (!canDelete || isPending || uploadingImages) && itemScreenStyles.deleteBtnDisabled,
                 ]}
                 onPress={handleDeletePress}
-                disabled={!canDelete || isPending}
+                disabled={!canDelete || isPending || uploadingImages}
                 activeOpacity={0.8}
               >
                 {isPending && !canSubmit ? (
@@ -820,6 +1121,51 @@ export default function ItemEditScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={activeImageUrl != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveImageUrl(null)}
+      >
+        <TouchableOpacity
+          style={itemScreenStyles.imageModalBackdrop}
+          activeOpacity={1}
+          onPress={() => setActiveImageUrl(null)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={itemScreenStyles.imageModalContent}
+          >
+            <TouchableOpacity
+              style={itemScreenStyles.imageModalClose}
+              activeOpacity={0.8}
+              onPress={() => setActiveImageUrl(null)}
+            >
+              <Text style={itemScreenStyles.imageModalCloseText}>×</Text>
+            </TouchableOpacity>
+            {activeImageUrl && (
+              <Image
+                source={{ uri: activeImageUrl }}
+                style={itemScreenStyles.imageModalImage}
+                resizeMode="contain" // contain: giữ nguyên tỷ lệ, cover: phủ đầy, stretch: giãn nở, repeat: lặp lại
+              />
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      <ImageCaptureModal
+        visible={imageCaptureVisible}
+        onClose={() => setImageCaptureVisible(false)}
+        onPicked={(assets) => {
+          setUploadError(null);
+          const picked = addPickedImages(assets);
+          setPendingImagePreviews((prev) => [...prev, ...picked].slice(0, 6));
+        }}
+        libraryLabel={t("staff_item_create.images_library")}
+      />
     </View>
   );
 }

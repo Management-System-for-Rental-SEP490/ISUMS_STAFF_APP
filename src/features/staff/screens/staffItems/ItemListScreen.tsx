@@ -32,6 +32,8 @@ import {
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
 import { getTotalPages, slicePage } from "../../../../shared/utils";
 import type { AssetItemFromApi, HouseFromApi } from "../../../../shared/types/api";
+import { normalizeAssetItemStatusFromApi } from "../../../../shared/types/api";
+import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemList">;
 
@@ -66,6 +68,8 @@ export default function ItemListScreen() {
   const rawItems: AssetItemFromApi[] = itemsData?.data ?? [];
 
   const [listPage, setListPage] = useState(1);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const openCreateItem = () => {
     navigation.navigate("ItemCreate");
@@ -120,12 +124,55 @@ export default function ItemListScreen() {
     return rows;
   }, [itemsByCategory]);
 
-  const listTotalPages = getTotalPages(flatRows.length);
-  const pagedRows = useMemo(() => slicePage(flatRows, listPage), [flatRows, listPage]);
+  const norm = (s: string) =>
+    s
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d");
+
+  const filteredFlatRows: ItemListRow[] = useMemo(() => {
+    const q = norm(searchQuery);
+    return flatRows.filter((row) => {
+      if (selectedCategoryId && row.item.categoryId !== selectedCategoryId) return false;
+      if (!q) return true;
+
+      const categoryMatch = norm(row.categoryName).includes(q);
+      const deviceNameMatch = norm(row.item.displayName ?? "").includes(q);
+      const deviceSerialMatch = norm(row.item.serialNumber ?? "").includes(q);
+
+      return categoryMatch || deviceNameMatch || deviceSerialMatch;
+    });
+  }, [flatRows, selectedCategoryId, searchQuery]);
+
+  const listTotalPages = getTotalPages(filteredFlatRows.length);
+  const pagedRows = useMemo(
+    () => slicePage(filteredFlatRows, listPage),
+    [filteredFlatRows, listPage]
+  );
 
   useEffect(() => {
     setListPage(1);
-  }, [flatRows.length]);
+  }, [filteredFlatRows.length, selectedCategoryId, searchQuery]);
+
+  const categorySections: DropdownBoxSection[] = useMemo(() => {
+    const items = categories.map((cat) => ({ id: cat.id, label: cat.name }));
+    return [
+      {
+        id: "category",
+        title: t("staff_item_list.title"),
+        items,
+        selectedId: selectedCategoryId,
+        showAllOption: true,
+      },
+    ];
+  }, [categories, selectedCategoryId, t]);
+
+  const selectedCategoryName =
+    selectedCategoryId
+      ? categories.find((c) => c.id === selectedCategoryId)?.name ?? ""
+      : (t("staff_home.all_devices_category_all") as string);
 
   const itemListTopBar = (
     <StackScreenTitleHeaderStrip>
@@ -170,12 +217,11 @@ export default function ItemListScreen() {
   );
 
   const getStatusLabel = (status: string) => {
-    const normalizedStatus = status === "AVAILABLE" ? "IN_USE" : status;
+    const normalizedStatus = normalizeAssetItemStatusFromApi(status);
     if (normalizedStatus === "IN_USE") return t("staff_item_list.status_in_use");
     if (normalizedStatus === "ACTIVE") return t("staff_item_list.status_active");
     if (normalizedStatus === "DISPOSED") return t("staff_item_list.status_disposed");
     if (normalizedStatus === "BROKEN") return t("staff_item_list.status_broken");
-    if (normalizedStatus === "DELETED") return t("staff_item_list.status_deleted");
     return normalizedStatus;
   };
 
@@ -236,7 +282,18 @@ export default function ItemListScreen() {
           />
         }
       >
-        {flatRows.length === 0 ? (
+        <View style={itemScreenStyles.filterWrap}>
+          <DropdownBox
+            sections={categorySections}
+            summary={selectedCategoryName}
+            onSelect={(_sectionId, itemId) => setSelectedCategoryId(itemId)}
+            style={itemScreenStyles.filterDropdown}
+            searchPlaceholder={t("staff_item_list.search_placeholder") as string}
+            onSearchChange={setSearchQuery}
+          />
+        </View>
+
+        {filteredFlatRows.length === 0 ? (
           <Text style={itemScreenStyles.emptyText}>{t("staff_item_list.empty")}</Text>
         ) : (
           <>

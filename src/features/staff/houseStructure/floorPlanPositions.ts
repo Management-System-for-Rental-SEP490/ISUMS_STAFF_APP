@@ -1,8 +1,11 @@
 /**
- * Vị trí khu vực trên sơ đồ (viewBox 0 0 100 100).
+ * Vị trí khu vực trên sơ đồ (Cover_Floor_Plan.png, viewBox 0–100).
  * Ưu tiên `position` từ BE; không có thì map theo areaType; vẫn thiếu thì slot theo index.
  */
 import type { FunctionalAreaFromApi, FunctionalAreaPosition } from "../../../shared/types/api";
+
+/** width/height của assets/Cover_Floor_Plan.png (945×831). */
+export const FLOOR_PLAN_IMAGE_ASPECT = 945 / 831;
 
 const SLOTS_BY_AREA_TYPE: Record<string, FunctionalAreaPosition> = {
   BEDROOM: { x: 4, y: 20, width: 30, height: 34 },

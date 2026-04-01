@@ -21,12 +21,7 @@ import { useLeaveRequests, useUpdateLeaveRequestStatus } from "../../../../share
 import { staffDayOffStyles } from "./staffDayOffStyles";
 import { brandPrimary } from "../../../../shared/theme/color";
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
-import { getTotalPages, slicePage } from "../../../../shared/utils";
-
-function formatLeaveDate(leaveDate: string): string {
-  const d = new Date(leaveDate);
-  return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
-}
+import { formatDdMmYyyy, getTotalPages, slicePage } from "../../../../shared/utils";
 
 function getStatusStyle(status: string) {
   const u = status.toUpperCase();
@@ -246,7 +241,7 @@ export default function StaffDayOffListScreen() {
             <View style={staffDayOffStyles.card}>
               <View style={staffDayOffStyles.cardHeader}>
                 <Text style={staffDayOffStyles.dateRange}>
-                  {formatLeaveDate(item.leaveDate)}
+                  {formatDdMmYyyy(new Date(item.leaveDate))}
                 </Text>
                 <View style={[staffDayOffStyles.statusBadge, badgeStyle]}>
                   <Text style={[staffDayOffStyles.statusText, textStyle]}>
