@@ -27,7 +27,7 @@ const KEYCLOAK_CONFIG = {
   },
   //realm: "isums-realm",
   realm: process.env.EXPO_PUBLIC_KEYCLOAK_REALM || "isums",
-  clientId: process.env.EXPO_PUBLIC_KEYCLOAK_CLIENT_ID || "mobile-app",
+  clientId: process.env.EXPO_PUBLIC_KEYCLOAK_CLIENT_ID || "mobile-staff-app",
   get redirectUri() {
     if (Platform.OS === 'web') {
       return process.env.EXPO_PUBLIC_KEYCLOAK_REDIRECT_WEB || "http://localhost/callback";
@@ -41,6 +41,75 @@ const KEYCLOAK_CONFIG = {
 export const getKeycloakRedirectUri = (): string => {
   return KEYCLOAK_CONFIG.redirectUri;
 };
+
+type PendingKeycloakInApp = {
+  resolve: () => void;
+  onAppRedirect?: (url: string) => Promise<void>;
+  allowManualClose: boolean;
+};
+
+let pendingKeycloakInApp: PendingKeycloakInApp | null = null;
+
+export function beginKeycloakInAppSession(
+  initialUrl: string,
+  options?: { allowManualClose?: boolean; onAppRedirect?: (url: string) => Promise<void> }
+): Promise<void> {
+  return new Promise((resolve) => {
+    if (pendingKeycloakInApp) {
+      const old = pendingKeycloakInApp;
+      pendingKeycloakInApp = null;
+      useAuthStore.getState().setKeycloakInAppSession(null);
+      old.resolve();
+    }
+    pendingKeycloakInApp = {
+      resolve,
+      onAppRedirect: options?.onAppRedirect,
+      allowManualClose: options?.allowManualClose ?? false,
+    };
+    useAuthStore.getState().setKeycloakInAppSession({
+      url: initialUrl,
+      allowManualClose: options?.allowManualClose ?? false,
+    });
+  });
+}
+
+export async function keycloakInAppNotifyAppRedirect(url: string): Promise<void> {
+  const redirectUri = getKeycloakRedirectUri();
+  if (!url.startsWith(redirectUri)) return;
+  const p = pendingKeycloakInApp;
+  if (!p) return;
+
+  pendingKeycloakInApp = null;
+  useAuthStore.getState().setKeycloakInAppSession(null);
+
+  try {
+    if (p.onAppRedirect) {
+      await p.onAppRedirect(url);
+    }
+  } finally {
+    p.resolve();
+  }
+}
+
+export function keycloakInAppUserDismissed(): void {
+  const p = pendingKeycloakInApp;
+  if (!p) return;
+  pendingKeycloakInApp = null;
+  useAuthStore.getState().setKeycloakInAppSession(null);
+  p.resolve();
+}
+
+function buildLogoutUrl(idToken?: string | null): string {
+  const base = `${KEYCLOAK_CONFIG.baseUrl}/realms/${KEYCLOAK_CONFIG.realm}/protocol/openid-connect/logout`;
+  const params = new URLSearchParams();
+  params.append("post_logout_redirect_uri", KEYCLOAK_CONFIG.redirectUri);
+  if (idToken) {
+    params.append("id_token_hint", idToken);
+  } else {
+    params.append("client_id", KEYCLOAK_CONFIG.clientId);
+  }
+  return `${base}?${params.toString()}`;
+}
 
 // Tạo URL authorization để chuyển hướng đến Keycloak login - tạo link và mở trình duyệt
 export const getKeycloakAuthUrl = (locale?: string): string => {
@@ -311,43 +380,35 @@ export const handleKeycloakCallback = (url: string): string | null => {
 // Mở trang đổi mật khẩu trực tiếp (Sử dụng luồng UPDATE_PASSWORD của Keycloak)
 export const openChangePasswordPage = async () => {
   try {
-    // Thêm tham số kc_action=UPDATE_PASSWORD để kích hoạt hành động bắt buộc đổi mật khẩu
-    // Điều này sẽ mở trang update password của theme Login (login-update-password.ftl)
     const authUrl = `${getKeycloakAuthUrl()}&kc_action=UPDATE_PASSWORD`;
-    const redirectUrl = KEYCLOAK_CONFIG.redirectUri;
 
-    // Trên web, mở trong tab mới
-    if (Platform.OS === 'web') {
-        window.open(authUrl, '_blank');
-        return;
-    } 
-    
-    // Trên mobile, dùng WebBrowser để bắt callback sau khi đổi xong
-    const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
-
-    if (result.type === 'success' && result.url) {
-        const code = handleKeycloakCallback(result.url);
-        if (code) {
-             // Đổi mật khẩu thành công, Keycloak redirect về với auth code mới.
-             const authPayload = await exchangeCodeForToken(code);
-             // Staff app: không cho tenant đăng nhập, xóa session Keycloak để lần sau hiện lại form nhập user/pass
-             if (authPayload.role === "tenant") {
-               useAuthStore.getState().logout();
-               await logoutKeycloak(authPayload.idToken);
-               CustomAlert.alert(
-                 i18n.t("tenant_blocked_title"),
-                 i18n.t("tenant_blocked_message"),
-                 [{ text: i18n.t("common.close") }]
-               );
-               return;
-             }
-             useAuthStore.getState().login(authPayload);
-        }
+    if (Platform.OS === "web") {
+      window.open(authUrl, "_blank");
+      return;
     }
+
+    await beginKeycloakInAppSession(authUrl, {
+      onAppRedirect: async (url) => {
+        const code = handleKeycloakCallback(url);
+        if (!code) return;
+        const authPayload = await exchangeCodeForToken(code);
+        if (authPayload.role === "tenant") {
+          const idTok = authPayload.idToken;
+          await beginKeycloakInAppSession(buildLogoutUrl(idTok));
+          useAuthStore.getState().logout();
+          CustomAlert.alert(
+            i18n.t("tenant_blocked_title"),
+            i18n.t("tenant_blocked_message"),
+            [{ text: i18n.t("common.close") }]
+          );
+          return;
+        }
+        useAuthStore.getState().login(authPayload);
+      },
+    });
   } catch (error: any) {
-    // Bỏ qua lỗi nếu user tự tắt browser
     if (error.message && error.message.includes("User canceled")) {
-        return;
+      return;
     }
     throw new Error(`Không thể mở trang đổi mật khẩu: ${error.message || error}`);
   }
@@ -357,15 +418,20 @@ export const openChangePasswordPage = async () => {
 export const openAccountManagement = async () => {
   try {
     const accountUrl = `${KEYCLOAK_CONFIG.baseUrl}/realms/${KEYCLOAK_CONFIG.realm}/account`;
-    
-    const canOpen = await Linking.canOpenURL(accountUrl); // kiểm tra xem có thể mở được trình duyệt không
-    if (canOpen) {
-      await Linking.openURL(accountUrl); // mở trình duyệt
-    } else {
-      throw new Error("Không thể mở trình duyệt"); // nếu không thể mở trình duyệt thì throw lỗi
+
+    if (Platform.OS === "web") {
+      const canOpen = await Linking.canOpenURL(accountUrl);
+      if (canOpen) {
+        await Linking.openURL(accountUrl);
+      } else {
+        throw new Error("Không thể mở trình duyệt");
+      }
+      return;
     }
+
+    await beginKeycloakInAppSession(accountUrl, { allowManualClose: true });
   } catch (error: any) {
-    throw new Error(`Không thể mở trang quản lý tài khoản: ${error.message || error}`); // nếu có lỗi thì throw lỗi
+    throw new Error(`Không thể mở trang quản lý tài khoản: ${error.message || error}`);
   }
 };
 
@@ -375,31 +441,11 @@ export const openAccountManagement = async () => {
  */
 export const logoutKeycloak = async (idToken?: string | null) => {
   try {
-    let logoutUrl = `${KEYCLOAK_CONFIG.baseUrl}/realms/${KEYCLOAK_CONFIG.realm}/protocol/openid-connect/logout`;
-    const params = new URLSearchParams(); // xử lý phần tham số phía sau dấu hỏi ? của một đường link.
-
-    // 1. Dùng post_logout_redirect_uri để quay về app
-    params.append('post_logout_redirect_uri', KEYCLOAK_CONFIG.redirectUri);
-    
-    // 2. Nếu có idToken, gửi kèm id_token_hint -> Logout triệt để, không hỏi lại
-    if (idToken) {
-      params.append('id_token_hint', idToken);
-    } 
-    // Nếu KHÔNG có idToken, buộc phải gửi client_id (nhưng dễ bị lỗi 500 hoặc hỏi confirm)
-    else {
-      params.append('client_id', KEYCLOAK_CONFIG.clientId);
-    }
-    
-
-    logoutUrl += `?${params.toString()}`;
-    
-    // Dùng WebBrowser để logout -> tự đóng tab khi xong
-    if (Platform.OS !== 'web') {
-        // Đối với logout, ta cũng dùng openAuthSessionAsync
-        // Nó sẽ mở browser -> gọi url logout -> Keycloak redirect về app -> browser đóng
-        await WebBrowser.openAuthSessionAsync(logoutUrl, KEYCLOAK_CONFIG.redirectUri);
+    const logoutUrl = buildLogoutUrl(idToken);
+    if (Platform.OS !== "web") {
+      await beginKeycloakInAppSession(logoutUrl);
     } else {
-        window.location.href = logoutUrl;
+      window.location.href = logoutUrl;
     }
   } catch (error) {
     console.error("Lỗi khi logout Keycloak:", error);

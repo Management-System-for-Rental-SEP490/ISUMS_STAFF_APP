@@ -43,6 +43,8 @@ const useAuthStore = create<AuthState>()(
       houseId: null,
       isLoggedIn: false,
       onboardedUsers: [], // Danh sách các user đã xem Intro
+      keycloakInAppSession: null,
+      setKeycloakInAppSession: (s) => set({ keycloakInAppSession: s }),
 
       setHouseId: (id: string | null) => set({ houseId: id }),
 

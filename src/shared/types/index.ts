@@ -169,6 +169,12 @@ export type AuthPayload = {
   houseId?: string;
 };
 
+/** Phiên WebView Keycloak toàn cục (logout / đổi MK / account), giống overlay đăng nhập. */
+export type KeycloakInAppSession = {
+  url: string;
+  allowManualClose: boolean;
+};
+
 export type AuthState = {
   user: string | null;
   role: UserRole | null;
@@ -179,6 +185,8 @@ export type AuthState = {
   houseId: string | null;
   isLoggedIn: boolean;
   onboardedUsers: string[]; // Danh sách username đã xem onboarding
+  keycloakInAppSession: KeycloakInAppSession | null;
+  setKeycloakInAppSession: (s: KeycloakInAppSession | null) => void;
   login: (data: AuthPayload) => void;
   logout: () => void;
   completeOnboarding: () => void; // Hàm xác nhận user hiện tại đã xem xong

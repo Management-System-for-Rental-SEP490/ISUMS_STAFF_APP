@@ -17,7 +17,7 @@ import type { JobApiResponse } from "../types/api";
  */
 export const getJobById = async (jobId: string): Promise<JobApiResponse> => {
   const response = await axiosClient.get<JobApiResponse>(
-    `${FALLBACK_BACKEND_URL}/maintenances/jobs/${encodeURIComponent(jobId)}`
+    `${BACKEND_API_BASE}/maintenances/jobs/${encodeURIComponent(jobId)}`
   );
   return response.data;
 };
@@ -36,7 +36,7 @@ export const updateJobStatus = async (
   status: JobStatusUpdate
 ): Promise<{ success: boolean; message?: string }> => {
   const response = await axiosClient.put<{ success: boolean; message?: string }>(
-    `${FALLBACK_BACKEND_URL}/maintenances/jobs/${encodeURIComponent(jobId)}/status`,
+    `${BACKEND_API_BASE}/maintenances/jobs/${encodeURIComponent(jobId)}/status`,
     null,
     { params: { status } }
   );

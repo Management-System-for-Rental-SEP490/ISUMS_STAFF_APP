@@ -1,10 +1,10 @@
 <#macro mainLayout active bodyClass>
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="${locale.currentLanguageTag!'en'}">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ISUMS APP - Đổi mật khẩu</title>
+    <title>${msg("accountPageTitle")}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -16,8 +16,8 @@
             <div class="logo">
                 <img src="${url.resourcesPath}/img/logob.png" alt="ISUMS Logo" />
             </div>
-            <h1 class="app-name">ISUMS APP</h1>
-            <p class="tagline">Cập nhật mật khẩu bảo vệ tài khoản</p>
+            <h1 class="app-name">${msg("appName")}</h1>
+            <p class="tagline">${msg("accountTagline")}</p>
         </header>
         <main class="card">
             <#if message?has_content>

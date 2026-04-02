@@ -843,7 +843,8 @@ export default {
     },
     "dropdown_box": {
         "title": "絞り込み",
-        "search_placeholder": "名前・住所・階・カテゴリで検索…",
+        "compact_search_label": "検索ドロップダウン",
+        "search_placeholder": "検索",
         "no_results": "該当する項目がありません。",
         "section_floor": "階",
         "section_category": "機器カテゴリ",

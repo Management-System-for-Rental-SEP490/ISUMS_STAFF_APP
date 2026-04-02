@@ -1,9 +1,22 @@
-import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator } from "react-native";
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  View,
+  ActivityIndicator,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+} from "react-native";
+import WebView from "react-native-webview";
 import { NavigationContainer } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 import { CustomAlert } from "../shared/components/alert";
-import { logoutKeycloak } from "../shared/services/keycloakAuth";
+import {
+  logoutKeycloak,
+  getKeycloakRedirectUri,
+  keycloakInAppNotifyAppRedirect,
+  keycloakInAppUserDismissed,
+} from "../shared/services/keycloakAuth";
+import loginStyles from "../features/screens/authentication/loginStyles";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Login from "../features/screens/authentication/LoginScreen";
 import OnBoarding from "../features/screens/onBoarding/onBoarding";
@@ -49,14 +62,36 @@ const TicketDetailScreenWrapper = () => (
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+const navStyles = StyleSheet.create({
+  root: { flex: 1 },
+  keycloakOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#fff",
+    zIndex: 99999,
+    elevation: 99999,
+    flexDirection: "column",
+  },
+  keycloakWebView: { flex: 1 },
+});
+
 const Navigation = () => {
   const { t } = useTranslation();
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const user = useAuthStore((state) => state.user);
   const role = useAuthStore((state) => state.role);
   const onboardedUsers = useAuthStore((state) => state.onboardedUsers);
-  
+  const keycloakSession = useAuthStore((state) => state.keycloakInAppSession);
+
   const [isReady, setIsReady] = useState(false);
+
+  const handleKeycloakWebViewRequest = useCallback((request: { url: string }) => {
+    const redirectUri = getKeycloakRedirectUri();
+    if (request.url.startsWith(redirectUri)) {
+      void keycloakInAppNotifyAppRedirect(request.url);
+      return false;
+    }
+    return true;
+  }, []);
 
   // Kiểm tra xem User hiện tại đã xem Onboarding chưa
   const showOnboarding = isLoggedIn && user && !onboardedUsers.includes(user);
@@ -101,61 +136,92 @@ const Navigation = () => {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {isLoggedIn ? (
-          showOnboarding ? (
-             // User mới (chưa có trong onboardedUsers) -> Hiện Onboarding
-             <Stack.Screen name="OnBoarding" component={OnBoarding} />
+    <View style={navStyles.root}>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {isLoggedIn ? (
+            showOnboarding ? (
+              <Stack.Screen name="OnBoarding" component={OnBoarding} />
+            ) : (
+              <>
+                <Stack.Screen name="Main" component={StaffTabs} />
+                <Stack.Screen
+                  name="Camera"
+                  component={CameraScreen}
+                  options={{ presentation: "modal" }}
+                />
+                <Stack.Screen name="BuildingDetail" component={BuildingDetailScreenWrapper} />
+                <Stack.Screen name="TicketDetail" component={TicketDetailScreenWrapper} />
+                <Stack.Screen name="WorkSlotDetail" component={WorkSlotDetailScreen} />
+                <Stack.Screen name="StaffIssueNote" component={StaffIssueNoteScreen} />
+                <Stack.Screen name="CategoryList" component={CategoryListScreen} />
+                <Stack.Screen name="Category" component={CategoryScreen} />
+                <Stack.Screen
+                  name="CategoryEdit"
+                  component={CategoryEditScreen}
+                  options={{ presentation: "modal" }}
+                />
+                <Stack.Screen name="ItemList" component={ItemListScreen} />
+                <Stack.Screen name="ItemCreate" component={ItemCreateScreen} />
+                <Stack.Screen
+                  name="ItemEdit"
+                  component={ItemEditScreen}
+                  options={{ presentation: "modal" }}
+                />
+                <Stack.Screen
+                  name="ItemDescription"
+                  component={ItemDescriptionScreen}
+                  options={{ presentation: "modal" }}
+                />
+                <Stack.Screen name="LeaveRequestList" component={StaffDayOffListScreen} />
+                <Stack.Screen name="RequestDayOff" component={StaffRequestDayOffScreen} />
+                <Stack.Screen name="StaffIotList" component={StaffIotListScreen} />
+                <Stack.Screen name="StaffIotDetail" component={StaffIotDetailScreen} />
+                <Stack.Screen name="StaffIotProvision" component={StaffIotProvisionScreen} />
+                <Stack.Screen name="StaffIotQrScan" component={StaffIotQrScanScreen} />
+                <Stack.Screen name="StaffIotWifi" component={StaffIotWifiScreen} />
+                <Stack.Screen name="StaffIotWifiPassword" component={StaffIotWifiPasswordScreen} />
+                <Stack.Screen name="StaffIotProvisionWaiting" component={StaffIotProvisionWaitingScreen} />
+              </>
+            )
           ) : (
-            // Staff app: Main = StaffTabs
-            <>
-              <Stack.Screen name="Main" component={StaffTabs} />
-              <Stack.Screen
-                name="Camera"
-                component={CameraScreen}
-                options={{ presentation: "modal" }}
-              />
-              <Stack.Screen name="BuildingDetail" component={BuildingDetailScreenWrapper} />
-              <Stack.Screen name="TicketDetail" component={TicketDetailScreenWrapper} />
-              <Stack.Screen name="WorkSlotDetail" component={WorkSlotDetailScreen} />
-              <Stack.Screen name="StaffIssueNote" component={StaffIssueNoteScreen} />
-              <Stack.Screen name="CategoryList" component={CategoryListScreen} />
-              <Stack.Screen name="Category" component={CategoryScreen} />
-              <Stack.Screen
-                name="CategoryEdit"
-                component={CategoryEditScreen}
-                options={{ presentation: "modal" }}
-              />
-              <Stack.Screen name="ItemList" component={ItemListScreen} />
-              <Stack.Screen name="ItemCreate" component={ItemCreateScreen} />
-              <Stack.Screen
-                name="ItemEdit"
-                component={ItemEditScreen}
-                options={{ presentation: "modal" }}
-              />
-              <Stack.Screen
-                name="ItemDescription"
-                component={ItemDescriptionScreen}
-                options={{ presentation: "modal" }}
-              />
-              <Stack.Screen name="LeaveRequestList" component={StaffDayOffListScreen} />
-              <Stack.Screen name="RequestDayOff" component={StaffRequestDayOffScreen} />
-              <Stack.Screen name="StaffIotList" component={StaffIotListScreen} />
-              <Stack.Screen name="StaffIotDetail" component={StaffIotDetailScreen} />
-              <Stack.Screen name="StaffIotProvision" component={StaffIotProvisionScreen} />
-              <Stack.Screen name="StaffIotQrScan" component={StaffIotQrScanScreen} />
-              <Stack.Screen name="StaffIotWifi" component={StaffIotWifiScreen} />
-              <Stack.Screen name="StaffIotWifiPassword" component={StaffIotWifiPasswordScreen} />
-              <Stack.Screen name="StaffIotProvisionWaiting" component={StaffIotProvisionWaitingScreen} />
-            </>
-          )
-        ) : (
-          // Chưa đăng nhập -> Hiện Login
-          <Stack.Screen name="AuthLogin" component={Login} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+            <Stack.Screen name="AuthLogin" component={Login} />
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+      {keycloakSession ? (
+        <View style={navStyles.keycloakOverlay}>
+          {keycloakSession.allowManualClose ? (
+            <View style={loginStyles.webViewHeader}>
+              <TouchableOpacity
+                onPress={keycloakInAppUserDismissed}
+                activeOpacity={0.7}
+              >
+                <Text style={loginStyles.webViewCloseText}>
+                  {t("common.close")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          <WebView
+            style={navStyles.keycloakWebView}
+            source={{ uri: keycloakSession.url }}
+            onShouldStartLoadWithRequest={handleKeycloakWebViewRequest}
+            startInLoadingState
+            renderLoading={() => (
+              <View style={loginStyles.webViewLoadingOverlay}>
+                <ActivityIndicator size="large" color={brandPrimary} />
+                <Text
+                  style={{ color: "#666", textAlign: "center", marginTop: 10 }}
+                >
+                  {t("common.loading")}
+                </Text>
+              </View>
+            )}
+          />
+        </View>
+      ) : null}
+    </View>
   );
 };
 

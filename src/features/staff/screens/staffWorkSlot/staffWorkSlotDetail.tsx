@@ -389,6 +389,7 @@ export default function WorkSlotDetailScreen() {
             setMaintenanceSubmitting(true);
             try {
               const res = await updateAssetItemsMaintenanceBatch({
+                jobId: job.id,
                 updates: updates.map((it) => ({
                   assetId: it.assetId,
                   conditionPercent: it.conditionPercent,
