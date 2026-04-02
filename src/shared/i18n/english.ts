@@ -842,7 +842,8 @@ export default {
     },
     "dropdown_box": {
         "title": "Filters & selection",
-        "search_placeholder": "Search name, address, floor, category…",
+        "compact_search_label": "Search dropdown",
+        "search_placeholder": "Search",
         "no_results": "No matching items.",
         "section_floor": "Floor",
         "section_category": "Device category",

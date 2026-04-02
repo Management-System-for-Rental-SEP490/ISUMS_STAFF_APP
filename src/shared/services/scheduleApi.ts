@@ -6,7 +6,7 @@
  * - POST /api/schedules/work_slots/staff/confirm — staff đăng ký giờ xử lý ticket (`jobId` = ticket id).
  */
 import axiosClient from "../api/axiosClient";
-import { FALLBACK_BACKEND_URL } from "../api/config";
+import { BACKEND_API_BASE } from "../api/config";
 import { useAuthStore } from "../../store/useAuthStore";
 import type {
   ScheduleTemplateApiResponse,
@@ -85,7 +85,7 @@ export const getCurrentScheduleTemplate = async (
   date: string
 ): Promise<ScheduleTemplateApiResponse> => {
   const response = await axiosClient.get<ScheduleTemplateApiResponse>(
-    `${FALLBACK_BACKEND_URL}/schedules/templates/current/${encodeURIComponent(date)}`
+    `${BACKEND_API_BASE}/schedules/templates/current/${encodeURIComponent(date)}`
   );
   return response.data;
 };
@@ -103,7 +103,7 @@ export const getWorkSlotsByStaffId = async (
   // API mới: backend lấy staff từ token nên URL không còn cần staffId trong path.
   // (BE: GET /api/schedules/work_slots/staff)
   const response = await axiosClient.get<WorkSlotsApiResponse>(
-    `${FALLBACK_BACKEND_URL}/schedules/work_slots/staff`
+    `${BACKEND_API_BASE}/schedules/work_slots/staff`
   );
   return response.data;
 };
@@ -119,7 +119,7 @@ export const getGeneratedWorkSlots = async (
   endYmd: string
 ): Promise<GenerateWorkSlotsApiResponse> => {
   const response = await axiosClient.get<GenerateWorkSlotsApiResponse>(
-    `${FALLBACK_BACKEND_URL}/schedules/work_slots/generate`,
+    `${BACKEND_API_BASE}/schedules/work_slots/generate`,
     { params: { start: startYmd, end: endYmd } }
   );
   return response.data;
@@ -132,7 +132,7 @@ export const confirmStaffWorkSlotForJob = async (
   payload: ConfirmStaffWorkSlotPayload
 ): Promise<ConfirmStaffWorkSlotResponse> => {
   const response = await axiosClient.post<ConfirmStaffWorkSlotResponse>(
-    `${FALLBACK_BACKEND_URL}/schedules/work_slots/staff/confirm`,
+    `${BACKEND_API_BASE}/schedules/work_slots/staff/confirm`,
     payload
   );
   return response.data;
@@ -150,7 +150,7 @@ export const getLeaveRequestsByStaffId = async (
   /** Tham số cache-bust để tránh lấy dữ liệu cũ khi refresh sau khi manager duyệt */
   cacheBust?: number
 ): Promise<LeaveRequestsApiResponse> => {
-  const url = `${FALLBACK_BACKEND_URL}/schedules/leave/staff/${encodeURIComponent(staffId)}`;
+  const url = `${BACKEND_API_BASE}/schedules/leave/staff/${encodeURIComponent(staffId)}`;
   const response = await axiosClient.get<LeaveRequestsApiResponse>(url, {
     params: cacheBust != null ? { _: cacheBust } : undefined,
   });
@@ -165,7 +165,7 @@ export const createLeaveRequest = async (
   payload: CreateLeaveRequestPayload
 ): Promise<CreateLeaveRequestResponse> => {
   const response = await axiosClient.post<CreateLeaveRequestResponse>(
-    `${FALLBACK_BACKEND_URL}/schedules/leave`,
+    `${BACKEND_API_BASE}/schedules/leave`,
     payload
   );
   return response.data;
@@ -180,7 +180,7 @@ export const updateLeaveRequestStatus = async (
   payload: UpdateLeaveRequestPayload
 ): Promise<UpdateLeaveRequestResponse> => {
   const response = await axiosClient.put<UpdateLeaveRequestResponse>(
-    `${FALLBACK_BACKEND_URL}/schedules/leave/${encodeURIComponent(leaveRequestId)}/status`,
+    `${BACKEND_API_BASE}/schedules/leave/${encodeURIComponent(leaveRequestId)}/status`,
     payload
   );
   return response.data;

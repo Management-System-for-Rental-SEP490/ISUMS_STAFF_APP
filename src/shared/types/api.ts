@@ -443,6 +443,8 @@ export interface AssetMaintenanceBatchUpdatePayload {
 
 /** Body cho API PUT /api/assets/items/maintenance/batch. */
 export interface AssetMaintenanceBatchUpdateRequest {
+  /** Job bảo trì (UUID) — BE dùng để gắn cập nhật thiết bị với đúng công việc. */
+  jobId: string;
   updates: AssetMaintenanceBatchUpdatePayload[];
 }
 

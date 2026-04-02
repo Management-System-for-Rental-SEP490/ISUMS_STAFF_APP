@@ -7,7 +7,7 @@ import type { ApiResponse, UserProfileResponse } from "../types/api";
  * Cùng BACKEND_API_BASE với toàn bộ REST app.
  */
 export const getUserProfile = async (): Promise<UserProfileResponse | null> => {
-  const url = `${FALLBACK_BACKEND_URL}/users/me`;
+  const url = `${BACKEND_API_BASE}/users/me`;
   try {
     const response = await axiosClient.get<ApiResponse<UserProfileResponse>>(url);
     

@@ -1,0 +1,26 @@
+---
+description: Màn loading che chuyển trang / chờ async — tránh nháy màn, lộ URL Keycloak.
+alwaysApply: true
+---
+
+# Loading & chuyển trang (ISUMS_STAFF_APP)
+
+**Mục đích:** Mọi luồng **đổi màn hoặc UI phụ thuộc async** (đăng nhập, đăng xuất, Keycloak, hydrate auth, đổi MK, v.v.) phải **che bằng trạng thái loading** đầy màn hoặc overlay WebView có loading — **không** để user thấy nhảy giữa nhiều màn hoặc thanh URL hệ thống.
+
+## Bắt buộc làm theo mẫu có sẵn
+
+1. **`src/features/screens/authentication/LoginScreen.tsx`**  
+   - Khi xử lý callback / đổi code lấy token: `isLoading === true` → **full screen** `ActivityIndicator` + `t("common.loading")` (giữ nguyên style/spinner `brandPrimary` như hiện tại).  
+   - WebView đăng nhập: `startInLoadingState` + `renderLoading` dùng `loginStyles.webViewLoadingOverlay` (cùng pattern loading).
+
+2. **`src/navigation/navigation.tsx`**  
+   - Trước khi `NavigationContainer` sẵn sàng: màn chỉ `ActivityIndicator` (hydrate store).  
+   - Phiên Keycloak toàn cục (`keycloakInAppSession`): overlay WebView + `renderLoading` giống login — **không** mở Custom Tabs / browser hở URL cho logout / đổi MK / account trên native.
+
+3. **`src/shared/services/keycloakAuth.ts`**  
+   - Luồng native cần trình duyệt OIDC → dùng **`beginKeycloakInAppSession`** + redirect về `getKeycloakRedirectUri()`, không tự ý thêm `WebBrowser.openAuthSessionAsync` / `Linking.openURL` cho các bước đó trừ khi **web** (`Platform.OS === "web"`).
+
+## Khi thêm tính năng mới
+
+- Có **chờ mạng / redirect / đổi stack** mà UI có thể “giật”: thêm **một** lớp loading (full screen hoặc overlay) **trước** khi state điều hướng ổn định.  
+- Ưu tiên **tái sử dụng** `loginStyles.webViewLoadingOverlay`, `brandPrimary`, `t("common.loading")` cho đồng bộ UI.

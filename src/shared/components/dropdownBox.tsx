@@ -30,6 +30,8 @@ export type DropdownBoxSection = {
   id: string;
   title: string;
   items: DropdownBoxItem[];
+  /** Ghi đè layout cho riêng section này. */
+  itemLayout?: "chips" | "list";
   /** `null` khi đang chọn hàng "Tất cả" (nếu có). */
   selectedId: string | null;
   /**
@@ -73,6 +75,8 @@ export type DropdownBoxProps = {
    * Mặc định `true`.
    */
   searchAutoFocus?: boolean;
+  /** Mở sẵn panel ngay khi component mount. Mặc định `false`. */
+  defaultExpanded?: boolean;
 };
 
 type SectionBlock = {
@@ -135,10 +139,11 @@ export function DropdownBox({
   triggerAccent = false,
   searchPlaceholder,
   searchAutoFocus = true,
+  defaultExpanded = false,
 }: DropdownBoxProps) {
   const { t } = useTranslation();
   const { height: windowH } = useWindowDimensions();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [search, setSearch] = useState("");
   /** Tránh gọi `onSearchInputFocus` lặp (mỗi lần gõ / refocus) → FlatList scrollToOffset làm panel nhảy. */
   const parentScrollForSearchDoneRef = useRef(false);
@@ -170,9 +175,10 @@ export function DropdownBox({
   );
 
   const chipsMaxHeight = Math.min(360, Math.round(windowH * 0.45));
-  /** List dọc: cố định chiều cao vùng cuộn — tránh co/giãn khi lọc → panel + ô tìm nhảy / mất focus. */
+  const hasListSection = sectionBlocks.some((block) => (block.sec.itemLayout ?? itemLayout) === "list");
+  /** Có section list: cố định chiều cao vùng cuộn để tránh nhảy panel khi lọc. */
   const listScrollHeightStyle =
-    itemLayout === "list" ? ({ height: chipsMaxHeight } as const) : ({ maxHeight: chipsMaxHeight } as const);
+    hasListSection ? ({ height: chipsMaxHeight } as const) : ({ maxHeight: chipsMaxHeight } as const);
 
   const collapse = useCallback(() => setExpanded(false), []);
 
@@ -244,11 +250,7 @@ export function DropdownBox({
 
             <ScrollView
               style={[styles.chipsScroll, listScrollHeightStyle]}
-              contentContainerStyle={
-                sectionBlocks.length === 0 && itemLayout === "list"
-                  ? styles.listScrollContentEmpty
-                  : undefined
-              }
+              contentContainerStyle={sectionBlocks.length === 0 && hasListSection ? styles.listScrollContentEmpty : undefined}
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled
               showsVerticalScrollIndicator
@@ -257,79 +259,6 @@ export function DropdownBox({
                 <View style={styles.emptyWrap}>
                   <Text style={styles.emptyText}>{t("dropdown_box.no_results")}</Text>
                 </View>
-              ) : itemLayout === "list" ? (
-                sectionBlocks.map((block, idx) => (
-                  <View
-                    key={block.sec.id}
-                    style={sections.length === 1 ? styles.singleSectionBlock : undefined}
-                  >
-                    {sections.length > 1 ? (
-                      <Text
-                        style={[styles.sectionTitle, idx === 0 && styles.sectionTitleFirst]}
-                        accessibilityRole="header"
-                      >
-                        {block.sec.title}
-                      </Text>
-                    ) : null}
-                    {block.allVisible ? (
-                      <Pressable
-                        style={[
-                          styles.listRow,
-                          block.sec.selectedId === null && styles.listRowSelected,
-                        ]}
-                        onPress={() => handleSelect(block.sec.id, null)}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: block.sec.selectedId === null }}
-                      >
-                        <View style={styles.listRowTextWrap}>
-                          <Text
-                            style={[
-                              styles.listRowTitle,
-                              block.sec.selectedId === null && styles.listRowTitleSelected,
-                            ]}
-                            numberOfLines={2}
-                          >
-                            {block.allLabel}
-                          </Text>
-                        </View>
-                        <Icons.chevronForward size={20} color={neutral.textSecondary} />
-                      </Pressable>
-                    ) : null}
-                    {block.filteredItems.map((it) => {
-                      const selected = block.sec.selectedId === it.id;
-                      return (
-                        <Pressable
-                          key={it.id}
-                          style={[styles.listRow, selected && styles.listRowSelected]}
-                          onPress={() => handleSelect(block.sec.id, it.id)}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected }}
-                        >
-                          <View style={styles.listRowTextWrap}>
-                            <Text
-                              style={[styles.listRowTitle, selected && styles.listRowTitleSelected]}
-                              numberOfLines={2}
-                            >
-                              {it.label}
-                            </Text>
-                            {it.detail ? (
-                              <Text style={styles.listRowDetail} numberOfLines={2}>
-                                {it.detail}
-                              </Text>
-                            ) : null}
-                            {typeof it.deviceCount === "number" ? (
-                              <Text style={styles.listRowMeta}>
-                                {t("staff_home.house_picker_device_prefix")}{" "}
-                                <Text style={styles.listRowMetaBold}>{it.deviceCount}</Text>
-                              </Text>
-                            ) : null}
-                          </View>
-                          <Icons.chevronForward size={20} color={neutral.textSecondary} />
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ))
               ) : (
                 sectionBlocks.map((block, idx) => (
                   <View
@@ -344,54 +273,116 @@ export function DropdownBox({
                         {block.sec.title}
                       </Text>
                     ) : null}
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator
-                      keyboardShouldPersistTaps="handled"
-                      nestedScrollEnabled
-                      contentContainerStyle={styles.chipRowContent}
-                    >
-                      {block.allVisible ? (
-                        <Pressable
-                          style={[
-                            styles.chip,
-                            block.sec.selectedId === null && styles.chipSelected,
-                          ]}
-                          onPress={() => handleSelect(block.sec.id, null)}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: block.sec.selectedId === null }}
-                        >
-                          <Text
-                            style={[
-                              styles.chipLabel,
-                              block.sec.selectedId === null && styles.chipLabelSelected,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {block.allLabel}
-                          </Text>
-                        </Pressable>
-                      ) : null}
-                      {block.filteredItems.map((it) => {
-                        const selected = block.sec.selectedId === it.id;
-                        return (
+                    {(block.sec.itemLayout ?? itemLayout) === "list" ? (
+                      <>
+                        {block.allVisible ? (
                           <Pressable
-                            key={it.id}
-                            style={[styles.chip, selected && styles.chipSelected]}
-                            onPress={() => handleSelect(block.sec.id, it.id)}
+                            style={[
+                              styles.listRow,
+                              block.sec.selectedId === null && styles.listRowSelected,
+                            ]}
+                            onPress={() => handleSelect(block.sec.id, null)}
                             accessibilityRole="button"
-                            accessibilityState={{ selected }}
+                            accessibilityState={{ selected: block.sec.selectedId === null }}
+                          >
+                            <View style={styles.listRowTextWrap}>
+                              <Text
+                                style={[
+                                  styles.listRowTitle,
+                                  block.sec.selectedId === null && styles.listRowTitleSelected,
+                                ]}
+                                numberOfLines={2}
+                              >
+                                {block.allLabel}
+                              </Text>
+                            </View>
+                            <Icons.chevronForward size={20} color={neutral.textSecondary} />
+                          </Pressable>
+                        ) : null}
+                        {block.filteredItems.map((it) => {
+                          const selected = block.sec.selectedId === it.id;
+                          return (
+                            <Pressable
+                              key={it.id}
+                              style={[styles.listRow, selected && styles.listRowSelected]}
+                              onPress={() => handleSelect(block.sec.id, it.id)}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected }}
+                            >
+                              <View style={styles.listRowTextWrap}>
+                                <Text
+                                  style={[styles.listRowTitle, selected && styles.listRowTitleSelected]}
+                                  numberOfLines={2}
+                                >
+                                  {it.label}
+                                </Text>
+                                {it.detail ? (
+                                  <Text style={styles.listRowDetail} numberOfLines={2}>
+                                    {it.detail}
+                                  </Text>
+                                ) : null}
+                                {typeof it.deviceCount === "number" ? (
+                                  <Text style={styles.listRowMeta}>
+                                    {t("staff_home.house_picker_device_prefix")}{" "}
+                                    <Text style={styles.listRowMetaBold}>{it.deviceCount}</Text>
+                                  </Text>
+                                ) : null}
+                              </View>
+                              <Icons.chevronForward size={20} color={neutral.textSecondary} />
+                            </Pressable>
+                          );
+                        })}
+                      </>
+                    ) : (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator
+                        keyboardShouldPersistTaps="handled"
+                        nestedScrollEnabled
+                        contentContainerStyle={styles.chipRowContent}
+                      >
+                        {block.allVisible ? (
+                          <Pressable
+                            style={[
+                              styles.chip,
+                              block.sec.selectedId === null && styles.chipSelected,
+                            ]}
+                            onPress={() => handleSelect(block.sec.id, null)}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: block.sec.selectedId === null }}
                           >
                             <Text
-                              style={[styles.chipLabel, selected && styles.chipLabelSelected]}
+                              style={[
+                                styles.chipLabel,
+                                block.sec.selectedId === null && styles.chipLabelSelected,
+                              ]}
                               numberOfLines={1}
                             >
-                              {it.label}
+                              {block.allLabel}
                             </Text>
                           </Pressable>
-                        );
-                      })}
-                    </ScrollView>
+                        ) : null}
+                        {block.filteredItems.map((it) => {
+                          const selected = block.sec.selectedId === it.id;
+                          return (
+                            <Pressable
+                              key={it.id}
+                              style={[styles.chip, selected && styles.chipSelected]}
+                              onPress={() => handleSelect(block.sec.id, it.id)}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected }}
+                            >
+                              <Text
+                                style={[styles.chipLabel, selected && styles.chipLabelSelected]}
+                                numberOfLines={1}
+                              >
+                                {it.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
+                    )}
                   </View>
                 ))
               )}

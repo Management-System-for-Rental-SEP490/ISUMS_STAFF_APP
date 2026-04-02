@@ -121,8 +121,8 @@ export const getAssetItems = async (
 
   const query = searchParams.toString();
   const url = query
-    ? `${ASSETS_API_BASE}/assets/items?${query}`
-    : `${ASSETS_API_BASE}/assets/items`;
+    ? `${BACKEND_API_BASE}/assets/items?${query}`
+    : `${BACKEND_API_BASE}/assets/items`;
 
   const response = await axiosClient.get<AssetItemsApiResponse>(url);
   const data = response.data;
@@ -147,7 +147,7 @@ export const getAssetItemsByHouseId = async (
   houseId: string
 ): Promise<AssetItemsApiResponse> => {
   const response = await axiosClient.get<AssetItemsApiResponse>(
-    `${ASSETS_API_BASE}/assets/items/house/${encodeURIComponent(houseId)}`
+    `${BACKEND_API_BASE}/assets/items/house/${encodeURIComponent(houseId)}`
   );
   const data = response.data;
   if (Array.isArray(data.data)) {
@@ -168,7 +168,7 @@ export const getAssetItemsByHouseId = async (
 export const getIotDevicesByHouseId = async (
   houseId: string
 ): Promise<IotDevicesByHouseApiResponse> => {
-  const url = `${FALLBACK_BACKEND_URL}/assets/iot-devices/house/${encodeURIComponent(houseId)}`;
+  const url = `${BACKEND_API_BASE}/assets/iot-devices/house/${encodeURIComponent(houseId)}`;
   const response = await axiosClient.get<IotDevicesByHouseApiResponse>(url);
   return response.data;
 };
@@ -180,7 +180,7 @@ export const getIotDevicesByHouseId = async (
 export const getAssetItemById = async (id: string): Promise<AssetItemFromApi | undefined> => {
   try {
     const response = await axiosClient.get<UpdateAssetItemApiResponse | AssetItemFromApi>(
-      `${FALLBACK_BACKEND_URL}/assets/items/${id}`
+      `${BACKEND_API_BASE}/assets/items/${id}`
     );
     const envelope = response.data as unknown;
     let rawUnknown: unknown;
@@ -231,7 +231,7 @@ export const getAssetItemByTag = async (
 
   try {
     const response = await axiosClient.get<GetAssetByTagValueApiResponse>(
-      `${FALLBACK_BACKEND_URL}/assets/tags/asset/${encodeURIComponent(apiTagValue)}`
+      `${BACKEND_API_BASE}/assets/tags/asset/${encodeURIComponent(apiTagValue)}`
     );
 
     const responseData = response.data.data;
@@ -330,7 +330,7 @@ export const createAssetItem = async (
       };
 
   const response = await axiosClient.post<CreateAssetItemApiResponse>(
-    `${FALLBACK_BACKEND_URL}/assets/items`,
+    `${BACKEND_API_BASE}/assets/items`,
     body
   );
   const res = response.data;
@@ -397,7 +397,7 @@ export const updateAssetItem = async (
         functional_area_id: functionAreaId,
       };
 
-  const putUrl = `${FALLBACK_BACKEND_URL}/assets/items/${encodeURIComponent(id)}`;
+  const putUrl = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(id)}`;
 
   const response = await axiosClient.put<UpdateAssetItemApiResponse>(putUrl, body);
   const res = response.data;
@@ -422,12 +422,13 @@ export const updateAssetItem = async (
 /**
  * Batch cập nhật thông tin bảo trì cho nhiều thiết bị.
  * API: PUT /api/assets/items/maintenance/batch
+ * Body: `{ jobId, updates: [{ assetId, conditionPercent, note }] }`
  */
 export const updateAssetItemsMaintenanceBatch = async (
   payload: AssetMaintenanceBatchUpdateRequest
 ): Promise<AssetMaintenanceBatchUpdateApiResponse> => {
   const response = await axiosClient.put<AssetMaintenanceBatchUpdateApiResponse>(
-    `${FALLBACK_BACKEND_URL}/assets/items/maintenance/batch`,
+    `${BACKEND_API_BASE}/assets/items/maintenance/batch`,
     payload
   );
   return response.data;
@@ -442,7 +443,7 @@ export const transferAssetItemHouse = async (
   newHouseId: string
 ): Promise<UpdateAssetItemApiResponse> => {
   const response = await axiosClient.put<UpdateAssetItemApiResponse>(
-    `${FALLBACK_BACKEND_URL}/assets/items/${id}/transfer`,
+    `${BACKEND_API_BASE}/assets/items/${id}/transfer`,
     { newHouseId }
   );
   const res = response.data;
@@ -468,7 +469,7 @@ export const transferAssetItemHouse = async (
  */
 export const deleteAssetItem = async (id: string): Promise<{ success: boolean; message?: string }> => {
   const response = await axiosClient.delete<{ success: boolean; message?: string }>(
-    `${FALLBACK_BACKEND_URL}/assets/items/${id}`
+    `${BACKEND_API_BASE}/assets/items/${id}`
   );
   return response.data;
 };
@@ -486,7 +487,7 @@ export const attachAssetTag = async (
     tagType: payload.tagType,
   };
   const response = await axiosClient.post<AttachAssetTagApiResponse>(
-    `${FALLBACK_BACKEND_URL}/assets/tags`,
+    `${BACKEND_API_BASE}/assets/tags`,
     body
   );
   return response.data;
@@ -501,7 +502,7 @@ export const detachAssetTag = async (
 ): Promise<DetachAssetTagApiResponse> => {
   const normalized = normalizeTagValueForApi(tagValue.trim());
   const response = await axiosClient.put<DetachAssetTagApiResponse>(
-    `${FALLBACK_BACKEND_URL}/assets/tags/detach/${encodeURIComponent(normalized)}`
+    `${BACKEND_API_BASE}/assets/tags/detach/${encodeURIComponent(normalized)}`
   );
   return response.data;
 };
@@ -514,8 +515,8 @@ export const deprovisionIotControllerByHouseId = async (
   houseId: string
 ): Promise<ApiResponse<string>> => {
   const response = await axiosClient.delete<ApiResponse<string>>(
-    //`${FALLBACK_BACKEND_URL}/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
-    `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
+    `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
+   // `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
   );
   return response.data;
 };
@@ -531,7 +532,7 @@ export const provisionIotControllerByHouseId = async (
 ): Promise<IotProvisionApiResponse> => {
   const response = await axiosClient.post<IotProvisionApiResponse>(
    // `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
-   `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
+   `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
     payload
   );
   return response.data;
@@ -543,7 +544,7 @@ export const getIotProvisionTokenBySerial = async (
 ): Promise<IotProvisionTokenApiResponse> => {
   const response = await axiosClient.post<IotProvisionTokenApiResponse>(
     //`${ASSETS_API_BASE}/assets/iot/provision-token`,
-    'https://api-dev.isums.pro/api/assets/iot/provision-token',
+    `${BACKEND_API_BASE}/assets/iot/provision-token`,
     payload
   );
   return response.data;
@@ -555,7 +556,7 @@ export const getIotControllerByHouseId = async (
 ): Promise<IotControllerByHouseApiResponse> => {
   const response = await axiosClient.get<IotControllerByHouseApiResponse>(
     //`${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
-    `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
+    `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
   );
   return response.data;
 };
@@ -567,7 +568,7 @@ export const provisionIotNodeByHouseId = async (
 ): Promise<IotProvisionNodeApiResponse> => {
   const response = await axiosClient.post<IotProvisionNodeApiResponse>(
     //`${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
-    `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
+    `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
     payload
   );
   return response.data;
@@ -594,7 +595,7 @@ export const getAssetItemImages = async (
   cacheBust?: number,
 ): Promise<AssetItemImageFromApi[]> => {
   if (!itemId?.trim()) return [];
-  const baseUrl = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
+  const baseUrl = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
   const url = cacheBust ? `${baseUrl}?t=${encodeURIComponent(String(cacheBust))}` : baseUrl;
   const devLog =
     typeof __DEV__ !== "undefined" && __DEV__
@@ -640,7 +641,7 @@ export const uploadAssetItemImages = async (
     throw new Error("Missing auth token for asset item image upload");
   }
 
-  const url = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
+  const url = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
   const formData = new FormData();
 
   images.forEach((img, idx) => {
@@ -696,7 +697,7 @@ export const deleteAssetItemImage = async (
     throw new Error("Missing itemId or imageId for deleting asset item image");
   }
 
-  const url = `${ASSETS_API_BASE}/assets/items/${encodeURIComponent(normalizedItemId)}/image/${encodeURIComponent(normalizedImageId)}`;
+  const url = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(normalizedItemId)}/image/${encodeURIComponent(normalizedImageId)}`;
   const response = await axiosClient.delete<ApiResponse<null>>(url);
   const ok = Boolean(response?.data?.success);
   if (!ok) {

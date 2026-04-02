@@ -32,7 +32,7 @@ export const getIssueTicketImages = async (
 ): Promise<IssueTicketImageFromApi[]> => {
   if (!ticketId?.trim()) return [];
 
-  const url = `${FALLBACK_BACKEND_URL}/issues/tickets/${encodeURIComponent(ticketId)}/images`;
+  const url = `${BACKEND_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}/images`;
   const response = await axiosClient.get<ApiResponse<IssueTicketImageFromApi[]>>(url);
 
   if (response.data?.success && Array.isArray(response.data.data)) {
@@ -48,7 +48,7 @@ export const getIssueTicketById = async (
   ticketId: string
 ): Promise<IssueTicketApiResponse> => {
   const response = await axiosClient.get<IssueTicketApiResponse>(
-    `${FALLBACK_BACKEND_URL}/issues/tickets/${encodeURIComponent(ticketId)}`
+    `${BACKEND_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}`
   );
   return response.data;
 };
@@ -64,7 +64,7 @@ export const updateIssueTicketStatus = async (
   status: IssueTicketStatusUpdate
 ): Promise<{ success: boolean; message?: string }> => {
   const response = await axiosClient.put<{ success: boolean; message?: string }>(
-    `${FALLBACK_BACKEND_URL}/issues/tickets/${encodeURIComponent(ticketId)}/status`,
+    `${BACKEND_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}/status`,
     null,
     { params: { status } }
   );
@@ -86,7 +86,7 @@ export const getIssueTicketDataById = async (
  */
 export const getIssueTicketsByStaff = async (): Promise<IssueTicketListApiResponse> => {
   const response = await axiosClient.get<IssueTicketListApiResponse>(
-    `${FALLBACK_BACKEND_URL}/issues/tickets/staff`
+    `${BACKEND_API_BASE}/issues/tickets/staff`
   );
   return response.data;
 };
@@ -130,7 +130,7 @@ export const createIssueExecution = async (
   payload: CreateIssueExecutionPayload
 ): Promise<CreateIssueExecutionResponse> => {
   const response = await axiosClient.post<CreateIssueExecutionResponse>(
-    `${FALLBACK_BACKEND_URL}/issues/executions/${encodeURIComponent(issueId)}/execution`,
+    `${BACKEND_API_BASE}/issues/executions/${encodeURIComponent(issueId)}/execution`,
     payload
   );
   return response.data;
@@ -142,7 +142,7 @@ export const createIssueExecution = async (
  */
 export const getIssueBanners = async (): Promise<IssueBannerFromApi[]> => {
   const response = await axiosClient.get<ApiResponse<IssueBannerFromApi[]>>(
-    `${FALLBACK_BACKEND_URL}/issues/banners`
+    `${BACKEND_API_BASE}/issues/banners`
   );
   if (response.data?.success && Array.isArray(response.data.data)) {
     return response.data.data;
@@ -159,7 +159,7 @@ export const createIssueQuote = async (
   payload: CreateIssueQuotePayload
 ): Promise<CreateIssueQuoteApiResponse> => {
   const response = await axiosClient.post<CreateIssueQuoteApiResponse>(
-    `${FALLBACK_BACKEND_URL}/issues/quotes/${encodeURIComponent(issueId)}/quote`,
+    `${BACKEND_API_BASE}/issues/quotes/${encodeURIComponent(issueId)}/quote`,
     payload
   );
   return response.data;

@@ -52,12 +52,9 @@ import {
 import { ExpandableLongText } from "../../../../shared/components/ExpandableLongText";
 import {
   DEFAULT_BE_SHORT_TEXT_MAX_CHARS,
-  getTotalPages,
   mergeFunctionalAreasForHouse,
-  slicePage,
   sortFunctionalAreasForDisplay,
 } from "../../../../shared/utils";
-import { PaginationBar } from "../../../../shared/components/PaginationBar";
 
 type BuildingDetailRouteProp = RouteProp<RootStackParamList, "BuildingDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "BuildingDetail">;
@@ -144,6 +141,9 @@ export default function BuildingDetailScreen() {
         topInset
       );
       mainScrollRef.current?.scrollTo({ y, animated: true });
+      setTimeout(() => {
+        mainScrollRef.current?.scrollTo({ y, animated: true });
+      }, 120);
     };
     requestAnimationFrame(() => {
       requestAnimationFrame(run);
@@ -158,9 +158,7 @@ export default function BuildingDetailScreen() {
 
     const onShow = (e: KeyboardEvent) => {
       keyboardHeightRef.current = e.endCoordinates.height;
-      if (Platform.OS === "ios") {
-        setKeyboardBottomInset(e.endCoordinates.height);
-      }
+      setKeyboardBottomInset(e.endCoordinates.height);
       if (keyboardScrollRetryRef.current) {
         clearTimeout(keyboardScrollRetryRef.current);
       }
@@ -283,15 +281,14 @@ export default function BuildingDetailScreen() {
     (s) => s.setBuildingSelectedCategoryId
   );
   const selectedCategoryId = buildingSelectedCategoryId[buildingId] ?? null;
-  const setSelectedCategoryId = (categoryId: string | null) =>
-    setBuildingSelectedCategoryId(buildingId, categoryId);
+  const [deviceSearchQuery, setDeviceSearchQuery] = useState("");
   /** Chỉ lấy các block category cần hiển thị theo filter. */
   const filteredDevicesByCategory = useMemo(() => {
     if (selectedCategoryId === null) return devicesByCategory;
     return devicesByCategory.filter((g) => g.categoryId === selectedCategoryId);
   }, [devicesByCategory, selectedCategoryId]);
 
-  const flatDeviceRows = useMemo(() => {
+  const filteredDeviceRows = useMemo(() => {
     const rows: { categoryName: string; item: AssetItemFromApi }[] = [];
     for (const g of filteredDevicesByCategory) {
       for (const item of g.items) {
@@ -300,53 +297,6 @@ export default function BuildingDetailScreen() {
     }
     return rows;
   }, [filteredDevicesByCategory]);
-
-  /** Dropdown tìm kiếm thiết bị theo tên (displayName). */
-  const deviceSearchSection = useMemo((): DropdownBoxSection | null => {
-    if (rawItems.length === 0) return null;
-    return {
-      id: "device",
-      title: "Devices",
-      selectedId: null,
-      showAllOption: false,
-      items: rawItems.map((it) => ({
-        id: it.id,
-        label: it.displayName ?? "",
-        detail: it.serialNumber ?? "",
-      })),
-    };
-  }, [rawItems]);
-
-  const [deviceListPage, setDeviceListPage] = useState(1);
-  const deviceTotalPages = getTotalPages(flatDeviceRows.length);
-  const pagedDeviceRows = useMemo(
-    () => slicePage(flatDeviceRows, deviceListPage),
-    [flatDeviceRows, deviceListPage]
-  );
-
-  useEffect(() => {
-    setDeviceListPage(1);
-  }, [selectedCategoryId, buildingId, rawItemsAll.length, selectedDeviceAreaId]);
-
-  useEffect(() => {
-    setDeviceListPage((p) => Math.min(p, deviceTotalPages));
-  }, [deviceTotalPages]);
-
-  /** Mở màn chỉnh sửa thiết bị (ItemEdit) khi nhấn vào 1 thiết bị trong nhà. */
-  const openItemEdit = (item: AssetItemFromApi) => {
-    navigation.navigate("ItemEdit", { item });
-  };
-
-  /** Khi chọn thiết bị từ dropdown => mở trực tiếp màn chỉnh sửa. */
-  const handleDeviceDropdownSelect = useCallback(
-    (_sectionId: string, itemId: string | null) => {
-      if (!itemId) return;
-      const found = rawItems.find((it) => it.id === itemId);
-      if (!found) return;
-      navigation.navigate("ItemEdit", { item: found });
-    },
-    [rawItems, navigation]
-  );
 
   /** Dịch trạng thái căn nhà từ API (AVAILABLE, RENTED, ...). */
   const getHouseStatusLabel = (statusValue: string) => {
@@ -367,45 +317,64 @@ export default function BuildingDetailScreen() {
 
   const categoryFilterSection = useMemo((): DropdownBoxSection | null => {
     if (rawItemsAll.length === 0 || devicesByCategoryAll.length === 0) return null;
-    const categoryDeviceNameSearchMap = new Map<string, string>();
-    for (const group of devicesByCategoryAll) {
-      const uniqueNames = Array.from(
-        new Set(
-          group.items
-            .map((it) => String(it.displayName ?? "").trim())
-            .filter((name) => name.length > 0)
-        )
-      );
-      categoryDeviceNameSearchMap.set(group.categoryId, uniqueNames.join(" · "));
-    }
     return {
       id: "category",
       title: t("dropdown_box.section_category"),
+      itemLayout: "chips",
       items: devicesByCategoryAll.map(({ categoryId, categoryName }) => ({
         id: categoryId,
         label: categoryName,
-        // Giúp ô search của DropdownBox match được theo tên thiết bị trong từng danh mục.
-        detail: categoryDeviceNameSearchMap.get(categoryId),
       })),
       selectedId: selectedCategoryId,
       showAllOption: true,
     };
   }, [rawItemsAll.length, devicesByCategoryAll, selectedCategoryId, t]);
 
-  const categoryFilterSummary = useMemo(() => {
-    const all = t("staff_home.all_devices_category_all");
-    const catLabel =
-      selectedCategoryId === null
-        ? all
-        : devicesByCategoryAll.find((g) => g.categoryId === selectedCategoryId)?.categoryName ?? "";
-    return `${t("dropdown_box.category_short")}: ${catLabel}`;
-  }, [devicesByCategoryAll, selectedCategoryId, t]);
+  const deviceFilterSection = useMemo((): DropdownBoxSection | null => {
+    if (filteredDeviceRows.length === 0) return null;
+    return {
+      id: "device",
+      title: t("staff_building_detail.devices_title", { count: filteredDeviceRows.length }),
+      itemLayout: "list",
+      selectedId: null,
+      showAllOption: false,
+      items: filteredDeviceRows.map(({ categoryName, item }) => ({
+        id: item.id,
+        label: item.displayName ?? item.id,
+        detail: categoryName,
+      })),
+    };
+  }, [filteredDeviceRows, t]);
+
+  const categoryFilterSummary = t("dropdown_box.compact_search_label");
 
   const handleCategoryDropdownSelect = useCallback(
     (_sectionId: string, itemId: string | null) => {
+      if (deviceSearchQuery.trim().length > 0) return;
       setBuildingSelectedCategoryId(buildingId, itemId);
     },
-    [buildingId, setBuildingSelectedCategoryId]
+    [buildingId, deviceSearchQuery, setBuildingSelectedCategoryId]
+  );
+
+  const handleDeviceDropdownSelect = useCallback(
+    (_sectionId: string, itemId: string | null) => {
+      if (!itemId) return;
+      const found = filteredDeviceRows.find((row) => row.item.id === itemId)?.item;
+      if (!found) return;
+      navigation.navigate("ItemEdit", { item: found });
+    },
+    [filteredDeviceRows, navigation]
+  );
+
+  const handleHouseDropdownSelect = useCallback(
+    (sectionId: string, itemId: string | null) => {
+      if (sectionId === "device") {
+        handleDeviceDropdownSelect(sectionId, itemId);
+        return;
+      }
+      handleCategoryDropdownSelect(sectionId, itemId);
+    },
+    [handleCategoryDropdownSelect, handleDeviceDropdownSelect]
   );
 
   const headerRow = (
@@ -456,8 +425,7 @@ export default function BuildingDetailScreen() {
         contentContainerStyle={[
           staffBuildingDetailStyles.scrollContent,
           {
-            paddingBottom:
-              24 + insets.bottom + (Platform.OS === "ios" ? keyboardBottomInset : 0),
+            paddingBottom: 24 + insets.bottom + keyboardBottomInset,
           },
         ]}
         keyboardShouldPersistTaps="handled"
@@ -637,24 +605,18 @@ export default function BuildingDetailScreen() {
                   }}
                 >
                   <DropdownBox
-                    sections={[categoryFilterSection]}
+                    sections={
+                      deviceFilterSection
+                        ? [categoryFilterSection, deviceFilterSection]
+                        : [categoryFilterSection]
+                    }
                     summary={categoryFilterSummary}
-                    onSelect={handleCategoryDropdownSelect}
+                    onSelect={handleHouseDropdownSelect}
                     keyboardVerticalOffset={insets.top + 52}
                     onSearchInputFocus={scrollFiltersIntoView}
-                  />
-                </View>
-              ) : null}
-              {deviceSearchSection ? (
-                <View style={{ marginHorizontal: 16, marginBottom: 8 }} collapsable={false}>
-                  <DropdownBox
-                    sections={[deviceSearchSection]}
-                    summary={t("staff_building_detail.devices_title", {
-                      count: rawItems.length,
-                    })}
-                    onSelect={handleDeviceDropdownSelect}
-                    keyboardVerticalOffset={insets.top + 52}
-                    itemLayout="list"
+                    onSearchChange={setDeviceSearchQuery}
+                    searchAutoFocus={false}
+                    defaultExpanded
                   />
                 </View>
               ) : null}
@@ -671,32 +633,21 @@ export default function BuildingDetailScreen() {
             }}
           >
             <DropdownBox
-              sections={[categoryFilterSection]}
+              sections={
+                deviceFilterSection
+                  ? [categoryFilterSection, deviceFilterSection]
+                  : [categoryFilterSection]
+              }
               summary={categoryFilterSummary}
-              onSelect={handleCategoryDropdownSelect}
+              onSelect={handleHouseDropdownSelect}
               keyboardVerticalOffset={insets.top + 52}
               onSearchInputFocus={scrollFiltersIntoView}
+              onSearchChange={setDeviceSearchQuery}
+              searchAutoFocus={false}
+              defaultExpanded
             />
           </View>
         ) : null}
-        {functionalAreas.length === 0 && deviceSearchSection ? (
-          <View style={{ marginHorizontal: 16, marginBottom: 8 }} collapsable={false}>
-            <DropdownBox
-              sections={[deviceSearchSection]}
-              summary={t("staff_building_detail.devices_title", {
-                count: rawItems.length,
-              })}
-              onSelect={handleDeviceDropdownSelect}
-              keyboardVerticalOffset={insets.top + 52}
-              itemLayout="list"
-            />
-          </View>
-        ) : null}
-
-        <Text style={staffBuildingDetailStyles.sectionTitle}>
-          {t("staff_building_detail.devices_title", { count: rawItems.length })}
-        </Text>
-
         {rawItems.length === 0 && !loading ? (
           <View style={staffBuildingDetailStyles.emptyDevices}>
             <Text style={staffBuildingDetailStyles.emptyDevicesText}>
@@ -705,37 +656,7 @@ export default function BuildingDetailScreen() {
                 : t("staff_building_detail.no_devices")}
             </Text>
           </View>
-        ) : (
-          <>
-            {pagedDeviceRows.map((row) => {
-              const item = row.item;
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={staffBuildingDetailStyles.deviceCard}
-                  onPress={() => openItemEdit(item)}
-                  activeOpacity={0.8}
-                >
-                  <View style={staffBuildingDetailStyles.deviceInfo}>
-                    <Text style={staffBuildingDetailStyles.deviceName} numberOfLines={1}>
-                      {item.displayName}
-                    </Text>
-                    <Text style={staffBuildingDetailStyles.deviceCategoryLine} numberOfLines={1}>
-                      {row.categoryName}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-            <PaginationBar
-              currentPage={deviceListPage}
-              totalPages={deviceTotalPages}
-              onPageChange={setDeviceListPage}
-              hideWhenSingle={false}
-              style={{ paddingBottom: Math.max(8, insets.bottom) }}
-            />
-          </>
-        )}
+        ) : null}
       </ScrollView>
     </View>
   );

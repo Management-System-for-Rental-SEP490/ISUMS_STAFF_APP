@@ -841,7 +841,8 @@ export default {
     },
     "dropdown_box": {
         "title": "Bộ lọc & lựa chọn",
-        "search_placeholder": "Tìm theo tên, địa chỉ, tầng, danh mục…",
+        "compact_search_label": "Dropbox tìm kiếm",
+        "search_placeholder": "Tìm kiếm",
         "no_results": "Không có mục phù hợp.",
         "section_floor": "Tầng",
         "section_category": "Danh mục thiết bị",

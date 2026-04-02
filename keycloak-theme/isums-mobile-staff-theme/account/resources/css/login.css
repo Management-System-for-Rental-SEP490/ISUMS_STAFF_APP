@@ -4,10 +4,11 @@
   padding: 0;
 }
 
+/* Đồng bộ brand staff: color.tsx — BRAND_GREEN / BRAND_BLUE_GRADIENT_END (cuối cam đất) */
 body {
   font-family: 'Inter', -apple-system, sans-serif;
   min-height: 100vh;
-  background: linear-gradient(180deg, #3bb582 0%, rgba(12, 106, 181, 0.7) 100%);
+  background: linear-gradient(180deg, #37b584 0%, rgba(217, 135, 62, 0.72) 100%);
   background-attachment: fixed;
   position: relative;
   overflow-x: hidden;
@@ -101,7 +102,7 @@ body::before {
   border-radius: 12px;
   font-size: 15px;
   font-family: inherit;
-  color: #111;
+  color: #111827;
   background: #fff;
 }
 
@@ -111,8 +112,8 @@ body::before {
 
 .input:focus {
   outline: none;
-  border-color: #0ea5e9;
-  box-shadow: 0 0 0 3px rgba(14,165,233,0.15);
+  border-color: #2c91c8;
+  box-shadow: 0 0 0 3px rgba(44, 145, 200, 0.22);
 }
 
 .password-wrap {
@@ -153,7 +154,7 @@ body::before {
   display: block;
   text-align: right;
   font-size: 14px;
-  color: #0ea5e9;
+  color: #2c91c8;
   text-decoration: none;
   margin-top: 8px;
   margin-bottom: 20px;
@@ -166,7 +167,7 @@ body::before {
 .btn-login {
   width: 100%;
   padding: 16px;
-  background: #0ea5e9;
+  background: #37b584;
   color: #fff;
   border: none;
   border-radius: 12px;
@@ -178,7 +179,7 @@ body::before {
 }
 
 .btn-login:hover {
-  background: #0284c7;
+  background: #2d9a6f;
 }
 
 .alert {
@@ -201,15 +202,15 @@ body::before {
 }
 
 .alert-success {
-  background: #d1fae5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
+  background: rgba(55, 181, 132, 0.12);
+  color: #14532d;
+  border: 1px solid rgba(55, 181, 132, 0.35);
 }
 
 .alert-info {
-  background: #dbeafe;
-  color: #1e40af;
-  border: 1px solid #93c5fd;
+  background: rgba(44, 145, 200, 0.12);
+  color: #164e63;
+  border: 1px solid rgba(44, 145, 200, 0.35);
 }
 
 /* New styles for Back to Login link */
@@ -232,8 +233,8 @@ body::before {
 }
 
 .link-back:hover {
-  color: #0ea5e9;
-  background-color: #f3f4f6;
+  color: #2c91c8;
+  background-color: #f6f4f2;
 }
 
 .icon-arrow {
