@@ -105,6 +105,32 @@ function itemMatches(item: DropdownBoxItem, q: string) {
   );
 }
 
+function itemScore(item: DropdownBoxItem, q: string): number {
+  const query = norm(q);
+  if (!query) return 0;
+  const label = norm(item.label);
+  const id = norm(item.id);
+  const detail = norm(item.detail ?? "");
+  if (label === query) return 140;
+  if (label.startsWith(query)) return 120;
+  if (label.includes(query)) return 90;
+  if (id === query) return 80;
+  if (id.startsWith(query)) return 70;
+  if (id.includes(query)) return 50;
+  if (detail.startsWith(query)) return 40;
+  if (detail.includes(query)) return 30;
+  return 0;
+}
+
+function sortFilteredItems(items: DropdownBoxItem[], q: string): DropdownBoxItem[] {
+  if (!q) return items;
+  return [...items].sort((a, b) => {
+    const scoreDiff = itemScore(b, q) - itemScore(a, q);
+    if (scoreDiff !== 0) return scoreDiff;
+    return a.label.localeCompare(b.label, undefined, { sensitivity: "base" });
+  });
+}
+
 function buildSectionBlocks(
   sections: DropdownBoxSection[],
   query: string,
@@ -116,7 +142,10 @@ function buildSectionBlocks(
     const allLabel = sec.allLabel ?? defaultAllLabel;
     const showAll = sec.showAllOption !== false;
     const allVisible = showAll && (!q || norm(allLabel).includes(q));
-    const filteredItems = sec.items.filter((it) => itemMatches(it, q));
+    const filteredItems = sortFilteredItems(
+      sec.items.filter((it) => itemMatches(it, q)),
+      q
+    );
     if (!allVisible && filteredItems.length === 0) continue;
     blocks.push({ sec, allVisible, allLabel, filteredItems });
   }
@@ -174,11 +203,7 @@ export function DropdownBox({
     [sections, search, defaultAllLabel]
   );
 
-  const chipsMaxHeight = Math.min(360, Math.round(windowH * 0.45));
-  const hasListSection = sectionBlocks.some((block) => (block.sec.itemLayout ?? itemLayout) === "list");
-  /** Có section list: cố định chiều cao vùng cuộn để tránh nhảy panel khi lọc. */
-  const listScrollHeightStyle =
-    hasListSection ? ({ height: chipsMaxHeight } as const) : ({ maxHeight: chipsMaxHeight } as const);
+  const resultsViewportHeight = Math.min(360, Math.round(windowH * 0.45));
 
   const collapse = useCallback(() => setExpanded(false), []);
 
@@ -211,10 +236,8 @@ export function DropdownBox({
         </Pressable>
       ) : (
         <KeyboardAvoidingView
-          behavior="padding"
-          keyboardVerticalOffset={
-            Platform.OS === "ios" ? keyboardVerticalOffset : 0
-          }
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={keyboardVerticalOffset}
           style={styles.avoidingWrap}
         >
           <View style={[styles.panel, triggerAccent && styles.panelAccent]}>
@@ -249,9 +272,10 @@ export function DropdownBox({
             </View>
 
             <ScrollView
-              style={[styles.chipsScroll, listScrollHeightStyle]}
-              contentContainerStyle={sectionBlocks.length === 0 && hasListSection ? styles.listScrollContentEmpty : undefined}
+              style={[styles.chipsScroll, { height: resultsViewportHeight }]}
+              contentContainerStyle={sectionBlocks.length === 0 ? styles.listScrollContentEmpty : undefined}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
               nestedScrollEnabled
               showsVerticalScrollIndicator
             >

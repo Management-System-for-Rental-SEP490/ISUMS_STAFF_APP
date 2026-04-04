@@ -65,8 +65,11 @@ function getStatusStyle(status: string) {
       return { bg: brandTintBg, color: brandSecondary };
     case "IN_PROGRESS":
       return { bg: brandTintBg, color: brandPrimary };
+    case "WAITING_MANAGER_CONFIRM":
     case "WAITING_MANAGER_APPROVAL":
     case "WAITING_TENANT_APPROVAL":
+    case "WAITING_MANAGER_APPROVAL_QUOTE":
+    case "WAITING_TENANT_APPROVAL_QUOTE":
     case "WAITING_PAYMENT":
       return { bg: brandTintBg, color: brandSecondary };
     case "DONE":
@@ -118,34 +121,16 @@ function formatDateLabelVi(dateYmd: string): string {
 }
 
 /**
- * BE có thể trả `slotId` placeholder khi ticket chưa được gán.
- * Chuẩn hóa để tránh "ẩn nhầm" do placeholder không đúng format UUID.
+ * Hiển thị nút đăng ký khung giờ làm việc (POST confirm work slot).
+ * BE mới: tenant gửi ticket kèm slot (ưu tiên / template), `slotId` không đồng nghĩa staff đã chốt ca;
+ * trạng thái có thể là CREATED hoặc WAITING_MANAGER_CONFIRM trước khi quản lý xác nhận lịch staff.
  */
-function hasRealWorkSlotId(slotId: string | null | undefined): boolean {
-  const raw = String(slotId ?? "").trim();
-  if (!raw) return false;
-
-  const normalizedHex = raw.replace(/[^a-fA-F0-9]/g, "").toLowerCase(); // bỏ '-', whitespace...
-  if (!normalizedHex) return false;
-
-  // UUID all-zero (dù là dạng 32 hex hoặc dạng có dấu '-')
-  const isAllZero = /^0+$/.test(normalizedHex);
-  return !isAllZero;
-}
-
-/**
- * Nút đăng ký giờ chỉ cho CREATED (chưa có slot) hoặc NEED_RESCHEDULE (đăng ký lại).
- * Các trạng thái còn lại (SCHEDULED, WAITING_* …) = đã có luồng đăng ký lịch → ẩn nút.
- */
-function shouldShowIssueRegisterTimeButton(
-  status: string,
-  slotId: string | null | undefined,
-  sessionSubmitted: boolean
-): boolean {
+function shouldShowIssueRegisterTimeButton(status: string, sessionSubmitted: boolean): boolean {
   if (sessionSubmitted) return false;
   const st = String(status || "").toUpperCase();
   if (st === "NEED_RESCHEDULE") return true;
-  if (st === "CREATED") return !hasRealWorkSlotId(slotId);
+  if (st === "CREATED") return true;
+  if (st === "WAITING_MANAGER_CONFIRM") return true;
   return false;
 }
 
@@ -333,10 +318,8 @@ export default function TicketDetailScreen() {
   }
 
   const statusStyle = getStatusStyle(ticket.status);
-  const normalizedStatus = String(ticket.status || "").toUpperCase();
   const showRegisterTimeButton = shouldShowIssueRegisterTimeButton(
     ticket.status,
-    ticket.slotId,
     slotRegistrationSubmitted
   );
   const createdAt = new Date(ticket.createdAt);

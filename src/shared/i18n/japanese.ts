@@ -310,6 +310,8 @@ export default {
         "status_IN_PROGRESS": "対応中",
         "status_WAITING_MANAGER_APPROVAL": "管理者承認待ち",
         "status_WAITING_TENANT_APPROVAL": "入居者承認待ち",
+        "status_WAITING_MANAGER_APPROVAL_QUOTE": "見積もりの管理者承認待ち",
+        "status_WAITING_TENANT_APPROVAL_QUOTE": "見積もりの入居者承認待ち",
         "status_WAITING_PAYMENT": "支払い待ち",
         "status_DONE": "完了",
         "status_CLOSED": "クローズ",

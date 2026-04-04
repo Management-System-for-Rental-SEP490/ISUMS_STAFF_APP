@@ -130,7 +130,8 @@ export default function StaffHomeScreen() {
   const scrollHousePickerForSearch = useCallback(() => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        const offset = parentScrollOffsetForDropdownField(housePickerBlockYRef.current);
+        // Kéo block lọc lên cao hơn một chút để kết quả không bị bàn phím che.
+        const offset = parentScrollOffsetForDropdownField(housePickerBlockYRef.current, 84);
         listRef.current?.scrollToOffset({ offset, animated: true });
       });
     });

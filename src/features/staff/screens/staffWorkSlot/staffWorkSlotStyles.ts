@@ -19,6 +19,8 @@ export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   // Issue/ticket states
   WAITING_MANAGER_APPROVAL: { bg: brandTintBg, text: brandSecondary },
   WAITING_TENANT_APPROVAL: { bg: brandTintBg, text: brandSecondary },
+  WAITING_MANAGER_APPROVAL_QUOTE: { bg: brandTintBg, text: brandSecondary },
+  WAITING_TENANT_APPROVAL_QUOTE: { bg: brandTintBg, text: brandSecondary },
   WAITING_PAYMENT: { bg: brandTintBg, text: brandSecondary },
   DONE: { bg: brandTintBg, text: brandPrimary },
   CLOSED: { bg: brandTintBg, text: brandPrimary },

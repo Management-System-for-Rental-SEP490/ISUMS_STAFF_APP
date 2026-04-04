@@ -309,6 +309,8 @@ export default {
         "status_IN_PROGRESS": "In progress",
         "status_WAITING_MANAGER_APPROVAL": "Waiting manager approval",
         "status_WAITING_TENANT_APPROVAL": "Waiting tenant approval",
+        "status_WAITING_MANAGER_APPROVAL_QUOTE": "Waiting manager quote approval",
+        "status_WAITING_TENANT_APPROVAL_QUOTE": "Waiting tenant quote approval",
         "status_WAITING_PAYMENT": "Waiting payment",
         "status_DONE": "Completed",
         "status_CLOSED": "Closed",

@@ -63,7 +63,10 @@ alwaysApply: true
 
 ## 9. DropdownBox
 
-- Lọc / chọn từ danh sách (nhà, danh mục, trạng thái, …) → ưu tiên **`DropdownBox`** (`dropdown_box.*` i18n). `keyboardVerticalOffset`, `onSearchInputFocus` cuộn parent khi cần. Android: `softwareKeyboardLayoutMode: "resize"` trong `app.json`.
+- Lọc / chọn từ danh sách (nhà, danh mục, trạng thái, …) → ưu tiên **`DropdownBox`** (`dropdown_box.*` i18n).
+- Search dropdown phải mượt: chuẩn hoá chuỗi (`trim`, `lowercase`, bỏ dấu), sort theo độ khớp hợp lý (exact/prefix trước, contains sau).
+- Focus vào ô search phải đẩy dropdown lên đủ cao để không bị bàn phím che (`onSearchInputFocus`, `keyboardVerticalOffset`, Android `softwareKeyboardLayoutMode: "resize"`).
+- Trong khi nhập và lọc kết quả: giữ vị trí thanh search cố định, tránh panel “nhảy màn hình” do đổi số lượng item (vùng kết quả có chiều cao ổn định).
 
 ## 10. Phân trang danh sách
 

@@ -138,6 +138,13 @@ type MaintenanceDraft = {
 type WorkSlotDetailRouteProp = RouteProp<RootStackParamList, "WorkSlotDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "WorkSlotDetail">;
 
+/**
+ * Ghi nhớ theo phiên app các job maintenance đã submit batch update.
+ * Mục tiêu: khi user rời màn rồi quay lại trước khi bấm "Hoàn thành",
+ * nút vẫn hiển thị đúng trạng thái tiếp theo.
+ */
+const submittedMaintenanceJobIdsInSession = new Set<string>();
+
 export default function WorkSlotDetailScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -255,6 +262,11 @@ export default function WorkSlotDetailScreen() {
       if (newStatus === "IN_PROGRESS") {
         setMaintenanceSubmitted(false);
         setMaintenanceDrafts({});
+        submittedMaintenanceJobIdsInSession.delete(job.id);
+      } else if (newStatus === "COMPLETED") {
+        // Job đã hoàn tất thì xóa cờ phiên để tránh ảnh hưởng lần mở sau.
+        setMaintenanceSubmitted(false);
+        submittedMaintenanceJobIdsInSession.delete(job.id);
       }
       CustomAlert.alert(t("staff_work_slot_detail.update_success"), "", [{ text: t("common.close") }]);
       refetchItem();
@@ -399,6 +411,8 @@ export default function WorkSlotDetailScreen() {
               if (!res?.success) {
                 throw new Error(res?.message || t("staff_work_slot_detail.maintenance_batch_error"));
               }
+              // Ghi nhớ trong phiên để quay lại màn vẫn hiện nút "Hoàn thành".
+              submittedMaintenanceJobIdsInSession.add(job.id);
               setMaintenanceSubmitted(true);
               setMaintenanceModalVisible(false);
               CustomAlert.alert(
@@ -445,9 +459,15 @@ export default function WorkSlotDetailScreen() {
             setAssetDisplayName("");
           }
         } else {
-          setJob(res.data as JobFromApi);
+          const nextJob = res.data as JobFromApi;
+          setJob(nextJob);
           setTicket(null);
           setAssetDisplayName("");
+          // Đồng bộ label nút theo cờ đã submit trong phiên.
+          const rememberedSubmitted =
+            String(nextJob.status ?? "").toUpperCase() === "IN_PROGRESS" &&
+            submittedMaintenanceJobIdsInSession.has(nextJob.id);
+          setMaintenanceSubmitted(rememberedSubmitted);
         }
       })
       .catch((err) => {
@@ -858,7 +878,7 @@ export default function WorkSlotDetailScreen() {
               ) : (
                 <>
                   <InfoRow icon={<Icons.event size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.period_start")} value={job?.periodStartDate ?? ""} />
-                  <InfoRow icon={<Icons.calendar size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.due_date")} value={job?.dueDate ? formatIsoDueDateVi(job.dueDate) : ""} />
+                  
                 </>
               )}
               <InfoRow

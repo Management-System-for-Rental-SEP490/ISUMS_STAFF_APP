@@ -308,6 +308,8 @@ export default {
         "status_IN_PROGRESS": "Đang xử lý",
         "status_WAITING_MANAGER_APPROVAL": "Chờ quản lý duyệt",
         "status_WAITING_TENANT_APPROVAL": "Chờ người thuê duyệt",
+        "status_WAITING_MANAGER_APPROVAL_QUOTE": "Chờ quản lý duyệt báo giá",
+        "status_WAITING_TENANT_APPROVAL_QUOTE": "Chờ người thuê duyệt báo giá",
         "status_WAITING_PAYMENT": "Chờ thanh toán",
         "status_DONE": "Hoàn thành",
         "status_CLOSED": "Đã đóng",

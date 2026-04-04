@@ -46,7 +46,13 @@ const UserProfileScreen = () => {
           text: t('profile.logout'),
           style: "destructive",
           onPress: async () => {
-            await logoutKeycloak(idToken);
+            // Không chờ vô hạn logout SSO: nếu Keycloak không redirect về app,
+            // vẫn cho phép logout cục bộ để quay lại màn Login thay vì kẹt màn trắng.
+            const logoutTimeoutMs = 7000;
+            await Promise.race([
+              logoutKeycloak(idToken),
+              new Promise<void>((resolve) => setTimeout(resolve, logoutTimeoutMs)),
+            ]);
             logout();
           },
         },
