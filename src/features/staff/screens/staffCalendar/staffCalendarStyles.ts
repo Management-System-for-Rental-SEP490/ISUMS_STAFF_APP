@@ -1,5 +1,11 @@
+import type { TextStyle, ViewStyle } from "react-native";
 import { Platform, StyleSheet } from "react-native";
-import { brandPrimary } from "../../../../shared/theme/color";
+import {
+  brandPrimary,
+  getWorkSlotScheduleVisual,
+  neutral,
+} from "../../../../shared/theme/color";
+import type { SlotType } from "../../data/mockStaffData";
 
 /**
  * Chiều cao (px) tương ứng 1 giờ trên timeline để tính vị trí slot.
@@ -485,15 +491,20 @@ export const staffCalendarStyles = StyleSheet.create({
   },
   timetableList: { gap: 0 },
   expandedDayBlock: { marginBottom: 12 },
-  /** Workslot tràn full ô ngày - không khối nhỏ */
+  /** Workslot tràn full ô ngày — nền/viền trái màu theo loại ca (xem calendarWorkSlotCardSurface). */
   slotCard: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: neutral.surface,
     borderRadius: 0,
     padding: 12,
     marginBottom: 0,
     borderLeftWidth: 4,
     minHeight: 48,
+  },
+  /** Kẻ giữa hai ca trong cùng một ngày */
+  slotCardSeparator: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: neutral.slate200,
   },
   slotCardTime: {
     fontSize: 13,
@@ -566,11 +577,20 @@ export const staffCalendarStyles = StyleSheet.create({
   },
 });
 
-/** Màu slot theo slotType (đồng bộ với thiết kế nhiều màu như ảnh mẫu) */
-export const SLOT_COLORS: Record<string, string> = {
-  inspection: "#8B5CF6",
-  ticket: "#06B6D4",
-  nfc: "#F97316",
-  break: "#9CA3AF",
-  other: brandPrimary,
-};
+/** Nền + viền trái ô ca (màu từ `color.tsx`). */
+export function calendarWorkSlotCardSurface(
+  slotType?: SlotType | string | null
+): ViewStyle {
+  const v = getWorkSlotScheduleVisual(slotType);
+  return {
+    borderLeftColor: v.accent,
+    backgroundColor: v.tint,
+  };
+}
+
+/** Màu chữ dòng loại công việc trên ô ca. */
+export function calendarWorkSlotTaskText(
+  slotType?: SlotType | string | null
+): TextStyle {
+  return { color: getWorkSlotScheduleVisual(slotType).accent };
+}

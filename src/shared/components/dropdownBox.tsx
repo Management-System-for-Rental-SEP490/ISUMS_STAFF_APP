@@ -174,8 +174,6 @@ export function DropdownBox({
   const { height: windowH } = useWindowDimensions();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [search, setSearch] = useState("");
-  /** Tránh gọi `onSearchInputFocus` lặp (mỗi lần gõ / refocus) → FlatList scrollToOffset làm panel nhảy. */
-  const parentScrollForSearchDoneRef = useRef(false);
 
   useEffect(() => {
     if (expanded) {
@@ -184,14 +182,8 @@ export function DropdownBox({
     }
   }, [expanded]);
 
-  useEffect(() => {
-    if (!expanded) parentScrollForSearchDoneRef.current = false;
-  }, [expanded]);
-
   const notifyParentScrollForSearch = useCallback(() => {
     if (!onSearchInputFocus) return;
-    if (parentScrollForSearchDoneRef.current) return;
-    parentScrollForSearchDoneRef.current = true;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => onSearchInputFocus());
     });
@@ -257,6 +249,7 @@ export function DropdownBox({
                 autoCapitalize="none"
                 {...(searchAutoFocus ? { autoFocus: true } : {})}
                 clearButtonMode="while-editing"
+                onPressIn={notifyParentScrollForSearch}
                 onFocus={notifyParentScrollForSearch}
               />
               <Pressable

@@ -27,6 +27,7 @@ import type { HouseFromApi, AssetItemFromApi } from "../../../../shared/types/ap
 import Header from "../../../../shared/components/header";
 import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
 import { WorkSlot } from "../../data/mockStaffData"; // kiểu WorkSlot dùng chung cho lịch
+import { getWorkSlotVisual } from "../../data/workSlotTheme";
 import { useStaffSchedule } from "../../context/StaffScheduleContext"; // context lịch đã lấy dữ liệu thật từ BE
 import { useHouses, useAssetItemsAllHouses } from "../../../../shared/hooks";
 import { useInvalidateScheduleRelatedQueries } from "../../hooks/useStaffScheduleData";
@@ -60,7 +61,7 @@ export default function StaffHomeScreen() {
   const { workSlots } = useStaffSchedule();
   const invalidateScheduleRelated = useInvalidateScheduleRelatedQueries();
 
-  // React Query: gọi API GET /api/houses qua custom hook dùng chung.
+  // React Query: nhà theo region của staff (regions/staff → houses/region/{id}), qua useHouses.
   const { data, isLoading, isError, refetch, isRefetching: housesRefetching } = useHouses();
 
   useFocusEffect(
@@ -239,11 +240,17 @@ export default function StaffHomeScreen() {
       (item.houseId && buildings.find((b) => b.id === item.houseId)?.name) ||
       item.buildingName ||
       "";
+    const visual = getWorkSlotVisual(item.slotType);
     return (
       <TouchableOpacity
         key={item.id}
         style={[
           staffHomeStyles.scheduleRowIndented,
+          {
+            borderLeftWidth: 3,
+            borderLeftColor: visual.accent,
+            backgroundColor: visual.tint,
+          },
           !isLastOverall && {
             borderBottomWidth: 1,
             borderBottomColor: neutral.slate200,
@@ -256,7 +263,10 @@ export default function StaffHomeScreen() {
       >
         <Text style={staffHomeStyles.scheduleCellTimeOnly}>{item.timeRange}</Text>
         <Text style={staffHomeStyles.scheduleCellBuilding}>{houseName}</Text>
-        <Text style={staffHomeStyles.scheduleCellTask} numberOfLines={3}>
+        <Text
+          style={[staffHomeStyles.scheduleCellTask, { color: visual.accent, fontWeight: "700" }]}
+          numberOfLines={3}
+        >
           {item.taskKey ? t(item.taskKey) : item.task}
         </Text>
       </TouchableOpacity>

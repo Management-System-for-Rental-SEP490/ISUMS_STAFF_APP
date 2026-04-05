@@ -1,22 +1,9 @@
-import React, { useEffect, useState, useCallback } from "react";
-import {
-  View,
-  ActivityIndicator,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-} from "react-native";
-import WebView from "react-native-webview";
+import React, { useEffect, useState } from "react";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 import { CustomAlert } from "../shared/components/alert";
-import {
-  logoutKeycloak,
-  getKeycloakRedirectUri,
-  keycloakInAppNotifyAppRedirect,
-  keycloakInAppUserDismissed,
-} from "../shared/services/keycloakAuth";
-import loginStyles from "../features/screens/authentication/loginStyles";
+import { logoutKeycloak } from "../shared/services/keycloakAuth";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Login from "../features/screens/authentication/LoginScreen";
 import OnBoarding from "../features/screens/onBoarding/onBoarding";
@@ -46,6 +33,7 @@ import StaffIotWifiPasswordScreen from "../features/staff/screens/staffIoT/staff
 import StaffIotProvisionWaitingScreen from "../features/staff/screens/staffIoT/staffIotProvisionWaiting";
 import StaffIotDetailScreen from "../features/staff/screens/staffIoT/staffIotDetail";
 import { StaffScheduleProvider } from "../features/staff/context/StaffScheduleContext";
+import KeycloakChangePasswordWebViewOverlay from "../shared/components/KeycloakChangePasswordWebViewOverlay";
 
 // Wrapper components để bọc Provider cho các screen cần useStaffSchedule
 const BuildingDetailScreenWrapper = () => (
@@ -64,14 +52,6 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const navStyles = StyleSheet.create({
   root: { flex: 1 },
-  keycloakOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#fff",
-    zIndex: 99999,
-    elevation: 99999,
-    flexDirection: "column",
-  },
-  keycloakWebView: { flex: 1 },
 });
 
 const Navigation = () => {
@@ -80,18 +60,7 @@ const Navigation = () => {
   const user = useAuthStore((state) => state.user);
   const role = useAuthStore((state) => state.role);
   const onboardedUsers = useAuthStore((state) => state.onboardedUsers);
-  const keycloakSession = useAuthStore((state) => state.keycloakInAppSession);
-
   const [isReady, setIsReady] = useState(false);
-
-  const handleKeycloakWebViewRequest = useCallback((request: { url: string }) => {
-    const redirectUri = getKeycloakRedirectUri();
-    if (request.url.startsWith(redirectUri)) {
-      void keycloakInAppNotifyAppRedirect(request.url);
-      return false;
-    }
-    return true;
-  }, []);
 
   // Kiểm tra xem User hiện tại đã xem Onboarding chưa
   const showOnboarding = isLoggedIn && user && !onboardedUsers.includes(user);
@@ -185,42 +154,19 @@ const Navigation = () => {
               </>
             )
           ) : (
-            <Stack.Screen name="AuthLogin" component={Login} />
+            <Stack.Screen
+              name="AuthLogin"
+              component={Login}
+              options={{
+                statusBarTranslucent: true,
+                navigationBarColor: "#00000000",
+                navigationBarTranslucent: true,
+              }}
+            />
           )}
         </Stack.Navigator>
       </NavigationContainer>
-      {keycloakSession ? (
-        <View style={navStyles.keycloakOverlay}>
-          {keycloakSession.allowManualClose ? (
-            <View style={loginStyles.webViewHeader}>
-              <TouchableOpacity
-                onPress={keycloakInAppUserDismissed}
-                activeOpacity={0.7}
-              >
-                <Text style={loginStyles.webViewCloseText}>
-                  {t("common.close")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-          <WebView
-            style={navStyles.keycloakWebView}
-            source={{ uri: keycloakSession.url }}
-            onShouldStartLoadWithRequest={handleKeycloakWebViewRequest}
-            startInLoadingState
-            renderLoading={() => (
-              <View style={loginStyles.webViewLoadingOverlay}>
-                <ActivityIndicator size="large" color={brandPrimary} />
-                <Text
-                  style={{ color: "#666", textAlign: "center", marginTop: 10 }}
-                >
-                  {t("common.loading")}
-                </Text>
-              </View>
-            )}
-          />
-        </View>
-      ) : null}
+      <KeycloakChangePasswordWebViewOverlay />
     </View>
   );
 };

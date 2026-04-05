@@ -1,13 +1,21 @@
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
+import { BACKEND_API_BASE } from "../api/config";
 import type { ApiResponse, UserProfileResponse } from "../types/api";
+
+export type GetUserProfileOptions = {
+  /** Mặc định `BACKEND_API_BASE`; truyền `FALLBACK_BACKEND_URL` khi /users/me chỉ có trên BE dev/ngrok. */
+  apiBase?: string;
+};
 
 /**
  * Lấy thông tin chi tiết user hiện tại (GET /api/users/me).
- * Cùng BACKEND_API_BASE với toàn bộ REST app.
+ * Mặc định dùng `BACKEND_API_BASE`; luồng staff/region có thể truyền `apiBase` khác.
  */
-export const getUserProfile = async (): Promise<UserProfileResponse | null> => {
-  const url = `${BACKEND_API_BASE}/users/me`;
+export const getUserProfile = async (
+  options?: GetUserProfileOptions
+): Promise<UserProfileResponse | null> => {
+  const base = (options?.apiBase ?? BACKEND_API_BASE).replace(/\/$/, "");
+  const url = `${base}/users/me`;
   try {
     const response = await axiosClient.get<ApiResponse<UserProfileResponse>>(url);
     

@@ -104,8 +104,8 @@ export const getWorkSlotsByStaffId = async (
   // API mới: backend lấy staff từ token nên URL không còn cần staffId trong path.
   // (BE: GET /api/schedules/work_slots/staff)
   const response = await axiosClient.get<WorkSlotsApiResponse>(
-   // `${BACKEND_API_BASE}/schedules/work_slots/staff`
-   `${FALLBACK_BACKEND_URL}/schedules/work_slots/staff`
+   `${BACKEND_API_BASE}/schedules/work_slots/staff`
+   //`${FALLBACK_BACKEND_URL}/schedules/work_slots/staff`
   );
   return response.data;
 };
@@ -134,8 +134,8 @@ export const confirmStaffWorkSlotForJob = async (
   payload: ConfirmStaffWorkSlotPayload
 ): Promise<ConfirmStaffWorkSlotResponse> => {
   const response = await axiosClient.post<ConfirmStaffWorkSlotResponse>(
-    // `${BACKEND_API_BASE}/schedules/work_slots/staff/confirm`,
-    `${FALLBACK_BACKEND_URL}/schedules/work_slots/staff/confirm`,
+    `${BACKEND_API_BASE}/schedules/work_slots/staff/confirm`,
+   // `${FALLBACK_BACKEND_URL}/schedules/work_slots/staff/confirm`,
     payload
   );
   return response.data;

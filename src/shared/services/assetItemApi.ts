@@ -304,6 +304,10 @@ export const createAssetItem = async (
   const functionAreaId = pickFirstNonEmptyString(payload.functionAreaId);
   const nfcForPost = pickFirstNonEmptyString(payload.nfcId, payload.nfcTag);
   const qrForPost = pickFirstNonEmptyString(payload.qrId, payload.qrTag);
+  const noteForApi =
+    payload.note === undefined || payload.note === null
+      ? ""
+      : String(payload.note).trim();
 
   const body = useSnakeCasePutBody
     ? {
@@ -314,6 +318,7 @@ export const createAssetItem = async (
         nfc_id: nfcForPost,
         qr_id: qrForPost,
         condition_percent: payload.conditionPercent,
+        note: noteForApi,
         status: payload.status,
         function_area_id: functionAreaId,
       }
@@ -325,6 +330,7 @@ export const createAssetItem = async (
         ...(nfcForPost ? { nfcId: nfcForPost } : {}),
         ...(qrForPost ? { qrId: qrForPost } : {}),
         conditionPercent: payload.conditionPercent,
+        note: noteForApi,
         status: payload.status,
         ...(functionAreaId ? { functionAreaId } : {}),
       };
@@ -353,7 +359,7 @@ export const createAssetItem = async (
 
 /**
  * Cập nhật thiết bị (PUT /api/asset/items/:id).
- * Body đủ 7 trường. Mặc định camelCase; nếu EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE=true thì gửi snake_case.
+ * Body gồm các trường create + `note`. Mặc định camelCase; nếu EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE=true thì gửi snake_case.
  * Backend phải map cả houseId/house_id và categoryId/category_id thì mới cập nhật được nhà/danh mục.
  */
 export const updateAssetItem = async (
@@ -363,6 +369,10 @@ export const updateAssetItem = async (
   const functionAreaId = pickFirstNonEmptyString(payload.functionAreaId);
   const nfcForPut = pickFirstNonEmptyString(payload.nfcId, payload.nfcTag);
   const qrForPut = pickFirstNonEmptyString(payload.qrId, payload.qrTag);
+  const noteForApi =
+    payload.note === undefined || payload.note === null
+      ? ""
+      : String(payload.note).trim();
 
   const body = useSnakeCasePutBody
     ? {
@@ -375,6 +385,7 @@ export const updateAssetItem = async (
         qr_tag: qrForPut,
         qr_id: qrForPut,
         condition_percent: payload.conditionPercent,
+        note: noteForApi,
         status: payload.status,
         function_area_id: functionAreaId,
         functional_area_id: functionAreaId,
@@ -389,6 +400,7 @@ export const updateAssetItem = async (
         qrTag: qrForPut,
         qrId: qrForPut,
         conditionPercent: payload.conditionPercent,
+        note: noteForApi,
         status: payload.status,
         functionAreaId,
         functionalAreaId: functionAreaId,
@@ -397,7 +409,7 @@ export const updateAssetItem = async (
         functional_area_id: functionAreaId,
       };
 
-  const putUrl = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(id)}`;
+  const putUrl = `${FALLBACK_BACKEND_URL}/assets/items/${encodeURIComponent(id)}`;
 
   const response = await axiosClient.put<UpdateAssetItemApiResponse>(putUrl, body);
   const res = response.data;

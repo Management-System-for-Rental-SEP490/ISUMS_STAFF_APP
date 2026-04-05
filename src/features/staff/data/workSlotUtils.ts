@@ -47,8 +47,15 @@ export function mapWorkSlotFromApiToWorkSlot(api: WorkSlotFromApi): WorkSlot {
   const timeRange = `${sd.hour.toString().padStart(2, "0")}:${sd.minute.toString().padStart(2, "0")} - ${ed.hour.toString().padStart(2, "0")}:${ed.minute.toString().padStart(2, "0")}`;
 
   const taskKey = JOB_TYPE_KEYS[api.jobType] ?? "staff_calendar.job_type_OTHER";
-  const slotType: SlotType =
-    api.jobType === "INSPECTION" || api.jobType === "PERIODIC" ? "inspection" : "ticket";
+  const jt = String(api.jobType ?? "").toUpperCase();
+  let slotType: SlotType = "ticket";
+  if (jt === "INSPECTION" || jt === "PERIODIC") {
+    slotType = "inspection";
+  } else if (jt === "ISSUE") {
+    slotType = "issue";
+  } else if (jt === "MAINTENANCE") {
+    slotType = "maintenance";
+  }
 
   return {
     id: api.id,

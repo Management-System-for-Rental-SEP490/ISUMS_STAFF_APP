@@ -1,9 +1,5 @@
 <#import "template.ftl" as layout>
 <@layout.mainLayout active='password' bodyClass='user'; section>
-    <div class="page-header" style="margin-bottom: 20px; text-align: center;">
-        <h2 style="font-size: 1.25rem; font-weight: 600; color: #111827;">${msg("accountPasswordTitle")}</h2>
-    </div>
-
     <form action="${url.passwordUrl}" class="form-horizontal" method="post">
         
         <input type="hidden" id="stateChecker" name="stateChecker" value="${stateChecker!''}">

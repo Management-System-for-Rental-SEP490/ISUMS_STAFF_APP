@@ -12,8 +12,10 @@ import {
   Modal,
   ActivityIndicator,
   RefreshControl,
+  Image,
+  TouchableOpacity,
 } from "react-native";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRoute, useNavigation, RouteProp, useFocusEffect } from "@react-navigation/native";
@@ -50,6 +52,7 @@ import {
   confirmStaffWorkSlotForJob,
   getStaffIdForSchedule,
 } from "../../../../shared/services/scheduleApi";
+import { getIssueTicketImages } from "../../../../shared/services/issuesApi";
 import { listAvailableGeneratedSlotChoices, type AvailableGeneratedSlotChoice } from "../../../../shared/utils";
 
 type TicketDetailRouteProp = RouteProp<RootStackParamList, "TicketDetail">;
@@ -141,6 +144,16 @@ export default function TicketDetailScreen() {
   const navigation = useNavigation<NavProp>();
   const { ticketId } = route.params;
   const { data: ticket, isLoading, isError, refetch } = useIssueTicketById(ticketId);
+  const {
+    data: ticketImages = [],
+    isLoading: ticketImagesLoading,
+    refetch: refetchTicketImages,
+  } = useQuery({
+    queryKey: [...ISSUE_TICKET_KEYS.byId(ticketId), "images"] as const,
+    queryFn: () => getIssueTicketImages(ticketId),
+    enabled: Boolean(ticketId?.trim()),
+  });
+  const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
   const { data: housesRes } = useHouses();
   const { data: assetsRes } = useAssetItems();
   const [slotModalVisible, setSlotModalVisible] = useState(false);
@@ -348,7 +361,7 @@ export default function TicketDetailScreen() {
   const onPullRefresh = async () => {
     setRefreshing(true);
     try {
-      await refetch();
+      await Promise.all([refetch(), refetchTicketImages()]);
     } finally {
       setRefreshing(false);
     }
@@ -422,6 +435,45 @@ export default function TicketDetailScreen() {
             <Text style={staffTicketDetailStyles.cardLabel}>{t("staff_ticket_detail.created_at")}</Text>
             <Text style={staffTicketDetailStyles.cardValue}>{createdAtStr}</Text>
           </View>
+
+          <View style={{ marginTop: 4 }}>
+            <Text style={staffTicketDetailStyles.imageSectionTitle}>
+              {t("staff_ticket_detail.images_label")}
+            </Text>
+            {ticketImagesLoading ? (
+              <View style={staffTicketDetailStyles.imageLoadingRow}>
+                <ActivityIndicator size="small" color={neutral.textSecondary} />
+                <Text style={staffTicketDetailStyles.imageEmptyText}>{t("common.loading")}</Text>
+              </View>
+            ) : ticketImages.length > 0 ? (
+              <ScrollView
+                horizontal
+                nestedScrollEnabled
+                showsHorizontalScrollIndicator={false}
+                style={staffTicketDetailStyles.ticketImagesScroll}
+                contentContainerStyle={staffTicketDetailStyles.ticketImagesStrip}
+              >
+                {ticketImages.map((img) => (
+                  <TouchableOpacity
+                    key={img.id}
+                    style={staffTicketDetailStyles.ticketImageThumb}
+                    activeOpacity={0.85}
+                    onPress={() => setActiveImageUrl(img.url)}
+                  >
+                    <Image
+                      source={{ uri: img.url }}
+                      style={staffTicketDetailStyles.ticketImage}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            ) : (
+              <Text style={staffTicketDetailStyles.imageEmptyText}>
+                {t("staff_ticket_detail.images_empty")}
+              </Text>
+            )}
+          </View>
         </View>
 
         {showRegisterTimeButton && (
@@ -432,6 +484,42 @@ export default function TicketDetailScreen() {
           </Pressable>
         )}
       </ScrollView>
+
+      <Modal
+        visible={activeImageUrl != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveImageUrl(null)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={staffTicketDetailStyles.imageModalBackdrop}
+          onPress={() => setActiveImageUrl(null)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => {
+              e.stopPropagation();
+            }}
+            style={staffTicketDetailStyles.imageModalContent}
+          >
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={staffTicketDetailStyles.imageModalClose}
+              onPress={() => setActiveImageUrl(null)}
+            >
+              <Text style={staffTicketDetailStyles.imageModalCloseText}>×</Text>
+            </TouchableOpacity>
+            {activeImageUrl ? (
+              <Image
+                source={{ uri: activeImageUrl }}
+                style={staffTicketDetailStyles.imageModalImage}
+                resizeMode="contain"
+              />
+            ) : null}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       <Modal
         visible={slotModalVisible}

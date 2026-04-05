@@ -27,6 +27,7 @@ import {
   useAssetCategories,
   useFunctionalAreasByHouseId,
 } from "../../../../shared/hooks";
+import { CustomAlert as Alert } from "../../../../shared/components/alert";
 import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
 import { mergeFunctionalAreasForHouse, sortFunctionalAreasForDisplay } from "../../../../shared/utils";
 import { itemScreenStyles } from "./itemScreenStyles";
@@ -49,6 +50,8 @@ import type {
 import { uploadAssetItemImages, type AssetItemImageToUpload } from "../../../../shared/services/assetItemApi";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemCreate">;
+
+const MAX_ASSET_ATTACHMENT_IMAGES = 5;
 
 /** AssetStatus (BE): IN_USE, ACTIVE, BROKEN, DISPOSED — không AVAILABLE / DELETED. */
 const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED"] as const;
@@ -237,13 +240,40 @@ export default function ItemCreateScreen() {
       }));
 
     setSelectedImages((prev) => {
-      const merged = [...prev, ...normalized];
-      // Hard cap để hạn chế payload lớn.
-      return merged.slice(0, 6);
+      const room = MAX_ASSET_ATTACHMENT_IMAGES - prev.length;
+      if (room <= 0) {
+        requestAnimationFrame(() =>
+          Alert.alert(
+            t("common.images_limit_title"),
+            t("common.images_limit_max_message", { max: MAX_ASSET_ATTACHMENT_IMAGES })
+          )
+        );
+        return prev;
+      }
+      const toAdd = normalized.slice(0, room);
+      if (normalized.length > toAdd.length) {
+        requestAnimationFrame(() =>
+          Alert.alert(
+            t("common.images_limit_title"),
+            t("common.images_limit_truncated_message", {
+              added: toAdd.length,
+              max: MAX_ASSET_ATTACHMENT_IMAGES,
+            })
+          )
+        );
+      }
+      return [...prev, ...toAdd];
     });
   };
 
   const handleTakePhoto = async () => {
+    if (selectedImages.length >= MAX_ASSET_ATTACHMENT_IMAGES) {
+      Alert.alert(
+        t("common.images_limit_title"),
+        t("common.images_limit_max_message", { max: MAX_ASSET_ATTACHMENT_IMAGES })
+      );
+      return;
+    }
     setUploadError(null);
     setImageCaptureVisible(true);
   };
@@ -454,10 +484,17 @@ export default function ItemCreateScreen() {
 
               <View style={itemScreenStyles.imageButtonsRow}>
                 <TouchableOpacity
-                  style={itemScreenStyles.imageButton}
+                  style={[
+                    itemScreenStyles.imageButton,
+                    selectedImages.length >= MAX_ASSET_ATTACHMENT_IMAGES && { opacity: 0.5 },
+                  ]}
                   onPress={handleTakePhoto}
                   activeOpacity={0.9}
-                  disabled={isPending || uploadingImages}
+                  disabled={
+                    isPending ||
+                    uploadingImages ||
+                    selectedImages.length >= MAX_ASSET_ATTACHMENT_IMAGES
+                  }
                 >
                   <Text style={itemScreenStyles.imageButtonText}>{t("staff_item_create.images_camera")}</Text>
                 </TouchableOpacity>

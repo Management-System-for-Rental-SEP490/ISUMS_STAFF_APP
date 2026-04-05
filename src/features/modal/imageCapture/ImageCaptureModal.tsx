@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Image, Modal, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, Modal, Platform, Text, TouchableOpacity, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
+import * as MediaLibrary from "expo-media-library";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -29,6 +30,23 @@ export function ImageCaptureModal({
   libraryPermissionErrorMessage,
   captureQuality = 0.45,
 }: Props) {
+  /** Lưu file chụp vào album/thư viện máy (không chặn luồng đính kèm nếu lỗi quyền). */
+  const saveCaptureToDeviceGallery = async (localUri: string) => {
+    if (Platform.OS === "web") return;
+    try {
+      await MediaLibrary.saveToLibraryAsync(localUri);
+    } catch {
+      try {
+        const { granted } = await MediaLibrary.requestPermissionsAsync(true);
+        if (granted) {
+          await MediaLibrary.saveToLibraryAsync(localUri);
+        }
+      } catch {
+        /* bỏ qua */
+      }
+    }
+  };
+
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
@@ -63,6 +81,7 @@ export function ImageCaptureModal({
       });
       if (photo?.uri) {
         setLastPickedUri(photo.uri);
+        void saveCaptureToDeviceGallery(photo.uri);
         // Chụp xong vẫn giữ modal mở để bạn thấy ảnh mới nhất,
         // và có thể tiếp tục chụp hoặc chuyển sang thư viện.
         onPicked([{ uri: photo.uri } as ImagePicker.ImagePickerAsset]);
@@ -85,6 +104,9 @@ export function ImageCaptureModal({
       return;
     }
 
+    // Đóng modal camera trước khi mở thư viện → sau khi chọn xong user về thẳng màn trước, không thấy lại camera.
+    onClose();
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"] as ImagePicker.MediaType[],
       allowsMultipleSelection: true,
@@ -93,11 +115,8 @@ export function ImageCaptureModal({
 
     if (result.canceled) return;
     if (result.assets?.length) {
-      const last = result.assets[result.assets.length - 1];
-      if (last?.uri) setLastPickedUri(last.uri);
       onPicked(result.assets);
     }
-    onClose();
   };
 
   const cameraAllowed = !!permission?.granted;

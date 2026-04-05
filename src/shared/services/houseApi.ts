@@ -4,8 +4,16 @@
  * và xử lý refresh token khi 401.
  */
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE } from "../api/config";
-import type { HousesApiResponse, HouseDetailApiResponse, ApiResponse, FunctionalAreaFromApi } from "../types/api";
+import { BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
+import { getUserProfile } from "./userApi";
+import type {
+  HousesApiResponse,
+  HouseDetailApiResponse,
+  ApiResponse,
+  FunctionalAreaFromApi,
+  HouseRegionFromApi,
+  HouseFromApi,
+} from "../types/api";
 
 /** Chuẩn hóa response từ BE — hỗ trợ nhiều format: { data: [...] } hoặc mảng trực tiếp. */
 function normalizeHousesResponse(body: unknown): HousesApiResponse {
@@ -45,15 +53,101 @@ function normalizeHousesResponse(body: unknown): HousesApiResponse {
 
 /**
  * Lấy danh sách TẤT CẢ căn nhà (GET /api/houses).
- * Dùng cho luồng Staff (quản lý nhiều nhà).
- * Request tự động có header Authorization: Bearer <access_token> nhờ interceptor của axiosClient.
- * @returns Promise<HousesApiResponse> - data là mảng HouseFromApi, success/message/statusCode từ BE.
+ * Dùng nội bộ kết hợp với region; màn Staff nên dùng `fetchHousesScopedToStaff`.
  */
 export const getHouses = async (): Promise<HousesApiResponse> => {
   const url = `${BACKEND_API_BASE}/houses`;
   const response = await axiosClient.get(url);
   const normalized = normalizeHousesResponse(response.data);
   return normalized;
+};
+
+/**
+ * Danh sách nhà thuộc một region (GET /api/houses/region/{regionId}).
+ * Response cùng format envelope { data, message, statusCode, success } như GET /houses.
+ */
+export const getHousesByRegionId = async (regionId: string): Promise<HousesApiResponse> => {
+  const url = `${FALLBACK_BACKEND_URL}/houses/region/${encodeURIComponent(regionId)}`;
+  const response = await axiosClient.get(url);
+  return normalizeHousesResponse(response.data);
+};
+
+/**
+ * Danh sách region mà staff được gán (GET /api/houses/regions/staff/{staffId}).
+ * `staffId` = `data.id` từ GET /api/users/me. Base: `FALLBACK_BACKEND_URL` khi API chưa merge primary.
+ */
+export const getRegionsForStaff = async (staffId: string): Promise<HouseRegionFromApi[]> => {
+  const url = `${FALLBACK_BACKEND_URL}/houses/regions/staff/${encodeURIComponent(staffId)}`;
+  const response = await axiosClient.get<ApiResponse<HouseRegionFromApi[]>>(url);
+  const body = response.data;
+  const raw = body?.data;
+  if (!body?.success || !Array.isArray(raw)) return [];
+
+  return raw.filter((r): r is HouseRegionFromApi => {
+    if (!r?.id) return false;
+    if (Array.isArray(r.staffIds) && r.staffIds.length > 0) {
+      return r.staffIds.includes(staffId);
+    }
+    return true;
+  });
+};
+
+/**
+ * Gộp danh sách nhà từ nhiều region, bỏ trùng theo `house.id`.
+ */
+function mergeHousesById(lists: HouseFromApi[][]): HouseFromApi[] {
+  const seen = new Set<string>();
+  const out: HouseFromApi[] = [];
+  for (const list of lists) {
+    for (const h of list) {
+      if (!h?.id || seen.has(h.id)) continue;
+      seen.add(h.id);
+      out.push(h);
+    }
+  }
+  return out;
+}
+
+/**
+ * Lấy danh sách nhà chỉ thuộc các region mà staff hiện tại phụ trách.
+ * 1) GET /api/users/me → `data.id` (user id trong hệ thống BE, không dùng claim JWT).
+ * 2) GET /api/houses/regions/staff/{userId}
+ * 3) Với mỗi regionId: GET /api/houses/region/{regionId} rồi gộp (dedupe).
+ */
+export const fetchHousesScopedToStaff = async (): Promise<HousesApiResponse> => {
+  const profile = await getUserProfile({ apiBase: FALLBACK_BACKEND_URL });
+  const id = profile?.id?.trim() ?? "";
+  if (!id) {
+    return {
+      data: [],
+      message: "Không lấy được user id từ GET /api/users/me.",
+      statusCode: 401,
+      success: false,
+    };
+  }
+
+  const regions = await getRegionsForStaff(id);
+  const regionIdList = regions.map((r) => r.id).filter(Boolean);
+
+  if (regionIdList.length === 0) {
+    return {
+      data: [],
+      message: "Bạn chưa được gán khu vực (region) nào hoặc chưa có dữ liệu từ server.",
+      statusCode: 200,
+      success: true,
+    };
+  }
+
+  const perRegion = await Promise.all(regionIdList.map((rid) => getHousesByRegionId(rid)));
+  const merged = mergeHousesById(perRegion.map((r) => r.data));
+  const allOk = perRegion.every((r) => r.success);
+
+  return {
+    data: merged,
+    message: perRegion.find((r) => r.message)?.message ?? "Success",
+    statusCode: 200,
+    success: allOk,
+  };
 };
 
 /**

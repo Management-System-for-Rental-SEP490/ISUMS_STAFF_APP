@@ -30,8 +30,18 @@ export interface StaffAsset extends Omit<Device, "nfcTagId"> {
   nfcTagId: string;
 }
 
-/** Loại slot để gán màu trên timeline (kiểm tra định kỳ, ticket bảo trì, gán NFC, ...) */
-export type SlotType = "inspection" | "ticket" | "nfc" | "break" | "other";
+/**
+ * Loại slot để gán màu trên lịch:
+ * issue | maintenance | inspection — ba loại công việc chính; ticket = fallback (MANUAL, …).
+ */
+export type SlotType =
+  | "inspection"
+  | "issue"
+  | "maintenance"
+  | "ticket"
+  | "nfc"
+  | "break"
+  | "other";
 
 /** Một ca làm việc trong lịch tuần */
 export interface WorkSlot {

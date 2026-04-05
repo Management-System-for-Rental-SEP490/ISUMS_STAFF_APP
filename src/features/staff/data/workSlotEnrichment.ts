@@ -3,7 +3,7 @@
  */
 import { getWorkSlotsByStaffId } from "../../../shared/services/scheduleApi";
 import { getIssueTicketDataById } from "../../../shared/services/issuesApi";
-import { getJobById } from "../../../shared/services/maintenanceApi";
+import { getInspectionById, getJobById } from "../../../shared/services/maintenanceApi";
 import { getHouseById } from "../../../shared/services/houseApi";
 import type { HouseFromApi } from "../../../shared/types/api";
 import type { WorkSlot } from "./mockStaffData";
@@ -21,6 +21,11 @@ async function resolveWorkItemBySlot(slot: WorkSlot): Promise<WorkSlotDetailEnti
   if (task === "MAINTENANCE") {
     const res = await getJobById(id);
     return res?.success && res.data ? res.data : null;
+  }
+
+  if (task === "INSPECTION") {
+    const res = await getInspectionById(id);
+    return res?.success && res.data ? { houseId: res.data.houseId } : null;
   }
 
   if (task === "ISSUE") {
