@@ -28,6 +28,14 @@ const Icons = {
   search: ({ size = 24, color = 'black' }: IconProps = {}) => (
     <MaterialIcons name="search" size={size} color={color} />
   ),
+  /** Quét QR / tra cứu thiết bị. */
+  scanLookup: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="qr-code" size={size} color={color} />
+  ),
+  /** Quét NFC. */
+  nfc: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="nfc" size={size} color={color} />
+  ),
   contract: ({ size = 24, color = 'black' }: IconProps = {}) => (
     <FontAwesome5 name="file-contract" size={size} color={color} />
   ),

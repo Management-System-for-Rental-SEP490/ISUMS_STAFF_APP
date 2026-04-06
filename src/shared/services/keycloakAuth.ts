@@ -6,6 +6,7 @@ import { AuthPayload, UserRole } from "../types";
 import { useAuthStore } from "../../store/useAuthStore";
 import { CustomAlert } from "../components/alert";
 import i18n from "../i18n";
+import { getUserProfileWithAccessToken } from "./userApi";
 
 // Đảm bảo WebBrowser hoạt động đúng trên Web
 WebBrowser.maybeCompleteAuthSession();
@@ -235,7 +236,7 @@ export const exchangeCodeForToken = async (code: string): Promise<AuthPayload> =
     // -----------------
 
     const userInfo = await getUserInfo(access_token);
-    const role = determineUserRole(userInfo, access_token);
+    const role = await resolveStaffAppRoleFromBackend(access_token);
     
     // Extract houseId from attributes (Keycloak usually returns attributes as arrays)
     let houseId: string | undefined;
@@ -263,9 +264,9 @@ export const exchangeCodeForToken = async (code: string): Promise<AuthPayload> =
     throw new Error(`Lỗi đăng nhập: ${errorMessage}`);
   }
 };
-// ... (giữ nguyên getUserInfo, decodeJWT, determineUserRole) ...
+// ... getUserInfo, decodeJWT (debug), resolveStaffAppRoleFromBackend ...
 
-// ... (giữ nguyên openKeycloakLogin, handleKeycloakCallback, openAccountManagement) ...
+// ... openKeycloakLogin, handleKeycloakCallback, openAccountManagement ...
 
 
 // Lấy thông tin user từ Keycloak userinfo endpoint
@@ -306,53 +307,45 @@ const decodeJWT = (token: string): any => {
 // Ví dụ: Nếu mã hex là 41, nối thành 0041, cắt đuôi được 41.
 // => Đảm bảo luôn là chuỗi hex 2 ký tự (byte).
 // '%' + ...: Thêm dấu % vào trước. Kết quả có dạng %41, %C3, %A9...
-// Xác định role của user từ token hoặc userInfo
-const determineUserRole = (userInfo: any, accessToken: string): UserRole => { //hàm bắt buộc phải trả về kiểu UserRole.
-  const tokenClaims = decodeJWT(accessToken);
-  
-  if (tokenClaims) {
-    // Kiểm tra realm_access.roles trong token
-    const realmRoles = tokenClaims.realm_access?.roles || []; //roles là các quyền của user trong realm.
-    if (realmRoles.includes("technical")) return "technical";
-    // if (realmRoles.includes("landlord")) return "landlord";
-    // if (realmRoles.includes("manager")) return "manager";
-    if (realmRoles.includes("tenant")) return "tenant";
-    
-    // Kiểm tra resource_access nếu có
-    const resourceRoles = tokenClaims.resource_access?.["mobile-app"]?.roles || [];
-    if (resourceRoles.includes("technical")) return "technical";
-    // if (resourceRoles.includes("landlord")) return "landlord";
-    // if (resourceRoles.includes("manager")) return "manager";
-    if (resourceRoles.includes("tenant")) return "tenant";
+/** Chuẩn hóa tên role từ BE (GET /api/users/me). */
+function normalizeRoleId(raw: string): string {
+  return String(raw).trim().toUpperCase().replace(/-/g, "_").replace(/\//g, "_");
+}
 
-    // --- MỚI: Kiểm tra Group từ Keycloak ---
-    // Yêu cầu: Cấu hình Mapper "Group Membership" trong Keycloak -> Token Claim Name: "groups"
-    const groups = tokenClaims.groups || userInfo.groups || [];
-    if (Array.isArray(groups)) {
-      // Group trong Keycloak thường có dạng path: "/technical Group" hoặc "technical Group"
-      if (groups.some((g: string) => g.toLowerCase().includes("technical") || g.toLowerCase().includes("staff"))) {
-        return "technical";
-      }
-      if (groups.some((g: string) => g.toLowerCase().includes("tenant") || g.toLowerCase().includes("resident"))) {
-        return "tenant";
-      }
-    }
-// hàm dưới có thể sai
-    // --- MỚI: Kiểm tra Attributes tùy chỉnh ---
-    // Ví dụ: user có attribute "user_type": "technical"
-    const attributes = userInfo.attributes || tokenClaims.attributes || {};
-    if (attributes.user_type === "technical" || (Array.isArray(attributes.user_type) && attributes.user_type.includes("technical"))) {
-      return "technical";
-    }
+/**
+ * Có quyền staff app (thợ/kỹ thuật) theo mảng `roles` từ BE. Không đọc JWT Keycloak.
+ * Tránh false positive kiểu "NOT_TECHNICAL".
+ */
+function impliesStaffAppTechnicalRole(roleNames: string[]): boolean {
+  return roleNames.some((raw) => {
+    const u = normalizeRoleId(raw);
+    if (u === "TENANT") return false;
+    return (
+      u === "TECHNICAL_STAFF" ||
+      u === "TECHNICAL" ||
+      u.startsWith("TECHNICAL_") ||
+      u.endsWith("_TECHNICAL") ||
+      u.includes("_TECHNICAL_")
+    );
+  });
+}
+
+/**
+ * Role ứng dụng staff: chỉ từ GET /api/users/me — không dùng realm_access / resource_access / groups Keycloak.
+ */
+async function resolveStaffAppRoleFromBackend(accessToken: string): Promise<UserRole> {
+  const profile = await getUserProfileWithAccessToken(accessToken);
+  if (!profile) {
+    throw new Error(
+      "Không lấy được hồ sơ người dùng (GET /api/users/me). Kiểm tra mạng, URL API và token."
+    );
   }
-  
-  // Fallback: kiểm tra từ username
-  const username = userInfo.preferred_username?.toLowerCase() || "";
-  if (username.includes("technical") || username.includes("admin")) return "technical";
-  // if (username.includes("landlord")) return "landlord";
-  // if (username.includes("manager")) return "manager";
+  const beRoles = profile.roles;
+  if (beRoles?.length && impliesStaffAppTechnicalRole(beRoles)) {
+    return "technical";
+  }
   return "tenant";
-};
+}
 
 // Làm mới token bằng refresh token
 export const refreshAccessToken = async (refreshToken: string): Promise<AuthPayload> => {
@@ -375,7 +368,7 @@ export const refreshAccessToken = async (refreshToken: string): Promise<AuthPayl
 
     const { access_token, refresh_token: new_refresh_token, id_token } = response.data;
     const userInfo = await getUserInfo(access_token);
-    const role = determineUserRole(userInfo, access_token);
+    const role = await resolveStaffAppRoleFromBackend(access_token);
 
     // Extract houseId
     let houseId: string | undefined;

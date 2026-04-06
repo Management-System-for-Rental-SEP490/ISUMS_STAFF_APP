@@ -1,7 +1,15 @@
 import { useNavigation, useRoute, RouteProp, CommonActions } from "@react-navigation/native";
-import { Text, TouchableOpacity, View, ActivityIndicator } from "react-native";
+import {
+  Text,
+  TouchableOpacity,
+  View,
+  ActivityIndicator,
+  Pressable,
+  Animated,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CustomAlert as Alert } from "../../../shared/components/alert";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { cameraStyles } from "./cameraStyles";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -15,10 +23,13 @@ import { useAttachAssetTag } from "../../../shared/hooks";
 import type { AssetItemFromApi } from "../../../shared/types/api";
 import { normalizeAssetItemStatusFromApi } from "../../../shared/types/api";
 import { AssignNfcModal } from "../../staff/modal/assignNFC/AssignNfcModal";
+import Icons from "../../../shared/theme/icon";
+import { brandPrimary, brandSecondary, neutral } from "../../../shared/theme/color";
 
 
 const CameraScreen = () => {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "Camera">>();
   const role = useAuthStore((s) => s.role);
@@ -33,14 +44,28 @@ const CameraScreen = () => {
     console.log("CameraScreen params:", { mode: cameraMode, assignForDevice: assignForDevice?.id, role, initialScanMode });
   }, [route.params]);
 
-  const [permission, requestPermission] = useCameraPermissions(); 
-  const [scanned, setScanned] = useState(false);
-  const [scanMode, setScanMode] = useState<ScanMode>(() => {
+  const resolveInitialScanMode = (): ScanMode => {
     if (initialScanMode) return initialScanMode;
     if (assignForDevice || cameraMode === "assign") return "nfc";
     if (role === "technical") return "nfc";
     return "qr";
-  });
+  };
+
+  const [permission, requestPermission] = useCameraPermissions(); 
+  const [scanned, setScanned] = useState(false);
+  const [scanMode, setScanMode] = useState<ScanMode>(() => resolveInitialScanMode());
+  const [modeSwitchW, setModeSwitchW] = useState(0);
+  const modeSlideAnim = useRef(
+    new Animated.Value(resolveInitialScanMode() === "qr" ? 0 : 1)
+  ).current;
+  const modeIndicatorTranslateX = useMemo(
+    () =>
+      modeSlideAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, Math.max(0, modeSwitchW) / 2],
+      }),
+    [modeSlideAnim, modeSwitchW]
+  );
   const [nfcScanning, setNfcScanning] = useState(false);
   const [scannedNfcId, setScannedNfcId] = useState<string | null>(null);
   /** Điều khiển hiển thị modal chọn thiết bị trống để gán NFC. */
@@ -70,6 +95,15 @@ const CameraScreen = () => {
       requestPermission();
     }
   }, [permission]);
+
+  useEffect(() => {
+    Animated.spring(modeSlideAnim, {
+      toValue: scanMode === "qr" ? 0 : 1,
+      useNativeDriver: true,
+      tension: 68,
+      friction: 12,
+    }).start();
+  }, [scanMode, modeSlideAnim]);
 
   useEffect(() => {
     // Khởi tạo NFC Manager khi component mount
@@ -500,46 +534,68 @@ const CameraScreen = () => {
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Toggle buttons để chuyển đổi giữa QR và NFC */}
-      <View style={cameraStyles.modeToggleContainer}>
-        <TouchableOpacity
-          style={[
-            cameraStyles.modeButton,
-            scanMode === "qr" && cameraStyles.modeButtonActive,
-          ]}
-          onPress={() => {
-            setScanMode("qr");
-            setScanned(false);
-          }}
+      <View
+        style={[
+          cameraStyles.modeToggleContainer,
+          { top: insets.top + 12 },
+        ]}
+      >
+        <View
+          style={cameraStyles.modeSwitchTrack}
+          onLayout={(e) => setModeSwitchW(e.nativeEvent.layout.width)}
         >
-          <Text
+          <Animated.View
             style={[
-              cameraStyles.modeButtonText,
-              scanMode === "qr" && cameraStyles.modeButtonTextActive,
+              cameraStyles.modeSwitchIndicator,
+              {
+                width: "50%",
+                transform: [{ translateX: modeIndicatorTranslateX }],
+                backgroundColor:
+                  scanMode === "qr" ? brandPrimary : brandSecondary,
+              },
             ]}
+          />
+          <Pressable
+            style={cameraStyles.modeSwitchTab}
+            onPress={() => {
+              setScanMode("qr");
+              setScanned(false);
+            }}
           >
-            {t('camera.qr_mode')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            cameraStyles.modeButton,
-            scanMode === "nfc" && cameraStyles.modeButtonActive,
-          ]}
-          onPress={() => {
-            setScanMode("nfc");
-            setScanned(false);
-          }}
-        >
-          <Text
-            style={[
-              cameraStyles.modeButtonText,
-              scanMode === "nfc" && cameraStyles.modeButtonTextActive,
-            ]}
+            <Icons.scanLookup
+              size={18}
+              color={scanMode === "qr" ? "#fff" : neutral.textSecondary}
+            />
+            <Text
+              style={[
+                cameraStyles.modeSwitchTabText,
+                scanMode === "qr" && cameraStyles.modeSwitchTabTextActive,
+              ]}
+            >
+              {t("camera.qr_mode")}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={cameraStyles.modeSwitchTab}
+            onPress={() => {
+              setScanMode("nfc");
+              setScanned(false);
+            }}
           >
-            {t('camera.nfc_mode')}
-          </Text>
-        </TouchableOpacity>
+            <Icons.nfc
+              size={18}
+              color={scanMode === "nfc" ? "#fff" : neutral.textSecondary}
+            />
+            <Text
+              style={[
+                cameraStyles.modeSwitchTabText,
+                scanMode === "nfc" && cameraStyles.modeSwitchTabTextActive,
+              ]}
+            >
+              {t("camera.nfc_mode")}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {scanMode === "qr" ? (
@@ -599,7 +655,10 @@ const CameraScreen = () => {
           stopNfcScan();
           navigation.goBack();
         }}
-        style={cameraStyles.closeButton}
+        style={[
+          cameraStyles.closeButton,
+          { bottom: insets.bottom + 28 },
+        ]}
       >
         <Text style={cameraStyles.closeButtonText}>{t('common.close')}</Text>
       </TouchableOpacity>
