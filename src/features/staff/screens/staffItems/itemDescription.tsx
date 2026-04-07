@@ -61,6 +61,7 @@ export default function ItemDescriptionScreen() {
   
   // Item ban đầu từ params
   const initialItem = route.params.item as AssetItemFromApi;
+  const hideEdit = route.params.hideEdit === true;
   
   // State lưu item mới nhất (được cập nhật khi focus lại màn hình)
   const [item, setItem] = useState<AssetItemFromApi>(initialItem);
@@ -374,17 +375,19 @@ export default function ItemDescriptionScreen() {
               </View>
             </View>
 
-            <TouchableOpacity
-              style={itemScreenStyles.descriptionEditBtn}
-              onPress={() =>
-                navigation.navigate("ItemEdit", { item })
-              }
-              activeOpacity={0.8}
-            >
-              <Text style={itemScreenStyles.descriptionEditBtnText}>
-                {t("staff_item_description.edit_btn")}
-              </Text>
-            </TouchableOpacity>
+            {!hideEdit ? (
+              <TouchableOpacity
+                style={itemScreenStyles.descriptionEditBtn}
+                onPress={() =>
+                  navigation.navigate("ItemEdit", { item })
+                }
+                activeOpacity={0.8}
+              >
+                <Text style={itemScreenStyles.descriptionEditBtnText}>
+                  {t("staff_item_description.edit_btn")}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </ScrollView>
       )}

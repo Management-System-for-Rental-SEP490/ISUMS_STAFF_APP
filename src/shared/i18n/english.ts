@@ -189,7 +189,10 @@ export default {
         "title": "Asset categories",
         "empty": "No categories yet.",
         "error": "Could not load categories. Please try again.",
-        "compensation": "Compensation: {{percent}}%"
+        "compensation": "Compensation: {{percent}}%",
+        "section_cards": "Categories",
+        "dropdown_summary": "Asset categories",
+        "search_category_only": "Search categories (name, description, compensation)…"
     },
     "staff_item_list": {
         "title": "Device list",
@@ -201,7 +204,14 @@ export default {
         "status_active": "Active",
         "status_broken": "Broken",
         "status_disposed": "Disposed",
-        "search_placeholder": "Search by category or device name..."
+        "search_placeholder": "Search by category or device name...",
+        "filter_category_label": "Category",
+        "category_search_placeholder": "Search categories...",
+        "pick_device_heading": "Select device",
+        "pick_device_summary": "Search and select a device…",
+        "search_device_placeholder": "Search name, serial, house, category…",
+        "device_section_title": "Devices",
+        "outside_region_badge": "Outside your area"
     },
     "staff_item_create": {
         "title": "Add device",
@@ -228,7 +238,7 @@ export default {
         "images_camera": "Take photo",
         "images_library": "Choose from library",
         "images_remove": "Remove image",
-        "images_hint": "Optional. You can add up to 6 photos.",
+        "images_hint": "Optional. Up to {{max}} photos. You can skip this when creating; images upload after the device is saved.",
         "images_empty": "No images",
         "library_permission_no_permission": "No access to photo library",
         "submit": "Add device",

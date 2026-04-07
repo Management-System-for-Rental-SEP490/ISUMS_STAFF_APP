@@ -67,7 +67,7 @@ export const getHouses = async (): Promise<HousesApiResponse> => {
  * Response cùng format envelope { data, message, statusCode, success } như GET /houses.
  */
 export const getHousesByRegionId = async (regionId: string): Promise<HousesApiResponse> => {
-  const url = `${FALLBACK_BACKEND_URL}/houses/region/${encodeURIComponent(regionId)}`;
+  const url = `${BACKEND_API_BASE}/houses/region/${encodeURIComponent(regionId)}`;
   const response = await axiosClient.get(url);
   return normalizeHousesResponse(response.data);
 };
@@ -77,7 +77,7 @@ export const getHousesByRegionId = async (regionId: string): Promise<HousesApiRe
  * `staffId` = `data.id` từ GET /api/users/me. Base: `FALLBACK_BACKEND_URL` khi API chưa merge primary.
  */
 export const getRegionsForStaff = async (staffId: string): Promise<HouseRegionFromApi[]> => {
-  const url = `${FALLBACK_BACKEND_URL}/houses/regions/staff/${encodeURIComponent(staffId)}`;
+  const url = `${BACKEND_API_BASE}/houses/regions/staff/${encodeURIComponent(staffId)}`;
   const response = await axiosClient.get<ApiResponse<HouseRegionFromApi[]>>(url);
   const body = response.data;
   const raw = body?.data;
@@ -115,7 +115,7 @@ function mergeHousesById(lists: HouseFromApi[][]): HouseFromApi[] {
  * 3) Với mỗi regionId: GET /api/houses/region/{regionId} rồi gộp (dedupe).
  */
 export const fetchHousesScopedToStaff = async (): Promise<HousesApiResponse> => {
-  const profile = await getUserProfile({ apiBase: FALLBACK_BACKEND_URL });
+  const profile = await getUserProfile({ apiBase: BACKEND_API_BASE });
   const id = profile?.id?.trim() ?? "";
   if (!id) {
     return {

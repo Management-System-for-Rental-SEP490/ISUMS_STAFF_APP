@@ -190,7 +190,10 @@ export default {
         "title": "資産カテゴリ一覧",
         "empty": "カテゴリがまだありません。",
         "error": "カテゴリ一覧を読み込めませんでした。もう一度お試しください。",
-        "compensation": "補償率: {{percent}}%"
+        "compensation": "補償率: {{percent}}%",
+        "section_cards": "カテゴリ",
+        "dropdown_summary": "資産カテゴリ",
+        "search_category_only": "カテゴリを検索（名称・説明・補償率）…"
     },
     "staff_item_list": {
         "title": "デバイス一覧",
@@ -202,7 +205,14 @@ export default {
         "status_active": "稼働中",
         "status_broken": "故障",
         "status_disposed": "廃棄済み",
-        "search_placeholder": "カテゴリまたはデバイス名で検索..."
+        "search_placeholder": "カテゴリまたはデバイス名で検索...",
+        "filter_category_label": "カテゴリ",
+        "category_search_placeholder": "カテゴリを検索...",
+        "pick_device_heading": "デバイスを選択",
+        "pick_device_summary": "検索してデバイスを選択…",
+        "search_device_placeholder": "名称・シリアル・建物・カテゴリで検索…",
+        "device_section_title": "デバイス",
+        "outside_region_badge": "担当エリア外"
     },
     "staff_item_create": {
         "title": "デバイスを追加",
@@ -229,7 +239,7 @@ export default {
         "images_camera": "写真を撮る",
         "images_library": "アルバムから選択",
         "images_remove": "画像を削除",
-        "images_hint": "任意です。最大6枚まで追加できます。",
+        "images_hint": "任意です。最大{{max}}枚まで。作成時は省略可能で、保存後にアップロードされます。",
         "images_empty": "画像なし",
         "library_permission_no_permission": "写真アルバムへのアクセス権がありません",
         "submit": "追加",

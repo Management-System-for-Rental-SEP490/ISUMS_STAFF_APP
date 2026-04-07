@@ -189,7 +189,10 @@ export default {
         "title": "Danh sách danh mục thiết bị",
         "empty": "Chưa có danh mục nào.",
         "error": "Không tải được danh sách danh mục. Vui lòng thử lại.",
-        "compensation": "Bồi thường: {{percent}}%"
+        "compensation": "Bồi thường: {{percent}}%",
+        "section_cards": "Danh mục",
+        "dropdown_summary": "Danh mục thiết bị",
+        "search_category_only": "Tìm danh mục (tên, mô tả, bồi thường)…"
     },
     "staff_item_list": {
         "title": "Danh sách thiết bị",
@@ -201,7 +204,14 @@ export default {
         "status_active": "Đang hoạt động",
         "status_broken": "Bị hỏng",
         "status_disposed": "Đã thanh lý",
-        "search_placeholder": "Tìm theo danh mục hoặc tên thiết bị..."
+        "search_placeholder": "Tìm theo danh mục hoặc tên thiết bị...",
+        "filter_category_label": "Danh mục",
+        "category_search_placeholder": "Tìm danh mục...",
+        "pick_device_heading": "Chọn thiết bị",
+        "pick_device_summary": "Tìm và chọn thiết bị…",
+        "search_device_placeholder": "Tìm tên, serial, nhà, danh mục…",
+        "device_section_title": "Thiết bị",
+        "outside_region_badge": "Ngoài khu phụ trách"
     },
     "staff_item_create": {
         "title": "Thêm thiết bị",
@@ -229,6 +239,7 @@ export default {
         "images_library": "Chọn từ thư viện",
         "images_remove": "Xóa ảnh",
         "images_empty": "Chưa có ảnh",
+        "images_hint": "Tùy chọn. Có thể thêm tối đa {{max}} ảnh (khi tạo thiết bị có thể bỏ qua; ảnh sẽ được lưu sau khi tạo xong).",
         "library_permission_no_permission": "Không có quyền truy cập thư viện ảnh",
         "submit": "Thêm thiết bị",
         "success_message": "Đã thêm thiết bị.",

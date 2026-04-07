@@ -290,13 +290,23 @@ export default function ItemEditScreen() {
     return {
       id: "functionalArea",
       title: t("dropdown_box.section_functional_area"),
-      items: functionalAreas.map((a) => ({
-        id: a.id,
-        label: formatAreaDropdownLabel(a),
-      })),
+      itemLayout: "card",
+      items: functionalAreas.map((a) => {
+        const floorPart = (a.floorNo ?? "").trim()
+          ? t("staff_building_detail.functional_area_floor", { floor: a.floorNo })
+          : "";
+        const line = formatAreaDropdownLabel(a);
+        return {
+          id: a.id,
+          label: a.name,
+          detail: line,
+          cardMeta: floorPart || undefined,
+        };
+      }),
       selectedId: functionAreaId,
       showAllOption: true,
       allLabel: t("staff_item_create.function_area_none"),
+      allOptionAsCaption: true,
     };
   }, [functionalAreas, functionAreaId, formatAreaDropdownLabel, t]);
 
@@ -799,6 +809,9 @@ export default function ItemEditScreen() {
                 style={{ marginBottom: 4 }}
                 keyboardVerticalOffset={insets.top + 52}
                 onSearchInputFocus={scrollItemEditTop}
+                itemLayout="card"
+                searchAutoFocus={false}
+                keyboardAvoiding={false}
               />
             </View>
 

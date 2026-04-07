@@ -32,7 +32,7 @@ export const getInspectionById = async (
   inspectionId: string
 ): Promise<InspectionApiResponse> => {
   const response = await axiosClient.get<InspectionApiResponse>(
-    `${FALLBACK_BACKEND_URL}/maintenances/inspections/${encodeURIComponent(inspectionId)}`
+    `${BACKEND_API_BASE}/maintenances/inspections/${encodeURIComponent(inspectionId)}`
   );
   return response.data;
 };
@@ -52,7 +52,7 @@ export const updateInspectionStatus = async (
   status: InspectionStatusUpdate
 ): Promise<InspectionApiResponse> => {
   const response = await axiosClient.put<InspectionApiResponse>(
-    `${FALLBACK_BACKEND_URL}/maintenances/inspections/${encodeURIComponent(inspectionId)}/status`,
+    `${BACKEND_API_BASE}/maintenances/inspections/${encodeURIComponent(inspectionId)}/status`,
     { status }
   );
   return response.data;
