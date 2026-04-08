@@ -743,6 +743,8 @@ export default {
         "banner_price_label": "バナー価格: {{price}}",
         "banner_none": "バナー未選択",
         "banner_summary_with_price": "{{name}} - {{price}}",
+        "banner_multi_hint": "リストを開き、1回タップで選択・すばやく2回タップで選択解除。矢印をタップして閉じると確定します。",
+        "banner_selected_summary": "選択中: {{count}}件 · 参考小計: {{subtotal}}",
 
         "custom_section_title": "バナー外の項目",
         "custom_empty_hint": "バナー外の項目を追加できます（名称 + cost + price）。",

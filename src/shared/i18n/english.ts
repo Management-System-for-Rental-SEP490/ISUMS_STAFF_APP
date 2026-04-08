@@ -742,6 +742,8 @@ export default {
         "banner_price_label": "Banner price: {{price}}",
         "banner_none": "No banner selected",
         "banner_summary_with_price": "{{name}} - {{price}}",
+        "banner_multi_hint": "Open the list: single tap to select, double-tap quickly to deselect. Tap the arrow to close and confirm.",
+        "banner_selected_summary": "{{count}} banner(s) selected · Reference subtotal: {{subtotal}}",
 
         "custom_section_title": "Outside-banner items",
         "custom_empty_hint": "You can add outside-banner items (name + cost + price).",

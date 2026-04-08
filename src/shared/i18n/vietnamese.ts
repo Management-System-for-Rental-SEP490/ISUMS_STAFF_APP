@@ -742,6 +742,8 @@ export default {
         "banner_price_label": "Giá trong banner: {{price}}",
         "banner_none": "Không chọn banner",
         "banner_summary_with_price": "{{name}} - {{price}}",
+        "banner_multi_hint": "Mở danh sách: chạm một lần để chọn, chạm đúp nhanh để bỏ chọn. Nhấn mũi tên đóng để xác nhận lựa chọn.",
+        "banner_selected_summary": "Đã chọn {{count}} banner · Tổng giá tham khảo: {{subtotal}}",
 
         "custom_section_title": "Lỗi ngoài banner",
         "custom_empty_hint": "Bạn có thể thêm hạng mục lỗi ngoài banner (nhập tên + cost + price).",

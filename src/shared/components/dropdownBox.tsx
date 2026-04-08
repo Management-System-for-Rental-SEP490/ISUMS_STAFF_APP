@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -39,6 +39,14 @@ export type DropdownBoxSection = {
   /** `null` khi đang chọn hàng "Tất cả" (nếu có). */
   selectedId: string | null;
   /**
+   * Chế độ chọn nhiều (chỉ hỗ trợ khi `itemLayout === "list"`).
+   * Khi mở panel: draft copy từ `selectedIds`; chạm đơn thêm mục, đúp nhanh để bỏ chọn;
+   * đóng panel (nút mũi tên) gọi `onMultiSelectCommit`.
+   */
+  multiSelect?: boolean;
+  /** Giá trị đã xác nhận (khi đóng); dùng khi `multiSelect: true`. */
+  selectedIds?: string[];
+  /**
    * `false` = không có hàng "Tất cả" (vd. chỉ chọn tầng cụ thể).
    * Mặc định `true`.
    */
@@ -55,7 +63,11 @@ export type DropdownBoxProps = {
   sections: DropdownBoxSection[];
   /** Một dòng tóm tắt trên nút mở (parent tự format + i18n). */
   summary: string;
-  onSelect: (sectionId: string, itemId: string | null) => void;
+  onSelect?: (sectionId: string, itemId: string | null) => void;
+  /**
+   * Khi đóng panel sau chỉnh multi-select (theo `section.multiSelect`).
+   */
+  onMultiSelectCommit?: (sectionId: string, selectedIds: string[]) => void;
   style?: StyleProp<ViewStyle>;
   onAfterSelect?: (sectionId: string, itemId: string | null) => void;
   /**
@@ -184,10 +196,13 @@ function buildSectionBlocks(
 /**
  * Gom nhiều bộ lọc (tầng, danh mục, …): nhấn mở ngay tại chỗ — thanh tìm kiếm + chip theo thứ tự BE.
  */
+const MULTI_TAP_DOUBLE_MS = 280;
+
 export function DropdownBox({
   sections,
   summary,
-  onSelect,
+  onSelect = () => {},
+  onMultiSelectCommit,
   style,
   onAfterSelect,
   onSearchChange,
@@ -207,6 +222,11 @@ export function DropdownBox({
   const { height: windowH } = useWindowDimensions();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [search, setSearch] = useState("");
+  /** Draft chọn nhiều theo section, chỉ dùng khi panel đang mở. */
+  const [multiDraftBySection, setMultiDraftBySection] = useState<Record<string, string[]>>({});
+  const prevExpandedRef = useRef(false);
+  const multiTapRef = useRef<{ sectionId: string; itemId: string; time: number } | null>(null);
+  const multiTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (expanded) {
@@ -214,6 +234,25 @@ export function DropdownBox({
       onSearchChange?.("");
     }
   }, [expanded]);
+
+  useEffect(() => {
+    return () => {
+      if (multiTapTimerRef.current) clearTimeout(multiTapTimerRef.current);
+    };
+  }, []);
+
+  /** Chỉ seed draft khi vừa mở panel (false → true), không ghi đè khi `sections` đổi lúc đang mở. */
+  useEffect(() => {
+    const wasExpanded = prevExpandedRef.current;
+    prevExpandedRef.current = expanded;
+    if (!expanded) return;
+    if (wasExpanded) return;
+    const init: Record<string, string[]> = {};
+    for (const s of sections) {
+      if (s.multiSelect) init[s.id] = [...(s.selectedIds ?? [])];
+    }
+    setMultiDraftBySection(init);
+  }, [expanded, sections]);
 
   const notifyParentScrollForSearch = useCallback(() => {
     if (!onSearchInputFocus) return;
@@ -233,7 +272,51 @@ export function DropdownBox({
     Math.round(windowH * resultsHeightRatio)
   );
 
-  const collapse = useCallback(() => setExpanded(false), []);
+  const handleMultiListItemPress = useCallback((sectionId: string, itemId: string) => {
+    const now = Date.now();
+    if (multiTapTimerRef.current) {
+      clearTimeout(multiTapTimerRef.current);
+      multiTapTimerRef.current = null;
+    }
+    const last = multiTapRef.current;
+    if (
+      last &&
+      last.sectionId === sectionId &&
+      last.itemId === itemId &&
+      now - last.time < MULTI_TAP_DOUBLE_MS
+    ) {
+      multiTapRef.current = null;
+      setMultiDraftBySection((prev) => {
+        const cur = [...(prev[sectionId] ?? [])];
+        return { ...prev, [sectionId]: cur.filter((x) => x !== itemId) };
+      });
+      return;
+    }
+    multiTapRef.current = { sectionId, itemId, time: now };
+    multiTapTimerRef.current = setTimeout(() => {
+      multiTapTimerRef.current = null;
+      multiTapRef.current = null;
+      setMultiDraftBySection((prev) => {
+        const cur = [...(prev[sectionId] ?? [])];
+        if (cur.includes(itemId)) return prev;
+        return { ...prev, [sectionId]: [...cur, itemId] };
+      });
+    }, MULTI_TAP_DOUBLE_MS);
+  }, []);
+
+  const collapse = useCallback(() => {
+    if (multiTapTimerRef.current) {
+      clearTimeout(multiTapTimerRef.current);
+      multiTapTimerRef.current = null;
+    }
+    multiTapRef.current = null;
+    for (const s of sections) {
+      if (s.multiSelect) {
+        onMultiSelectCommit?.(s.id, multiDraftBySection[s.id] ?? []);
+      }
+    }
+    setExpanded(false);
+  }, [sections, onMultiSelectCommit, multiDraftBySection]);
 
   const handleSelect = useCallback(
     (sectionId: string, itemId: string | null) => {
@@ -331,33 +414,63 @@ export function DropdownBox({
                             <Pressable
                               style={[
                                 styles.listRow,
-                                block.sec.selectedId === null && styles.listRowSelected,
+                                block.sec.multiSelect
+                                  ? (multiDraftBySection[block.sec.id] ?? []).length === 0 &&
+                                    styles.listRowSelected
+                                  : block.sec.selectedId === null && styles.listRowSelected,
                               ]}
-                              onPress={() => handleSelect(block.sec.id, null)}
+                              onPress={() => {
+                                if (block.sec.multiSelect) {
+                                  setMultiDraftBySection((prev) => ({
+                                    ...prev,
+                                    [block.sec.id]: [],
+                                  }));
+                                  return;
+                                }
+                                handleSelect(block.sec.id, null);
+                              }}
                               accessibilityRole="button"
-                              accessibilityState={{ selected: block.sec.selectedId === null }}
+                              accessibilityState={{
+                                selected: block.sec.multiSelect
+                                  ? (multiDraftBySection[block.sec.id] ?? []).length === 0
+                                  : block.sec.selectedId === null,
+                              }}
                             >
                               <View style={styles.listRowTextWrap}>
                                 <Text
                                   style={[
                                     styles.listRowTitle,
-                                    block.sec.selectedId === null && styles.listRowTitleSelected,
+                                    block.sec.multiSelect
+                                      ? (multiDraftBySection[block.sec.id] ?? []).length === 0 &&
+                                        styles.listRowTitleSelected
+                                      : block.sec.selectedId === null && styles.listRowTitleSelected,
                                   ]}
                                   numberOfLines={2}
                                 >
                                   {block.allLabel}
                                 </Text>
                               </View>
-                              <Icons.chevronForward size={20} color={neutral.textSecondary} />
+                              {block.sec.multiSelect ? (
+                                <Text style={styles.listRowMultiTick} />
+                              ) : (
+                                <Icons.chevronForward size={20} color={neutral.textSecondary} />
+                              )}
                             </Pressable>
                           ) : null}
                           {block.filteredItems.map((it) => {
-                            const selected = block.sec.selectedId === it.id;
+                            const draftSet = multiDraftBySection[block.sec.id];
+                            const selected = block.sec.multiSelect
+                              ? (draftSet ?? []).includes(it.id)
+                              : block.sec.selectedId === it.id;
                             return (
                               <Pressable
                                 key={it.id}
                                 style={[styles.listRow, selected && styles.listRowSelected]}
-                                onPress={() => handleSelect(block.sec.id, it.id)}
+                                onPress={() =>
+                                  block.sec.multiSelect
+                                    ? handleMultiListItemPress(block.sec.id, it.id)
+                                    : handleSelect(block.sec.id, it.id)
+                                }
                                 accessibilityRole="button"
                                 accessibilityState={{ selected }}
                               >
@@ -380,7 +493,17 @@ export function DropdownBox({
                                     </Text>
                                   ) : null}
                                 </View>
-                                <Icons.chevronForward size={20} color={neutral.textSecondary} />
+                                {block.sec.multiSelect ? (
+                                  <Text
+                                    style={[styles.listRowMultiTick, selected && styles.listRowMultiTickOn]}
+                                    accessibilityElementsHidden
+                                    importantForAccessibility="no"
+                                  >
+                                    {selected ? "✓" : ""}
+                                  </Text>
+                                ) : (
+                                  <Icons.chevronForward size={20} color={neutral.textSecondary} />
+                                )}
                               </Pressable>
                             );
                           })}
@@ -690,6 +813,16 @@ const styles = StyleSheet.create({
   listRowMetaBold: {
     ...appTypography.listTitle,
     fontWeight: "700",
+    color: brandPrimary,
+  },
+  listRowMultiTick: {
+    fontSize: 16,
+    color: neutral.slate300,
+    width: 22,
+    textAlign: "center",
+    fontWeight: "900",
+  },
+  listRowMultiTickOn: {
     color: brandPrimary,
   },
   deviceCard: {

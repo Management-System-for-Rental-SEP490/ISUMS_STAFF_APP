@@ -38,7 +38,10 @@ import {
   stackScreenTitleRowStyle,
   stackScreenTitleSideSlotStyle,
 } from "../../../../shared/components/StackScreenTitleBadge";
-import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
+import {
+  DropdownBox,
+  type DropdownBoxSection,
+} from "../../../../shared/components/dropdownBox";
 import { brandPrimary, neutral } from "../../../../shared/theme/color";
 import Icons from "../../../../shared/theme/icon";
 
@@ -72,18 +75,23 @@ export default function StaffIssueNoteScreen() {
   const parsedScore = useMemo(() => Number(conditionScore), [conditionScore]);
   const isScoreValid = Number.isFinite(parsedScore) && parsedScore >= 0 && parsedScore <= 100;
 
-  const selectedBannerId = selectedBannerIds[0] ?? null;
-  const selectedBanner = useMemo(
-    () => banners.find((bn) => bn.id === selectedBannerId) ?? null,
-    [banners, selectedBannerId]
-  );
+  const selectedBannersSubtotal = useMemo(() => {
+    return selectedBannerIds.reduce((sum, id) => {
+      const b = banners.find((x) => x.id === id);
+      const n = Number(b?.currentPrice);
+      return sum + (Number.isFinite(n) ? n : 0);
+    }, 0);
+  }, [selectedBannerIds, banners]);
 
-  const bannerSummary = selectedBanner
-    ? t("staff_issue_note.banner_summary_with_price", {
-        name: selectedBanner.name,
-        price: String(selectedBanner.currentPrice),
-      })
-    : "";
+  const bannerSummary = useMemo(() => {
+    if (selectedBannerIds.length === 0) {
+      return t("staff_issue_note.banner_none");
+    }
+    return t("staff_issue_note.banner_selected_summary", {
+      count: selectedBannerIds.length,
+      subtotal: String(selectedBannersSubtotal),
+    });
+  }, [selectedBannerIds, selectedBannersSubtotal, t]);
 
   const bannerSections = useMemo<DropdownBoxSection[]>(
     () => [
@@ -97,12 +105,14 @@ export default function StaffIssueNoteScreen() {
             price: String(bn.currentPrice),
           }),
         })),
-        selectedId: selectedBannerId,
+        selectedId: null,
+        selectedIds: selectedBannerIds,
+        multiSelect: true,
         showAllOption: true,
         allLabel: t("staff_issue_note.banner_none"),
       },
     ],
-    [banners, selectedBannerId, t]
+    [banners, selectedBannerIds, t]
   );
 
   useEffect(() => {
@@ -385,11 +395,16 @@ export default function StaffIssueNoteScreen() {
               <Text style={styles.hintText}>{t("staff_issue_note.banner_empty")}</Text>
             ) : (
               <View pointerEvents={submitting ? "none" : "auto"}>
+                <Text style={[styles.hintText, { marginBottom: 10 }]}>
+                  {t("staff_issue_note.banner_multi_hint")}
+                </Text>
                 <DropdownBox
                   sections={bannerSections}
                   summary={bannerSummary}
-                  onSelect={(_, itemId) => setSelectedBannerIds(itemId ? [itemId] : [])}
-                  style={{ marginBottom: 12 }}
+                  onMultiSelectCommit={(sectionId, ids) => {
+                    if (sectionId === "banner") setSelectedBannerIds(ids);
+                  }}
+                  style={{ marginBottom: 4 }}
                   keyboardVerticalOffset={insets.top + 52}
                   itemLayout="list"
                   searchAutoFocus={false}
@@ -591,56 +606,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginBottom: 12,
-  },
-
-  bannerList: {
-    gap: 10,
-    marginBottom: 4,
-  },
-  bannerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: neutral.inputBorder,
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: neutral.surface,
-  },
-  bannerRowSelected: {
-    borderColor: brandPrimary,
-    backgroundColor: neutral.backgroundSubtle,
-  },
-  bannerRowLeft: {
-    flex: 1,
-    marginRight: 10,
-    gap: 4,
-  },
-  bannerName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: neutral.text,
-  },
-  bannerNameSelected: {
-    color: brandPrimary,
-  },
-  bannerPrice: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: neutral.textSecondary,
-  },
-  bannerPriceSelected: {
-    color: brandPrimary,
-  },
-  bannerTick: {
-    fontSize: 16,
-    color: neutral.slate300,
-    width: 20,
-    textAlign: "center",
-    fontWeight: "900",
-  },
-  bannerTickOn: {
-    color: brandPrimary,
   },
 
   customItemCard: {
