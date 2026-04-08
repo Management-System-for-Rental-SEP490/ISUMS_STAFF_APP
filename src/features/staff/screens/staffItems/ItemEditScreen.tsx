@@ -1,7 +1,7 @@
 /**
  * Màn hình chỉnh sửa thiết bị (Staff), hiển thị dạng modal.
  * - Nhận `item` từ route params (AssetItemFromApi).
- * - Form pre-fill; PUT /api/asset/items/:id qua useUpdateAssetItem.
+ * - Form pre-fill; PUT /api/assets/items/:id qua useUpdateAssetItem (gồm `note` theo Swagger).
  * - Nút "Xóa thiết bị": Alert xác nhận → PUT cập nhật status → DISPOSED (xóa mềm) → goBack.
  */
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
@@ -78,6 +78,8 @@ type ItemEditRouteProp = RouteProp<RootStackParamList, "ItemEdit">;
 
 /** AssetStatus (BE): IN_USE, ACTIVE, BROKEN, DISPOSED — không AVAILABLE / DELETED. */
 const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED"] as const;
+
+const MAX_ASSET_ATTACHMENT_IMAGES = 5;
 
 export default function ItemEditScreen() {
   const { t } = useTranslation();
@@ -160,6 +162,7 @@ export default function ItemEditScreen() {
   const [nfcId, setNfcId] = useState(latestItem.nfcTag ?? "");
   const [qrId, setQrId] = useState(latestItem.qrTag ?? "");
   const [conditionPercent, setConditionPercent] = useState(String(latestItem.conditionPercent));
+  const [note, setNote] = useState(latestItem.note ?? "");
   const [status, setStatus] = useState<string>(
     normalizeAssetItemStatusFromApi(latestItem.status) || STATUS_OPTIONS[0]
   );
@@ -185,6 +188,7 @@ export default function ItemEditScreen() {
     setNfcId(latestItem.nfcTag ?? "");
     setQrId(latestItem.qrTag ?? "");
     setConditionPercent(String(latestItem.conditionPercent));
+    setNote(latestItem.note ?? "");
     setStatus(normalizeAssetItemStatusFromApi(latestItem.status) || STATUS_OPTIONS[0]);
     if (!functionAreaUserTouchedRef.current) {
       setFunctionAreaId(latestItem.functionAreaId ?? null);
@@ -286,13 +290,23 @@ export default function ItemEditScreen() {
     return {
       id: "functionalArea",
       title: t("dropdown_box.section_functional_area"),
-      items: functionalAreas.map((a) => ({
-        id: a.id,
-        label: formatAreaDropdownLabel(a),
-      })),
+      itemLayout: "card",
+      items: functionalAreas.map((a) => {
+        const floorPart = (a.floorNo ?? "").trim()
+          ? t("staff_building_detail.functional_area_floor", { floor: a.floorNo })
+          : "";
+        const line = formatAreaDropdownLabel(a);
+        return {
+          id: a.id,
+          label: a.name,
+          detail: line,
+          cardMeta: floorPart || undefined,
+        };
+      }),
       selectedId: functionAreaId,
       showAllOption: true,
       allLabel: t("staff_item_create.function_area_none"),
+      allOptionAsCaption: true,
     };
   }, [functionalAreas, functionAreaId, formatAreaDropdownLabel, t]);
 
@@ -313,11 +327,6 @@ export default function ItemEditScreen() {
   const statusDropdownSummary = useMemo(
     () => `${t("dropdown_box.status_short")}: ${statusLabel(status)}`,
     [status, statusLabel, t]
-  );
-
-  const readonlyNoteValue = useMemo(
-    () => (latestItem.note && latestItem.note.trim() ? latestItem.note : "—"),
-    [latestItem.note]
   );
 
   const readonlyUpdateAtValue = useMemo(() => {
@@ -407,6 +416,7 @@ export default function ItemEditScreen() {
       qrTag: trimmedQrId.length > 0 ? trimmedQrId : null,
       qrId: trimmedQrId.length > 0 ? trimmedQrId : null,
       conditionPercent: percent,
+      note: note.trim(),
       status: status || "IN_USE",
       functionAreaId,
     };
@@ -544,6 +554,7 @@ export default function ItemEditScreen() {
               qrTag: qrId.trim() ? qrId.trim() : null,
               qrId: qrId.trim() ? qrId.trim() : null,
               conditionPercent: Number.isNaN(percent) ? item.conditionPercent : percent,
+              note: note.trim(),
               status: "DISPOSED",
               functionAreaId,
             };
@@ -676,6 +687,13 @@ export default function ItemEditScreen() {
   }, [latestItem?.id]);
 
   const handleTakePhoto = async () => {
+    if (pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES) {
+      Alert.alert(
+        t("common.images_limit_title"),
+        t("common.images_limit_max_message", { max: MAX_ASSET_ATTACHMENT_IMAGES })
+      );
+      return;
+    }
     setUploadError(null);
     setImageCaptureVisible(true);
   };
@@ -791,6 +809,9 @@ export default function ItemEditScreen() {
                 style={{ marginBottom: 4 }}
                 keyboardVerticalOffset={insets.top + 52}
                 onSearchInputFocus={scrollItemEditTop}
+                itemLayout="card"
+                searchAutoFocus={false}
+                keyboardAvoiding={false}
               />
             </View>
 
@@ -958,9 +979,12 @@ export default function ItemEditScreen() {
             <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_description.note_label")}</Text>
               <TextInput
-                style={[itemScreenStyles.input, itemScreenStyles.inputReadonlyDim]}
-                value={readonlyNoteValue}
-                editable={false}
+                style={itemScreenStyles.input}
+                value={note}
+                onChangeText={setNote}
+                placeholder={t("staff_item_description.note_placeholder")}
+                placeholderTextColor="#9CA3AF"
+                editable={!isPending}
                 multiline
               />
             </View>
@@ -979,10 +1003,17 @@ export default function ItemEditScreen() {
 
               <View style={itemScreenStyles.imageButtonsRow}>
                 <TouchableOpacity
-                  style={itemScreenStyles.imageButton}
+                  style={[
+                    itemScreenStyles.imageButton,
+                    pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES && { opacity: 0.5 },
+                  ]}
                   onPress={handleTakePhoto}
                   activeOpacity={0.9}
-                  disabled={isPending || uploadingImages}
+                  disabled={
+                    isPending ||
+                    uploadingImages ||
+                    pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES
+                  }
                 >
                   <Text style={itemScreenStyles.imageButtonText}>{t("staff_item_create.images_camera")}</Text>
                 </TouchableOpacity>
@@ -1162,7 +1193,31 @@ export default function ItemEditScreen() {
         onPicked={(assets) => {
           setUploadError(null);
           const picked = addPickedImages(assets);
-          setPendingImagePreviews((prev) => [...prev, ...picked].slice(0, 6));
+          setPendingImagePreviews((prev) => {
+            const room = MAX_ASSET_ATTACHMENT_IMAGES - prev.length;
+            if (room <= 0) {
+              requestAnimationFrame(() =>
+                Alert.alert(
+                  t("common.images_limit_title"),
+                  t("common.images_limit_max_message", { max: MAX_ASSET_ATTACHMENT_IMAGES })
+                )
+              );
+              return prev;
+            }
+            const toAdd = picked.slice(0, room);
+            if (picked.length > toAdd.length) {
+              requestAnimationFrame(() =>
+                Alert.alert(
+                  t("common.images_limit_title"),
+                  t("common.images_limit_truncated_message", {
+                    added: toAdd.length,
+                    max: MAX_ASSET_ATTACHMENT_IMAGES,
+                  })
+                )
+              );
+            }
+            return [...prev, ...toAdd];
+          });
         }}
         libraryLabel={t("staff_item_create.images_library")}
       />

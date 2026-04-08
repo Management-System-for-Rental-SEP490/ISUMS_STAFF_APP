@@ -73,6 +73,8 @@ const useAuthStore = create<AuthState>()(
           refreshToken: null,
           houseId: null,
           isLoggedIn: false,
+          // Đảm bảo đóng overlay WebView Keycloak nếu còn mở khi logout.
+          keycloakInAppSession: null,
           // KHÔNG reset onboardedUsers để ghi nhớ lịch sử của các user trên máy này
           onboardedUsers: state.onboardedUsers, 
         })),

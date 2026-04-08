@@ -25,8 +25,11 @@ export type IssueStatus =
   | "NEED_RESCHEDULE"
   | "SCHEDULED"
   | "IN_PROGRESS"
+  | "WAITING_MANAGER_CONFIRM"
   | "WAITING_MANAGER_APPROVAL"
   | "WAITING_TENANT_APPROVAL"
+  | "WAITING_MANAGER_APPROVAL_QUOTE"
+  | "WAITING_TENANT_APPROVAL_QUOTE"
   | "WAITING_PAYMENT"
   | "DONE"
   | "CLOSED"
@@ -244,6 +247,16 @@ export interface HousesApiResponse {
   success: boolean;
 }
 
+/** Một khu vực (region) từ GET /api/houses/regions/staff/{staffId}. */
+export interface HouseRegionFromApi {
+  id: string;
+  name: string;
+  description: string;
+  managerId: string;
+  /** Danh sách staff được gán vào region; BE có thể bỏ qua nếu path đã lọc theo staff. */
+  staffIds?: string[];
+}
+
 /** Response body của API GET /api/houses/{id}. */
 export interface HouseDetailApiResponse {
   /** Thông tin chi tiết một căn nhà. */
@@ -409,6 +422,8 @@ export interface CreateAssetItemRequest {
   nfcId?: string | null;
   qrId?: string | null;
   conditionPercent: number;
+  /** Ghi chú thiết bị (PUT/POST theo Swagger: `note`). */
+  note?: string | null;
   /** Trạng thái (AssetStatus). */
   status: string;
   /** Gán thiết bị vào khu vực chức năng (tùy chọn). */
@@ -793,6 +808,43 @@ export interface JobApiResponse {
   message: string;
   statusCode: number;
   success: boolean;
+}
+
+// =========================================================
+// Inspection API (GET /api/maintenances/inspections/{id} — base FALLBACK_BACKEND_URL)
+// =========================================================
+
+/** Chi tiết kiểm định (bàn giao); jobId trên lịch = id kiểm định. */
+export interface InspectionFromApi {
+  id: string;
+  houseId: string;
+  assignedStaffId: string;
+  slotId: string;
+  status: string;
+  note?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface InspectionApiResponse {
+  data: InspectionFromApi;
+  message: string;
+  statusCode: number;
+  success: boolean;
+}
+
+/** Map inspection → JobFromApi để tái sử dụng luồng maintenance (status, batch, houseId). */
+export function mapInspectionToJobFromApi(i: InspectionFromApi): JobFromApi {
+  const created = String(i.createdAt ?? "").trim();
+  const periodStartDate = created.length >= 10 ? created.slice(0, 10) : "";
+  return {
+    id: i.id,
+    planId: String(i.slotId ?? "").trim() || i.id,
+    houseId: i.houseId,
+    periodStartDate,
+    dueDate: String(i.updatedAt ?? i.createdAt ?? "").trim(),
+    status: i.status,
+  };
 }
 
 // =========================================================

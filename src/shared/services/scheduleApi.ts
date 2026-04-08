@@ -6,7 +6,7 @@
  * - POST /api/schedules/work_slots/staff/confirm — staff đăng ký giờ xử lý ticket (`jobId` = ticket id).
  */
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE } from "../api/config";
+import { BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
 import { useAuthStore } from "../../store/useAuthStore";
 import type {
   ScheduleTemplateApiResponse,
@@ -86,6 +86,7 @@ export const getCurrentScheduleTemplate = async (
 ): Promise<ScheduleTemplateApiResponse> => {
   const response = await axiosClient.get<ScheduleTemplateApiResponse>(
     `${BACKEND_API_BASE}/schedules/templates/current/${encodeURIComponent(date)}`
+
   );
   return response.data;
 };
@@ -103,7 +104,8 @@ export const getWorkSlotsByStaffId = async (
   // API mới: backend lấy staff từ token nên URL không còn cần staffId trong path.
   // (BE: GET /api/schedules/work_slots/staff)
   const response = await axiosClient.get<WorkSlotsApiResponse>(
-    `${BACKEND_API_BASE}/schedules/work_slots/staff`
+   `${BACKEND_API_BASE}/schedules/work_slots/staff`
+   //`${FALLBACK_BACKEND_URL}/schedules/work_slots/staff`
   );
   return response.data;
 };
@@ -133,6 +135,7 @@ export const confirmStaffWorkSlotForJob = async (
 ): Promise<ConfirmStaffWorkSlotResponse> => {
   const response = await axiosClient.post<ConfirmStaffWorkSlotResponse>(
     `${BACKEND_API_BASE}/schedules/work_slots/staff/confirm`,
+   // `${FALLBACK_BACKEND_URL}/schedules/work_slots/staff/confirm`,
     payload
   );
   return response.data;

@@ -1,8 +1,9 @@
 /**
  * Màn hình danh sách thiết bị (Staff).
- * - Gom thiết bị theo danh mục, hiển thị phân trang client (PaginationBar).
+ * - Lọc danh mục + danh sách thiết bị trong dropdown (có tìm kiếm); ưu tiên nhà thuộc khu vực phụ trách.
+ * - Xem mọi thiết bị; chỉnh sửa chỉ trong nhà được gán (ngoài khu vực → màn chỉ xem).
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -11,13 +12,16 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
-import { useAssetCategories, useAssetItemsAllHouses, useHouses } from "../../../../shared/hooks";
+import { useAssetCategories, useAssetItems, useHouses } from "../../../../shared/hooks";
+import { getHouses } from "../../../../shared/services/houseApi";
+import { useAuthStore } from "../../../../store/useAuthStore";
 import { itemScreenStyles } from "./itemScreenStyles";
 import { brandPrimary } from "../../../../shared/theme/color";
 import {
@@ -29,8 +33,6 @@ import {
   stackScreenTitleRowStyle,
   stackScreenTitleSideSlotStyle,
 } from "../../../../shared/components/StackScreenTitleBadge";
-import { PaginationBar } from "../../../../shared/components/PaginationBar";
-import { getTotalPages, slicePage } from "../../../../shared/utils";
 import type { AssetItemFromApi, HouseFromApi } from "../../../../shared/types/api";
 import { normalizeAssetItemStatusFromApi } from "../../../../shared/types/api";
 import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
@@ -39,10 +41,14 @@ type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemList">;
 
 type ItemListRow = { item: AssetItemFromApi; categoryName: string };
 
+const HOUSES_ALL_LOOKUP_KEY = ["houses", "allCatalogForItemList"] as const;
+
 export default function ItemListScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavProp>();
+  const token = useAuthStore((s) => s.token);
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
 
   const {
     data: categoriesData,
@@ -56,26 +62,64 @@ export default function ItemListScreen() {
     refetch: refetchHouses,
     isRefetching: housesRefetching,
   } = useHouses();
-  const houses = housesData?.data ?? [];
-  const houseIds = useMemo(() => houses.map((h: HouseFromApi) => h.id), [houses]);
+  const staffHouses = housesData?.data ?? [];
+  const staffHouseIdSet = useMemo(
+    () => new Set(staffHouses.map((h: HouseFromApi) => h.id).filter(Boolean)),
+    [staffHouses]
+  );
+
+  const {
+    data: allHousesData,
+    refetch: refetchAllHouses,
+    isRefetching: allHousesRefetching,
+  } = useQuery({
+    queryKey: HOUSES_ALL_LOOKUP_KEY,
+    queryFn: getHouses,
+    enabled: isLoggedIn && Boolean(token),
+  });
+  const allHousesCatalog = allHousesData?.data ?? [];
+
+  const houseById = useMemo(() => {
+    const map = new Map<string, HouseFromApi>();
+    for (const h of allHousesCatalog) {
+      if (h?.id) map.set(h.id, h);
+    }
+    for (const h of staffHouses) {
+      if (h?.id) map.set(h.id, h);
+    }
+    return map;
+  }, [allHousesCatalog, staffHouses]);
+
   const {
     data: itemsData,
     isLoading,
     isError,
     refetch,
     isRefetching: itemsRefetching,
-  } = useAssetItemsAllHouses(houseIds, null);
+  } = useAssetItems({});
   const rawItems: AssetItemFromApi[] = itemsData?.data ?? [];
 
-  const [listPage, setListPage] = useState(1);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
 
   const openCreateItem = () => {
     navigation.navigate("ItemCreate");
   };
 
-  /** Nhóm thiết bị theo category; trong mỗi nhóm sắp theo tên nhà rồi tên thiết bị. */
+  const sortItemsForStaff = useCallback(
+    (items: AssetItemFromApi[]) =>
+      [...items].sort((a, b) => {
+        const inA = staffHouseIdSet.has(a.houseId) ? 0 : 1;
+        const inB = staffHouseIdSet.has(b.houseId) ? 0 : 1;
+        if (inA !== inB) return inA - inB;
+        const nameA = houseById.get(a.houseId)?.name ?? a.houseId;
+        const nameB = houseById.get(b.houseId)?.name ?? b.houseId;
+        if (nameA !== nameB) return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
+        return (a.displayName ?? "").localeCompare(b.displayName ?? "", undefined, { sensitivity: "base" });
+      }),
+    [houseById, staffHouseIdSet]
+  );
+
+  /** Nhóm thiết bị theo category; trong mỗi nhóm ưu tiên nhà thuộc khu vực staff. */
   const itemsByCategory = useMemo(() => {
     const map = new Map<string, AssetItemFromApi[]>();
     for (const item of rawItems) {
@@ -87,92 +131,111 @@ export default function ItemListScreen() {
     for (const cat of categories) {
       const items = map.get(cat.id);
       if (items?.length) {
-        const sorted = [...items].sort((a, b) => {
-          const nameA = houses.find((h: HouseFromApi) => h.id === a.houseId)?.name ?? "";
-          const nameB = houses.find((h: HouseFromApi) => h.id === b.houseId)?.name ?? "";
-          if (nameA !== nameB) return nameA.localeCompare(nameB);
-          return (a.displayName ?? "").localeCompare(b.displayName ?? "", undefined, { sensitivity: "base" });
-        });
-        result.push({ categoryId: cat.id, categoryName: cat.name, items: sorted });
+        result.push({ categoryId: cat.id, categoryName: cat.name, items: sortItemsForStaff(items) });
         map.delete(cat.id);
       }
     }
     for (const [categoryId, items] of map) {
-      const sorted = [...items].sort((a, b) => {
-        const nameA = houses.find((h: HouseFromApi) => h.id === a.houseId)?.name ?? "";
-        const nameB = houses.find((h: HouseFromApi) => h.id === b.houseId)?.name ?? "";
-        if (nameA !== nameB) return nameA.localeCompare(nameB);
-        return (a.displayName ?? "").localeCompare(b.displayName ?? "", undefined, { sensitivity: "base" });
-      });
       result.push({
         categoryId,
         categoryName: t("staff_item_list.category_other"),
-        items: sorted,
+        items: sortItemsForStaff(items),
       });
     }
     return result;
-  }, [rawItems, categories, houses, t]);
+  }, [rawItems, categories, sortItemsForStaff, t]);
 
-  /** Danh sách phẳng (giữ thứ tự nhóm + đã sort trong nhóm) để phân trang. */
-  const flatRows: ItemListRow[] = useMemo(() => {
+  /** Hàng phẳng chỉ lọc theo danh mục (tìm thiết bị do DropdownBox xử lý). */
+  const categoryFilteredRows: ItemListRow[] = useMemo(() => {
     const rows: ItemListRow[] = [];
     for (const g of itemsByCategory) {
+      if (selectedCategoryId && g.categoryId !== selectedCategoryId) continue;
       for (const item of g.items) {
         rows.push({ item, categoryName: g.categoryName });
       }
     }
     return rows;
-  }, [itemsByCategory]);
+  }, [itemsByCategory, selectedCategoryId]);
 
-  const norm = (s: string) =>
-    s
-      .trim()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/đ/g, "d");
+  const selectedCategoryName = selectedCategoryId
+    ? categories.find((c) => c.id === selectedCategoryId)?.name ?? ""
+    : (t("staff_home.all_devices_category_all") as string);
 
-  const filteredFlatRows: ItemListRow[] = useMemo(() => {
-    const q = norm(searchQuery);
-    return flatRows.filter((row) => {
-      if (selectedCategoryId && row.item.categoryId !== selectedCategoryId) return false;
-      if (!q) return true;
-
-      const categoryMatch = norm(row.categoryName).includes(q);
-      const deviceNameMatch = norm(row.item.displayName ?? "").includes(q);
-      const deviceSerialMatch = norm(row.item.serialNumber ?? "").includes(q);
-
-      return categoryMatch || deviceNameMatch || deviceSerialMatch;
-    });
-  }, [flatRows, selectedCategoryId, searchQuery]);
-
-  const listTotalPages = getTotalPages(filteredFlatRows.length);
-  const pagedRows = useMemo(
-    () => slicePage(filteredFlatRows, listPage),
-    [filteredFlatRows, listPage]
+  const getHouseName = useCallback(
+    (houseId: string) => houseById.get(houseId)?.name ?? houseId,
+    [houseById]
   );
 
-  useEffect(() => {
-    setListPage(1);
-  }, [filteredFlatRows.length, selectedCategoryId, searchQuery]);
+  const getStatusLabel = useCallback(
+    (status: string) => {
+      const normalizedStatus = normalizeAssetItemStatusFromApi(status);
+      if (normalizedStatus === "IN_USE") return t("staff_item_list.status_in_use");
+      if (normalizedStatus === "ACTIVE") return t("staff_item_list.status_active");
+      if (normalizedStatus === "DISPOSED") return t("staff_item_list.status_disposed");
+      if (normalizedStatus === "BROKEN") return t("staff_item_list.status_broken");
+      return normalizedStatus;
+    },
+    [t]
+  );
 
-  const categorySections: DropdownBoxSection[] = useMemo(() => {
-    const items = categories.map((cat) => ({ id: cat.id, label: cat.name }));
-    return [
-      {
-        id: "category",
-        title: t("staff_item_list.title"),
-        items,
-        selectedId: selectedCategoryId,
-        showAllOption: true,
-      },
-    ];
-  }, [categories, selectedCategoryId, t]);
+  const listCombinedSections: DropdownBoxSection[] = useMemo(() => {
+    const categorySection: DropdownBoxSection = {
+      id: "category",
+      title: t("staff_item_list.filter_category_label"),
+      items: categories.map((cat) => ({ id: cat.id, label: cat.name })),
+      selectedId: selectedCategoryId,
+      showAllOption: true,
+      itemLayout: "chips",
+    };
+    const deviceItems = categoryFilteredRows.map(({ item, categoryName }) => {
+      const houseName = getHouseName(item.houseId);
+      const inRegion = staffHouseIdSet.has(item.houseId);
+      const metaTail = inRegion ? "" : ` · ${t("staff_item_list.outside_region_badge")}`;
+      return {
+        id: item.id,
+        label: item.displayName ?? item.serialNumber ?? item.id,
+        detail: `${categoryName} · ${houseName} · ${item.serialNumber ?? "—"}${metaTail}`,
+        cardCategory: categoryName,
+        cardMeta: `${item.serialNumber ?? "—"} · ${houseName}${metaTail}`,
+        cardFooter: `${t("staff_item_list.condition", { percent: item.conditionPercent })} · ${getStatusLabel(item.status)}`,
+      };
+    });
+    const deviceSection: DropdownBoxSection = {
+      id: "device",
+      title: t("staff_item_list.device_section_title"),
+      items: deviceItems,
+      selectedId: null,
+      showAllOption: false,
+      itemLayout: "card",
+    };
+    return [categorySection, deviceSection];
+  }, [
+    categories,
+    categoryFilteredRows,
+    getHouseName,
+    getStatusLabel,
+    selectedCategoryId,
+    staffHouseIdSet,
+    t,
+  ]);
 
-  const selectedCategoryName =
-    selectedCategoryId
-      ? categories.find((c) => c.id === selectedCategoryId)?.name ?? ""
-      : (t("staff_home.all_devices_category_all") as string);
+  const onListCombinedSelect = useCallback(
+    (sectionId: string, itemId: string | null) => {
+      if (sectionId === "category") {
+        setSelectedCategoryId(itemId);
+        return;
+      }
+      if (sectionId !== "device" || !itemId) return;
+      const row = categoryFilteredRows.find((r) => r.item.id === itemId);
+      if (!row) return;
+      if (staffHouseIdSet.has(row.item.houseId)) {
+        navigation.navigate("ItemEdit", { item: row.item });
+      } else {
+        navigation.navigate("ItemDescription", { item: row.item, hideEdit: true });
+      }
+    },
+    [categoryFilteredRows, navigation, staffHouseIdSet]
+  );
 
   const itemListTopBar = (
     <StackScreenTitleHeaderStrip>
@@ -187,9 +250,7 @@ export default function ItemListScreen() {
           </TouchableOpacity>
         </View>
         <View style={stackScreenTitleCenterSlotStyle}>
-          <StackScreenTitleBadge numberOfLines={1}>
-            {t("staff_item_list.title")}
-          </StackScreenTitleBadge>
+          <StackScreenTitleBadge numberOfLines={1}>{t("staff_item_list.title")}</StackScreenTitleBadge>
         </View>
         <View style={stackScreenTitleSideSlotStyle}>
           <TouchableOpacity
@@ -204,29 +265,19 @@ export default function ItemListScreen() {
     </StackScreenTitleHeaderStrip>
   );
 
-  const listRefreshing = housesRefetching || categoriesRefetching || itemsRefetching;
+  const listRefreshing =
+    housesRefetching || categoriesRefetching || itemsRefetching || allHousesRefetching;
   const onPullRefresh = useCallback(() => {
-    return Promise.all([refetchHouses(), refetchCategories(), refetch()]);
-  }, [refetchHouses, refetchCategories, refetch]);
+    return Promise.all([refetchHouses(), refetchCategories(), refetch(), refetchAllHouses()]);
+  }, [refetchHouses, refetchCategories, refetch, refetchAllHouses]);
 
   useFocusEffect(
     useCallback(() => {
       refetch();
       refetchCategories();
-    }, [refetch, refetchCategories])
+      refetchAllHouses();
+    }, [refetch, refetchCategories, refetchAllHouses])
   );
-
-  const getStatusLabel = (status: string) => {
-    const normalizedStatus = normalizeAssetItemStatusFromApi(status);
-    if (normalizedStatus === "IN_USE") return t("staff_item_list.status_in_use");
-    if (normalizedStatus === "ACTIVE") return t("staff_item_list.status_active");
-    if (normalizedStatus === "DISPOSED") return t("staff_item_list.status_disposed");
-    if (normalizedStatus === "BROKEN") return t("staff_item_list.status_broken");
-    return normalizedStatus;
-  };
-
-  const getHouseName = (houseId: string) =>
-    houses.find((h: HouseFromApi) => h.id === houseId)?.name ?? houseId;
 
   if (isLoading) {
     return (
@@ -284,48 +335,24 @@ export default function ItemListScreen() {
       >
         <View style={itemScreenStyles.filterWrap}>
           <DropdownBox
-            sections={categorySections}
-            summary={selectedCategoryName}
-            onSelect={(_sectionId, itemId) => setSelectedCategoryId(itemId)}
+            sections={listCombinedSections}
+            summary={`${t("staff_item_list.filter_category_label")}: ${selectedCategoryName}`}
+            onSelect={onListCombinedSelect}
             style={itemScreenStyles.filterDropdown}
-            searchPlaceholder={t("staff_item_list.search_placeholder") as string}
-            onSearchChange={setSearchQuery}
+            searchPlaceholder={t("staff_item_list.search_device_placeholder") as string}
+            searchAutoFocus={false}
+            keyboardAvoiding={false}
+            defaultExpanded
+            stayExpandedOnSelectForSections={["category"]}
+            itemLayout="chips"
+            resultsMaxHeight={560}
+            resultsHeightRatio={0.66}
           />
         </View>
 
-        {filteredFlatRows.length === 0 ? (
+        {categoryFilteredRows.length === 0 ? (
           <Text style={itemScreenStyles.emptyText}>{t("staff_item_list.empty")}</Text>
-        ) : (
-          <>
-            {pagedRows.map(({ item, categoryName }) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[itemScreenStyles.formCard, itemScreenStyles.itemCard]}
-                onPress={() => navigation.navigate("ItemEdit", { item })}
-                activeOpacity={0.8}
-              >
-                <Text style={itemScreenStyles.itemCardCategory} numberOfLines={1}>
-                  {categoryName}
-                </Text>
-                <Text style={itemScreenStyles.itemCardName} numberOfLines={1}>
-                  {item.displayName}
-                </Text>
-                <Text style={itemScreenStyles.itemCardMeta} numberOfLines={1}>
-                  {item.serialNumber} • {getHouseName(item.houseId)}
-                </Text>
-                <Text style={itemScreenStyles.itemCardCondition}>
-                  {t("staff_item_list.condition", { percent: item.conditionPercent })} •{" "}
-                  {getStatusLabel(item.status)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-            <PaginationBar
-              currentPage={listPage}
-              totalPages={listTotalPages}
-              onPageChange={setListPage}
-            />
-          </>
-        )}
+        ) : null}
       </ScrollView>
     </View>
   );

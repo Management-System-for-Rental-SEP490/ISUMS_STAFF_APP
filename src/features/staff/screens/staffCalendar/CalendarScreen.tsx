@@ -23,10 +23,14 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import Header from "../../../../shared/components/header";
 import { getWorkingDaysFromTemplate } from "../../data/mockStaffData";
-import type { WorkSlot, SlotType } from "../../data/mockStaffData";
+import type { WorkSlot } from "../../data/mockStaffData";
 import { useStaffSchedule } from "../../context/StaffScheduleContext";
 import DayOffActionModal from "./modals/DayOffActionModal";
-import { staffCalendarStyles, SLOT_COLORS } from "./staffCalendarStyles";
+import {
+  staffCalendarStyles,
+  calendarWorkSlotCardSurface,
+  calendarWorkSlotTaskText,
+} from "./staffCalendarStyles";
 import { formatDateRangeDdMmYyyy, formatMonthYearSlashed } from "../../../../shared/utils";
 
 /** Key i18n cho ngày ngắn (T2, Mon, 月...) - 1=Mon..7=Sun */
@@ -56,10 +60,6 @@ const JOB_STATUS_KEYS = new Set([
   "CREATED", "SCHEDULED", "NEED_RESCHEDULE", "IN_PROGRESS", "COMPLETED", "DONE",
   "FAILED", "CANCELLED", "OVERDUE", "AVAILABLE",
 ]);
-
-function getSlotColor(slotType?: SlotType): string {
-  return slotType ? (SLOT_COLORS[slotType] ?? SLOT_COLORS.other) : SLOT_COLORS.other;
-}
 
 function normalizeWorkSlotStatusKey(status: string | undefined): string {
   return String(status ?? "")
@@ -305,20 +305,29 @@ export default function CalendarScreen() {
                 <View style={staffCalendarStyles.timetableSlotColumn}>
                   {hasWorkslots ? (
                     <View style={staffCalendarStyles.slotColumnContent}>
-                      {daySlots.map((slot) => {
-                        const bgColor = getSlotColor(slot.slotType);
+                      {daySlots.map((slot, slotIdx) => {
                         const statusKey = getJobStatusKey(slot.status);
+                        const isLastSlot = slotIdx === daySlots.length - 1;
                         return (
                           <TouchableOpacity
                             key={slot.id}
-                            style={[staffCalendarStyles.slotCard, { borderLeftColor: bgColor }]}
+                            style={[
+                              staffCalendarStyles.slotCard,
+                              calendarWorkSlotCardSurface(slot.slotType),
+                              !isLastSlot && staffCalendarStyles.slotCardSeparator,
+                            ]}
                             onPress={() => {
                               navigation.getParent<NavigationProp<RootStackParamList>>()?.navigate("WorkSlotDetail", { slot });
                             }}
                             activeOpacity={0.8}
                           >
                             <Text style={staffCalendarStyles.slotCardTime}>{slot.timeRange}</Text>
-                            <Text style={[staffCalendarStyles.slotCardTask, { color: bgColor }]}>
+                            <Text
+                              style={[
+                                staffCalendarStyles.slotCardTask,
+                                calendarWorkSlotTaskText(slot.slotType),
+                              ]}
+                            >
                               {slot.taskKey ? t(slot.taskKey) : slot.task}
                             </Text>
                             <Text style={staffCalendarStyles.slotCardStatus}>{t(statusKey)}</Text>

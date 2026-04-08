@@ -87,7 +87,11 @@ export type RootStackParamList = AuthStackParamList & {
     fromMaintenanceUpdate?: boolean;
   };
   /** Màn chỉ xem thông tin thiết bị (Staff), khi thợ quét NFC bằng nút Quét ở footer. Param: item. */
-  ItemDescription: { item: AssetItemFromApi };
+  ItemDescription: {
+    item: AssetItemFromApi;
+    /** Ẩn nút sửa (vd. thiết bị ngoài khu vực phụ trách). */
+    hideEdit?: boolean;
+  };
   /** Màn danh sách yêu cầu nghỉ của staff (từ API leave). */
   LeaveRequestList: undefined;
   /** Màn form gửi yêu cầu nghỉ (sẽ làm sau). */
@@ -169,10 +173,10 @@ export type AuthPayload = {
   houseId?: string;
 };
 
-/** Phiên WebView Keycloak toàn cục (logout / đổi MK / account), giống overlay đăng nhập. */
+/** Phiên WebView Keycloak toàn cục (đổi MK / sau này logout-account), giống overlay đăng nhập. */
 export type KeycloakInAppSession = {
   url: string;
-  allowManualClose: boolean;
+  flow: "change_password";
 };
 
 export type AuthState = {

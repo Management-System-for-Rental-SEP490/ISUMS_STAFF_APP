@@ -1,9 +1,10 @@
 <#macro mainLayout active bodyClass>
 <!DOCTYPE html>
-<html lang="${locale.currentLanguageTag!'en'}">
+<html lang="${locale.currentLanguageTag!'vi'}">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+    <meta name="theme-color" content="#37b584" media="(prefers-color-scheme: light)" />
     <title>${msg("accountPageTitle")}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,13 +18,11 @@
                 <img src="${url.resourcesPath}/img/logob.png" alt="ISUMS Logo" />
             </div>
             <h1 class="app-name">${msg("appName")}</h1>
-            <p class="tagline">${msg("accountTagline")}</p>
         </header>
         <main class="card">
-            <#if message?has_content>
+            <#if message?has_content && message.type == 'error'>
                 <div class="alert alert-${message.type}">
-                    <#if message.type=='success'><span class="pficon pficon-ok"></span></#if>
-                    <#if message.type=='error'><span class="pficon pficon-error-circle-o"></span></#if>
+                    <span class="pficon pficon-error-circle-o"></span>
                     <span class="kc-feedback-text">${kcSanitize(message.summary)?no_esc}</span>
                 </div>
             </#if>
@@ -31,7 +30,6 @@
         </main>
     </div>
     <script>
-        // Tái sử dụng script toggle password từ login.js nếu cần
         function togglePassword(inputId) {
             const input = document.getElementById(inputId);
             if (input.type === "password") {
@@ -40,6 +38,24 @@
                 input.type = "password";
             }
         }
+        document.addEventListener("DOMContentLoaded", function () {
+            var kickTimer;
+            document.addEventListener(
+                "focusout",
+                function (ev) {
+                    var t = ev.target;
+                    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) {
+                        clearTimeout(kickTimer);
+                        kickTimer = setTimeout(function () {
+                            try {
+                                window.scrollTo(0, window.pageYOffset || 0);
+                            } catch (e) {}
+                        }, 180);
+                    }
+                },
+                true
+            );
+        });
     </script>
 </body>
 </html>

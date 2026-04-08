@@ -121,3 +121,36 @@ export const statusBadgeBg = {
 
 /** Chữ badge IoT offline (đỏ đậm trên nền nhạt) */
 export const iotOfflineLabelColor = "#991B1B";
+
+/**
+ * Lịch staff — màu ô ca làm việc (viền trái + chữ loại việc = accent; nền ô = tint).
+ * Dùng chung Calendar + Home; đổi palette tại đây.
+ */
+export type WorkSlotScheduleVisual = {
+  accent: string;
+  tint: string;
+};
+
+/** Tím đậm — kiểm định / định kỳ (tách biệt teal bảo trì & xanh ticket) */
+const WORK_SLOT_INSPECTION_ACCENT = "#5B21B6";
+
+export const workSlotScheduleColors = {
+  issue: { accent: BRAND_DANGER, tint: brandDangerBg },
+  maintenance: { accent: BRAND_GREEN, tint: neutral.sectionTintMint },
+  inspection: { accent: WORK_SLOT_INSPECTION_ACCENT, tint: neutral.sectionTintIndigo },
+  ticket: { accent: BRAND_BLUE, tint: brandBlueMutedBg },
+  nfc: { accent: BRAND_AMBER, tint: neutral.sectionTintWarm },
+  break: { accent: neutral.slate500, tint: neutral.tileMuted },
+  other: { accent: brandPrimary, tint: brandTintBg },
+} as const satisfies Record<string, WorkSlotScheduleVisual>;
+
+export type WorkSlotScheduleColorKey = keyof typeof workSlotScheduleColors;
+
+export function getWorkSlotScheduleVisual(
+  slotType?: string | null
+): WorkSlotScheduleVisual {
+  if (slotType && slotType in workSlotScheduleColors) {
+    return workSlotScheduleColors[slotType as WorkSlotScheduleColorKey];
+  }
+  return workSlotScheduleColors.other;
+}

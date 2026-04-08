@@ -16,7 +16,7 @@ export const USER_KEYS = {
 export const useUserProfile = () => {
   return useQuery({
     queryKey: USER_KEYS.profile(), 
-    queryFn: getUserProfile,       
+    queryFn: () => getUserProfile(),
   });
 };
 

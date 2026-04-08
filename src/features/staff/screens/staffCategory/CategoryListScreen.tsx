@@ -1,14 +1,13 @@
 /**
  * Màn hình danh sách danh mục thiết bị (Staff).
- * - Hiển thị tất cả category từ API GET /api/asset/categories (useAssetCategories).
- * - Có nút "+" trên header để mở form tạo danh mục (CategoryScreen).
+ * - Chỉ danh mục (card) + ô tìm theo tên/mô tả/mức bồi thường; không lọc chip, không gắn thiết bị.
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
-  FlatList,
+  ScrollView,
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
@@ -19,10 +18,9 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
 import { useAssetCategories } from "../../../../shared/hooks";
-import { categoryScreenStyles } from "./categoryScreenStyles";
+import { itemScreenStyles } from "../staffItems/itemScreenStyles";
 import type { AssetCategoryFromApi } from "../../../../shared/types/api";
-import { brandPrimary, neutral } from "../../../../shared/theme/color";
-import { appTypography } from "../../../../shared/utils";
+import { brandPrimary } from "../../../../shared/theme/color";
 import {
   StackScreenTitleBadge,
   StackScreenTitleHeaderStrip,
@@ -32,8 +30,7 @@ import {
   stackScreenTitleRowStyle,
   stackScreenTitleSideSlotStyle,
 } from "../../../../shared/components/StackScreenTitleBadge";
-import { PaginationBar } from "../../../../shared/components/PaginationBar";
-import { getTotalPages, slicePage } from "../../../../shared/utils";
+import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "CategoryList">;
 
@@ -44,56 +41,51 @@ export default function CategoryListScreen() {
 
   const { data, isLoading, isError, refetch, isRefetching } = useAssetCategories();
   const categories: AssetCategoryFromApi[] = data?.data ?? [];
-  const [listPage, setListPage] = useState(1);
-  const categoryTotalPages = getTotalPages(categories.length);
-  const pagedCategories = useMemo(
-    () => slicePage(categories, listPage),
-    [categories, listPage]
+
+  const sortedCategories = useMemo(
+    () =>
+      [...categories].sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+      ),
+    [categories]
   );
 
-  useEffect(() => {
-    setListPage(1);
-  }, [categories.length]);
+  const categoryOnlySections: DropdownBoxSection[] = useMemo(() => {
+    const cardItems = sortedCategories.map((cat) => {
+      const comp = t("staff_category_list.compensation", { percent: cat.compensationPercent });
+      const desc = cat.description?.trim() ?? "";
+      return {
+        id: cat.id,
+        label: cat.name,
+        detail: desc ? `${comp} · ${desc}` : comp,
+        cardMeta: comp,
+        cardFooter: desc || undefined,
+      };
+    });
+    return [
+      {
+        id: "category",
+        title: t("staff_category_list.section_cards"),
+        items: cardItems,
+        selectedId: null,
+        showAllOption: false,
+        itemLayout: "card" as const,
+      },
+    ];
+  }, [sortedCategories, t]);
+
+  const onCategorySelect = useCallback(
+    (sectionId: string, itemId: string | null) => {
+      if (sectionId !== "category" || !itemId) return;
+      const cat = sortedCategories.find((c) => c.id === itemId);
+      if (cat) navigation.navigate("CategoryEdit", { category: cat });
+    },
+    [navigation, sortedCategories]
+  );
 
   const openCreateCategoryForm = () => {
     navigation.navigate("Category");
   };
-
-  const openEditCategory = (item: AssetCategoryFromApi) => {
-    navigation.navigate("CategoryEdit", { category: item });
-  };
-
-  const renderItem = ({ item }: { item: AssetCategoryFromApi }) => (
-    <TouchableOpacity
-      style={[categoryScreenStyles.formCard, { marginBottom: 12 }]}
-      onPress={() => openEditCategory(item)}
-      activeOpacity={0.8}
-    >
-      <Text
-        style={[
-          appTypography.sectionHeading,
-          { color: neutral.text, marginBottom: 4 },
-        ]}
-      >
-        {item.name}
-      </Text>
-      <Text
-        style={[
-          appTypography.secondary,
-          { color: neutral.textBody, marginBottom: 4 },
-        ]}
-      >
-        {t("staff_category_list.compensation", {
-          percent: item.compensationPercent,
-        })}
-      </Text>
-      {item.description ? (
-        <Text style={[appTypography.secondary, { color: neutral.textSecondary }]}>
-          {item.description}
-        </Text>
-      ) : null}
-    </TouchableOpacity>
-  );
 
   const categoryListTopBar = (
     <StackScreenTitleHeaderStrip>
@@ -125,7 +117,6 @@ export default function CategoryListScreen() {
     </StackScreenTitleHeaderStrip>
   );
 
-  // Mỗi lần màn CategoryList được focus lại (hoặc quay lại từ modal), refetch category từ API
   useFocusEffect(
     useCallback(() => {
       refetch();
@@ -134,7 +125,7 @@ export default function CategoryListScreen() {
 
   if (isLoading) {
     return (
-      <View style={categoryScreenStyles.container}>
+      <View style={itemScreenStyles.container}>
         {categoryListTopBar}
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={brandPrimary} />
@@ -145,14 +136,13 @@ export default function CategoryListScreen() {
 
   if (isError) {
     return (
-      <View style={categoryScreenStyles.container}>
+      <View style={itemScreenStyles.container}>
         {categoryListTopBar}
-        <FlatList
-          data={[]}
-          keyExtractor={() => "error"}
-          renderItem={() => null}
-          style={categoryScreenStyles.scrollContent}
-          contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 16 }}
+        <ScrollView
+          contentContainerStyle={[
+            itemScreenStyles.scrollContent,
+            { flexGrow: 1, justifyContent: "center", alignItems: "center" },
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}
@@ -161,52 +151,23 @@ export default function CategoryListScreen() {
               colors={[brandPrimary]}
             />
           }
-          ListEmptyComponent={
-            <View style={{ alignItems: "center" }}>
-              <Text style={{ color: neutral.textSecondary, textAlign: "center", marginBottom: 12 }}>
-                {t("staff_category_list.error")}
-              </Text>
-              <TouchableOpacity
-                onPress={() => refetch()}
-                style={{
-                  paddingHorizontal: 16,
-                  paddingVertical: 10,
-                  borderRadius: 8,
-                  backgroundColor: brandPrimary,
-                }}
-              >
-                <Text style={[appTypography.chip, { color: neutral.surface }]}>
-                  {t("common.try_again")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          }
-        />
+        >
+          <Text style={itemScreenStyles.errorMessage}>{t("staff_category_list.error")}</Text>
+          <TouchableOpacity onPress={() => refetch()} style={itemScreenStyles.tryAgainBtn}>
+            <Text style={itemScreenStyles.tryAgainBtnText}>{t("common.try_again")}</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
     );
   }
 
   return (
-    <View style={categoryScreenStyles.container}>
+    <View style={itemScreenStyles.container}>
       {categoryListTopBar}
 
-      <FlatList
-        data={pagedCategories}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        style={categoryScreenStyles.scrollContent}
-        contentContainerStyle={[
-          { paddingBottom: 24 + insets.bottom },
-          categories.length === 0 && { flexGrow: 1 },
-        ]}
-        ListFooterComponent={() => (
-          <PaginationBar
-            currentPage={listPage}
-            totalPages={categoryTotalPages}
-            onPageChange={setListPage}
-            style={{ paddingBottom: 8 }}
-          />
-        )}
+      <ScrollView
+        contentContainerStyle={[itemScreenStyles.scrollContent, { paddingBottom: 24 + insets.bottom }]}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
@@ -215,13 +176,27 @@ export default function CategoryListScreen() {
             colors={[brandPrimary]}
           />
         }
-        ListEmptyComponent={
-          <Text style={{ color: neutral.textSecondary, textAlign: "center", marginTop: 20 }}>
-            {t("staff_category_list.empty")}
-          </Text>
-        }
-      />
+      >
+        <View style={itemScreenStyles.filterWrap}>
+          <DropdownBox
+            sections={categoryOnlySections}
+            summary={t("staff_category_list.dropdown_summary")}
+            onSelect={onCategorySelect}
+            style={itemScreenStyles.filterDropdown}
+            searchPlaceholder={t("staff_category_list.search_category_only") as string}
+            searchAutoFocus={false}
+            keyboardAvoiding={false}
+            defaultExpanded
+            itemLayout="card"
+            resultsMaxHeight={560}
+            resultsHeightRatio={0.66}
+          />
+        </View>
+
+        {categories.length === 0 ? (
+          <Text style={itemScreenStyles.emptyText}>{t("staff_category_list.empty")}</Text>
+        ) : null}
+      </ScrollView>
     </View>
   );
 }
-

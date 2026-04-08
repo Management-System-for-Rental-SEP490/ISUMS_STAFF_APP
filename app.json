@@ -15,6 +15,14 @@
     "ios": {
       "supportsTablet": true
     },
+    "androidStatusBar": {
+      "translucent": true,
+      "backgroundColor": "#37b584"
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#00000000",
+      "barStyle": "light-content"
+    },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
@@ -53,7 +61,23 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-web-browser"
+      [
+        "expo-navigation-bar",
+        {
+          "position": "absolute",
+          "backgroundColor": "#00000000",
+          "barStyle": "light"
+        }
+      ],
+      "expo-web-browser",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Ứng dụng cần truy cập ảnh để bạn chọn ảnh từ thư viện.",
+          "savePhotosPermission": "Ứng dụng cần lưu ảnh bạn chụp vào thư viện ảnh trên máy.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ]
     ]
   }
 }

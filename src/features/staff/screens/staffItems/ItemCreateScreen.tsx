@@ -27,6 +27,7 @@ import {
   useAssetCategories,
   useFunctionalAreasByHouseId,
 } from "../../../../shared/hooks";
+import { CustomAlert as Alert } from "../../../../shared/components/alert";
 import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
 import { mergeFunctionalAreasForHouse, sortFunctionalAreasForDisplay } from "../../../../shared/utils";
 import { itemScreenStyles } from "./itemScreenStyles";
@@ -49,6 +50,8 @@ import type {
 import { uploadAssetItemImages, type AssetItemImageToUpload } from "../../../../shared/services/assetItemApi";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemCreate">;
+
+const MAX_ASSET_ATTACHMENT_IMAGES = 5;
 
 /** AssetStatus (BE): IN_USE, ACTIVE, BROKEN, DISPOSED — không AVAILABLE / DELETED. */
 const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED"] as const;
@@ -107,12 +110,6 @@ export default function ItemCreateScreen() {
       requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 140, animated: true }));
     });
   }, []);
-  const scrollCreateEnd = useCallback(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
-    });
-  }, []);
-
   const statusLabel = useCallback(
     (s: string) => {
       if (s === "IN_USE") return t("staff_item_create.status_in_use");
@@ -129,10 +126,16 @@ export default function ItemCreateScreen() {
     return {
       id: "house",
       title: t("dropdown_box.section_house"),
-      items: sortedHouses.map((h: HouseFromApi) => ({
-        id: h.id,
-        label: [h.name, h.address].filter(Boolean).join(" · "),
-      })),
+      itemLayout: "card",
+      items: sortedHouses.map((h: HouseFromApi) => {
+        const addr = (h.address ?? "").trim();
+        return {
+          id: h.id,
+          label: h.name,
+          detail: [h.name, addr].filter(Boolean).join(" · "),
+          cardMeta: addr || undefined,
+        };
+      }),
       selectedId: houseId.trim() ? houseId : null,
       showAllOption: false,
     };
@@ -143,7 +146,17 @@ export default function ItemCreateScreen() {
     return {
       id: "category",
       title: t("dropdown_box.section_category"),
-      items: sortedCategories.map((c: AssetCategoryFromApi) => ({ id: c.id, label: c.name })),
+      itemLayout: "card",
+      items: sortedCategories.map((c: AssetCategoryFromApi) => {
+        const comp = t("staff_category_list.compensation", { percent: c.compensationPercent });
+        return {
+          id: c.id,
+          label: c.name,
+          detail: [c.name, comp, c.description?.trim() ?? ""].filter(Boolean).join(" "),
+          cardMeta: comp,
+          cardFooter: (c.description ?? "").trim() || undefined,
+        };
+      }),
       selectedId: categoryId.trim() ? categoryId : null,
       showAllOption: false,
     };
@@ -153,7 +166,13 @@ export default function ItemCreateScreen() {
     return {
       id: "status",
       title: t("dropdown_box.section_status"),
-      items: STATUS_OPTIONS.map((s) => ({ id: s, label: statusLabel(s) })),
+      itemLayout: "card",
+      items: STATUS_OPTIONS.map((s) => ({
+        id: s,
+        label: statusLabel(s),
+        detail: `${s} ${statusLabel(s)}`,
+        cardMeta: s,
+      })),
       selectedId: status,
       showAllOption: false,
     };
@@ -188,13 +207,23 @@ export default function ItemCreateScreen() {
     return {
       id: "functionalArea",
       title: t("dropdown_box.section_functional_area"),
-      items: functionalAreas.map((a) => ({
-        id: a.id,
-        label: formatAreaDropdownLabel(a),
-      })),
+      itemLayout: "card",
+      items: functionalAreas.map((a) => {
+        const floorPart = (a.floorNo ?? "").trim()
+          ? t("staff_building_detail.functional_area_floor", { floor: a.floorNo })
+          : "";
+        const line = formatAreaDropdownLabel(a);
+        return {
+          id: a.id,
+          label: a.name,
+          detail: line,
+          cardMeta: floorPart || undefined,
+        };
+      }),
       selectedId: functionAreaId,
       showAllOption: true,
       allLabel: t("staff_item_create.function_area_none"),
+      allOptionAsCaption: true,
     };
   }, [functionalAreas, functionAreaId, formatAreaDropdownLabel, t]);
 
@@ -237,13 +266,40 @@ export default function ItemCreateScreen() {
       }));
 
     setSelectedImages((prev) => {
-      const merged = [...prev, ...normalized];
-      // Hard cap để hạn chế payload lớn.
-      return merged.slice(0, 6);
+      const room = MAX_ASSET_ATTACHMENT_IMAGES - prev.length;
+      if (room <= 0) {
+        requestAnimationFrame(() =>
+          Alert.alert(
+            t("common.images_limit_title"),
+            t("common.images_limit_max_message", { max: MAX_ASSET_ATTACHMENT_IMAGES })
+          )
+        );
+        return prev;
+      }
+      const toAdd = normalized.slice(0, room);
+      if (normalized.length > toAdd.length) {
+        requestAnimationFrame(() =>
+          Alert.alert(
+            t("common.images_limit_title"),
+            t("common.images_limit_truncated_message", {
+              added: toAdd.length,
+              max: MAX_ASSET_ATTACHMENT_IMAGES,
+            })
+          )
+        );
+      }
+      return [...prev, ...toAdd];
     });
   };
 
   const handleTakePhoto = async () => {
+    if (selectedImages.length >= MAX_ASSET_ATTACHMENT_IMAGES) {
+      Alert.alert(
+        t("common.images_limit_title"),
+        t("common.images_limit_max_message", { max: MAX_ASSET_ATTACHMENT_IMAGES })
+      );
+      return;
+    }
     setUploadError(null);
     setImageCaptureVisible(true);
   };
@@ -346,6 +402,9 @@ export default function ItemCreateScreen() {
                 style={{ marginBottom: 4 }}
                 keyboardVerticalOffset={insets.top + 52}
                 onSearchInputFocus={scrollCreateNearTop}
+                itemLayout="card"
+                searchAutoFocus={false}
+                keyboardAvoiding={false}
               />
             ) : null}
 
@@ -358,6 +417,9 @@ export default function ItemCreateScreen() {
                 style={{ marginBottom: 4 }}
                 keyboardVerticalOffset={insets.top + 52}
                 onSearchInputFocus={scrollCreateMid}
+                itemLayout="card"
+                searchAutoFocus={false}
+                keyboardAvoiding={false}
               />
             </View>
 
@@ -371,6 +433,9 @@ export default function ItemCreateScreen() {
                   style={{ marginBottom: 4 }}
                   keyboardVerticalOffset={insets.top + 52}
                   onSearchInputFocus={scrollCreateMid}
+                  itemLayout="card"
+                  searchAutoFocus={false}
+                  keyboardAvoiding={false}
                 />
               ) : null}
             </View>
@@ -445,7 +510,9 @@ export default function ItemCreateScreen() {
                 onSelect={onItemCreateDropdownSelect}
                 style={{ marginBottom: 4 }}
                 keyboardVerticalOffset={insets.top + 52}
-                onSearchInputFocus={scrollCreateEnd}
+                itemLayout="card"
+                searchAutoFocus={false}
+                keyboardAvoiding={false}
               />
             </View>
 
@@ -454,10 +521,17 @@ export default function ItemCreateScreen() {
 
               <View style={itemScreenStyles.imageButtonsRow}>
                 <TouchableOpacity
-                  style={itemScreenStyles.imageButton}
+                  style={[
+                    itemScreenStyles.imageButton,
+                    selectedImages.length >= MAX_ASSET_ATTACHMENT_IMAGES && { opacity: 0.5 },
+                  ]}
                   onPress={handleTakePhoto}
                   activeOpacity={0.9}
-                  disabled={isPending || uploadingImages}
+                  disabled={
+                    isPending ||
+                    uploadingImages ||
+                    selectedImages.length >= MAX_ASSET_ATTACHMENT_IMAGES
+                  }
                 >
                   <Text style={itemScreenStyles.imageButtonText}>{t("staff_item_create.images_camera")}</Text>
                 </TouchableOpacity>
@@ -498,7 +572,9 @@ export default function ItemCreateScreen() {
                 <Text style={itemScreenStyles.imagesHint}>{t("staff_item_create.images_empty")}</Text>
               )}
 
-              <Text style={itemScreenStyles.imagesHint}>{t("staff_item_create.images_hint")}</Text>
+              <Text style={itemScreenStyles.imagesHint}>
+                {t("staff_item_create.images_hint", { max: MAX_ASSET_ATTACHMENT_IMAGES })}
+              </Text>
             </View>
 
             <TouchableOpacity

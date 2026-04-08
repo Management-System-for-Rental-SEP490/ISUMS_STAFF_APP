@@ -12,8 +12,10 @@ import {
   Modal,
   ActivityIndicator,
   RefreshControl,
+  Image,
+  TouchableOpacity,
 } from "react-native";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRoute, useNavigation, RouteProp, useFocusEffect } from "@react-navigation/native";
@@ -50,6 +52,7 @@ import {
   confirmStaffWorkSlotForJob,
   getStaffIdForSchedule,
 } from "../../../../shared/services/scheduleApi";
+import { getIssueTicketImages } from "../../../../shared/services/issuesApi";
 import { listAvailableGeneratedSlotChoices, type AvailableGeneratedSlotChoice } from "../../../../shared/utils";
 
 type TicketDetailRouteProp = RouteProp<RootStackParamList, "TicketDetail">;
@@ -65,8 +68,11 @@ function getStatusStyle(status: string) {
       return { bg: brandTintBg, color: brandSecondary };
     case "IN_PROGRESS":
       return { bg: brandTintBg, color: brandPrimary };
+    case "WAITING_MANAGER_CONFIRM":
     case "WAITING_MANAGER_APPROVAL":
     case "WAITING_TENANT_APPROVAL":
+    case "WAITING_MANAGER_APPROVAL_QUOTE":
+    case "WAITING_TENANT_APPROVAL_QUOTE":
     case "WAITING_PAYMENT":
       return { bg: brandTintBg, color: brandSecondary };
     case "DONE":
@@ -118,34 +124,16 @@ function formatDateLabelVi(dateYmd: string): string {
 }
 
 /**
- * BE có thể trả `slotId` placeholder khi ticket chưa được gán.
- * Chuẩn hóa để tránh "ẩn nhầm" do placeholder không đúng format UUID.
+ * Hiển thị nút đăng ký khung giờ làm việc (POST confirm work slot).
+ * BE mới: tenant gửi ticket kèm slot (ưu tiên / template), `slotId` không đồng nghĩa staff đã chốt ca;
+ * trạng thái có thể là CREATED hoặc WAITING_MANAGER_CONFIRM trước khi quản lý xác nhận lịch staff.
  */
-function hasRealWorkSlotId(slotId: string | null | undefined): boolean {
-  const raw = String(slotId ?? "").trim();
-  if (!raw) return false;
-
-  const normalizedHex = raw.replace(/[^a-fA-F0-9]/g, "").toLowerCase(); // bỏ '-', whitespace...
-  if (!normalizedHex) return false;
-
-  // UUID all-zero (dù là dạng 32 hex hoặc dạng có dấu '-')
-  const isAllZero = /^0+$/.test(normalizedHex);
-  return !isAllZero;
-}
-
-/**
- * Nút đăng ký giờ chỉ cho CREATED (chưa có slot) hoặc NEED_RESCHEDULE (đăng ký lại).
- * Các trạng thái còn lại (SCHEDULED, WAITING_* …) = đã có luồng đăng ký lịch → ẩn nút.
- */
-function shouldShowIssueRegisterTimeButton(
-  status: string,
-  slotId: string | null | undefined,
-  sessionSubmitted: boolean
-): boolean {
+function shouldShowIssueRegisterTimeButton(status: string, sessionSubmitted: boolean): boolean {
   if (sessionSubmitted) return false;
   const st = String(status || "").toUpperCase();
   if (st === "NEED_RESCHEDULE") return true;
-  if (st === "CREATED") return !hasRealWorkSlotId(slotId);
+  if (st === "CREATED") return true;
+  if (st === "WAITING_MANAGER_CONFIRM") return true;
   return false;
 }
 
@@ -156,6 +144,16 @@ export default function TicketDetailScreen() {
   const navigation = useNavigation<NavProp>();
   const { ticketId } = route.params;
   const { data: ticket, isLoading, isError, refetch } = useIssueTicketById(ticketId);
+  const {
+    data: ticketImages = [],
+    isLoading: ticketImagesLoading,
+    refetch: refetchTicketImages,
+  } = useQuery({
+    queryKey: [...ISSUE_TICKET_KEYS.byId(ticketId), "images"] as const,
+    queryFn: () => getIssueTicketImages(ticketId),
+    enabled: Boolean(ticketId?.trim()),
+  });
+  const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
   const { data: housesRes } = useHouses();
   const { data: assetsRes } = useAssetItems();
   const [slotModalVisible, setSlotModalVisible] = useState(false);
@@ -333,10 +331,8 @@ export default function TicketDetailScreen() {
   }
 
   const statusStyle = getStatusStyle(ticket.status);
-  const normalizedStatus = String(ticket.status || "").toUpperCase();
   const showRegisterTimeButton = shouldShowIssueRegisterTimeButton(
     ticket.status,
-    ticket.slotId,
     slotRegistrationSubmitted
   );
   const createdAt = new Date(ticket.createdAt);
@@ -365,7 +361,7 @@ export default function TicketDetailScreen() {
   const onPullRefresh = async () => {
     setRefreshing(true);
     try {
-      await refetch();
+      await Promise.all([refetch(), refetchTicketImages()]);
     } finally {
       setRefreshing(false);
     }
@@ -439,6 +435,45 @@ export default function TicketDetailScreen() {
             <Text style={staffTicketDetailStyles.cardLabel}>{t("staff_ticket_detail.created_at")}</Text>
             <Text style={staffTicketDetailStyles.cardValue}>{createdAtStr}</Text>
           </View>
+
+          <View style={{ marginTop: 4 }}>
+            <Text style={staffTicketDetailStyles.imageSectionTitle}>
+              {t("staff_ticket_detail.images_label")}
+            </Text>
+            {ticketImagesLoading ? (
+              <View style={staffTicketDetailStyles.imageLoadingRow}>
+                <ActivityIndicator size="small" color={neutral.textSecondary} />
+                <Text style={staffTicketDetailStyles.imageEmptyText}>{t("common.loading")}</Text>
+              </View>
+            ) : ticketImages.length > 0 ? (
+              <ScrollView
+                horizontal
+                nestedScrollEnabled
+                showsHorizontalScrollIndicator={false}
+                style={staffTicketDetailStyles.ticketImagesScroll}
+                contentContainerStyle={staffTicketDetailStyles.ticketImagesStrip}
+              >
+                {ticketImages.map((img) => (
+                  <TouchableOpacity
+                    key={img.id}
+                    style={staffTicketDetailStyles.ticketImageThumb}
+                    activeOpacity={0.85}
+                    onPress={() => setActiveImageUrl(img.url)}
+                  >
+                    <Image
+                      source={{ uri: img.url }}
+                      style={staffTicketDetailStyles.ticketImage}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            ) : (
+              <Text style={staffTicketDetailStyles.imageEmptyText}>
+                {t("staff_ticket_detail.images_empty")}
+              </Text>
+            )}
+          </View>
         </View>
 
         {showRegisterTimeButton && (
@@ -449,6 +484,42 @@ export default function TicketDetailScreen() {
           </Pressable>
         )}
       </ScrollView>
+
+      <Modal
+        visible={activeImageUrl != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveImageUrl(null)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={staffTicketDetailStyles.imageModalBackdrop}
+          onPress={() => setActiveImageUrl(null)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => {
+              e.stopPropagation();
+            }}
+            style={staffTicketDetailStyles.imageModalContent}
+          >
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={staffTicketDetailStyles.imageModalClose}
+              onPress={() => setActiveImageUrl(null)}
+            >
+              <Text style={staffTicketDetailStyles.imageModalCloseText}>×</Text>
+            </TouchableOpacity>
+            {activeImageUrl ? (
+              <Image
+                source={{ uri: activeImageUrl }}
+                style={staffTicketDetailStyles.imageModalImage}
+                resizeMode="contain"
+              />
+            ) : null}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       <Modal
         visible={slotModalVisible}

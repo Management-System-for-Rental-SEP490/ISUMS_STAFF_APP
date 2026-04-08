@@ -1,15 +1,20 @@
 <#import "template.ftl" as layout>
-<@layout.registrationLayout displayInfo=true; section>
-    <#if section = "header">
-        <header class="header">
-            <div class="logo">
-                <img src="${url.resourcesPath}/img/logob.png" alt="ISUMS Logo" />
+<#import "password-commons.ftl" as passwordCommons>
+<@layout.registrationLayout displayInfo=true displayMessage=false; section>
+    <#if section = "aboveCard">
+        <div class="reset-page-brand-above" role="banner">
+            <div class="reset-brand-hero">
+                <div class="logo reset-brand-hero-logo">
+                    <img src="${url.resourcesPath}/img/logob.png" alt="" />
+                </div>
+                <span class="reset-brand-mark">${msg("appName")}</span>
             </div>
-            <h1 class="app-name">${msg("updatePasswordTitle")}</h1>
-            <p class="tagline">${msg("updatePasswordInstruction")}</p>
-        </header>
+        </div>
+    <#elseif section = "header">
+        <@layout.isumsSiteFooterV2 />
     <#elseif section = "form">
-        <form id="kc-passwd-update-form" class="reset-form" action="${url.loginAction}" method="post">
+        <script>document.title='${msg("updatePasswordPageTitle")?js_string}';</script>
+        <form id="kc-passwd-update-form" class="reset-form" action="<@layout.isumsFormActionUrl rawAction=url.loginAction />" method="post" onsubmit="document.body.classList.add('isums-form-submitting');var el=this.querySelector('input[name=login]');if(el)el.disabled=true;return true;">
             <input type="text" id="username" name="username" value="${(username!'')}" autocomplete="username" readonly="readonly" style="display:none;"/>
             <input type="password" id="password" name="password" autocomplete="current-password" style="display:none;"/>
 
@@ -44,11 +49,13 @@
                 </div>
             </div>
 
+            <@passwordCommons.logoutOtherSessions/>
+
             <div class="form-actions">
-                <button type="submit" class="btn-login">${msg("updatePasswordAction")}</button>
+                <input type="submit" name="login" class="btn-login" value="${msg('updatePasswordAction')}" />
             </div>
         </form>
-        
+
         <script>
             function togglePasswordNew() {
                 var x = document.getElementById("password-new");

@@ -24,7 +24,6 @@ export const cameraStyles = StyleSheet.create({
   },
   closeButton: {
     position: "absolute",
-    bottom: 40,
     alignSelf: "center",
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -55,35 +54,46 @@ export const cameraStyles = StyleSheet.create({
     width: 250,
     backgroundColor: "transparent",
   },
+  /** Cùng pattern với tenant app (Consumption / Ticket). */
   modeToggleContainer: {
     position: "absolute",
-    top: 50,
     left: 20,
     right: 20,
-    flexDirection: "row",
-    backgroundColor: "rgba(0,0,0,0.6)",
-    borderRadius: 25,
-    padding: 4,
     zIndex: 10,
   },
-  modeButton: {
+  modeSwitchTrack: {
+    flexDirection: "row",
+    backgroundColor: neutral.surface,
+    borderRadius: 25,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: neutral.border,
+    position: "relative",
+    overflow: "hidden",
+  },
+  modeSwitchIndicator: {
+    position: "absolute",
+    top: 3,
+    left: 3,
+    bottom: 3,
+    borderRadius: 22,
+  },
+  modeSwitchTab: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    paddingVertical: 10,
+    gap: 6,
+    zIndex: 1,
   },
-  modeButtonActive: {
-    backgroundColor: brandSecondary,
+  modeSwitchTabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: neutral.textSecondary,
   },
-  modeButtonText: {
-    ...appTypography.body,
-    color: neutral.surface,
-    fontWeight: "500",
-  },
-  modeButtonTextActive: {
-    fontWeight: "700",
+  modeSwitchTabTextActive: {
+    color: "#fff",
   },
   nfcContainer: {
     flex: 1,

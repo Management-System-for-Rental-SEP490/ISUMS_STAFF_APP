@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import { brandSecondary, neutral } from "../../../shared/theme/color";
+import { brandPrimary, brandSecondary, neutral } from "../../../shared/theme/color";
 import { appTypography } from "../../../shared/utils/typography";
 
 const loginStyles = StyleSheet.create({
@@ -125,7 +125,9 @@ const loginStyles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: neutral.surface,
+    /* Trùng đầu gradient Keycloak / login — tránh viền trắng quanh WebView */
+    backgroundColor: brandPrimary,
+    zIndex: 100,
   },
   webViewHeader: {
     height: 56,

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Platform } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Platform, ActivityIndicator } from "react-native";
 import { CustomAlert as Alert } from "../../../shared/components/alert";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -14,6 +14,7 @@ import Icons from "../../../shared/theme/icon";
 import {
   BRAND_DANGER,
   brandGradientSolid,
+  brandPrimary,
   brandTintBg,
   neutral,
 } from "../../../shared/theme/color";
@@ -25,15 +26,26 @@ const UserProfileScreen = () => {
   const { user, role, idToken, logout } = useAuthStore();
   const insets = useSafeAreaInsets();
   const [userInfo, setUserInfo] = useState<UserProfileResponse | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchProfile = async () => {
-      const data = await getUserProfile();
-      if (data) {
-        setUserInfo(data);
+      try {
+        const data = await getUserProfile();
+        if (!cancelled && data) {
+          setUserInfo(data);
+        }
+      } finally {
+        if (!cancelled) {
+          setProfileLoaded(true);
+        }
       }
     };
     fetchProfile();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleLogout = () => {
@@ -46,7 +58,13 @@ const UserProfileScreen = () => {
           text: t('profile.logout'),
           style: "destructive",
           onPress: async () => {
-            await logoutKeycloak(idToken);
+            // Không chờ vô hạn logout SSO: nếu Keycloak không redirect về app,
+            // vẫn cho phép logout cục bộ để quay lại màn Login thay vì kẹt màn trắng.
+            const logoutTimeoutMs = 7000;
+            await Promise.race([
+              logoutKeycloak(idToken),
+              new Promise<void>((resolve) => setTimeout(resolve, logoutTimeoutMs)),
+            ]);
             logout();
           },
         },
@@ -78,9 +96,10 @@ const UserProfileScreen = () => {
     return name ? name.charAt(0).toUpperCase() : "U";
   };
 
-  const displayName = userInfo?.name || user || t('profile.role_guest');
-  const displayEmail = userInfo?.email || "";
-  const displayPhone = userInfo?.phoneNumber || "";
+  const displayName =
+    profileLoaded ? userInfo?.name || user || t("profile.role_guest") : "";
+  const displayEmail = profileLoaded ? userInfo?.email || "" : "";
+  const displayPhone = profileLoaded ? userInfo?.phoneNumber || "" : "";
 
   const goHome = () => {
     const nav: any = navigation;
@@ -115,40 +134,56 @@ const UserProfileScreen = () => {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Profile Card */}
+        {/* Profile Card — chờ GET /users/me để tránh lóe username/role từ Keycloak */}
         <View style={userProfileStyles.profileCard}>
-          <View style={userProfileStyles.avatarContainer}>
-            <Text style={userProfileStyles.avatarText}>{getAvatarInitials(displayName)}</Text>
-          </View>
-          <Text style={userProfileStyles.userName}>{displayName}</Text>
-          <View style={userProfileStyles.userRoleContainer}>
-            <Text style={userProfileStyles.userRole}>{displayRole()}</Text>
-          </View>
+          {!profileLoaded ? (
+            <View style={{ paddingVertical: 32, alignItems: "center", justifyContent: "center" }}>
+              <ActivityIndicator size="large" color={brandPrimary} accessibilityLabel={t("common.loading")} />
+            </View>
+          ) : (
+            <>
+              <View style={userProfileStyles.avatarContainer}>
+                <Text style={userProfileStyles.avatarText}>{getAvatarInitials(displayName)}</Text>
+              </View>
+              <Text style={userProfileStyles.userName}>{displayName}</Text>
+              <View style={userProfileStyles.userRoleContainer}>
+                <Text style={userProfileStyles.userRole}>{displayRole()}</Text>
+              </View>
+            </>
+          )}
         </View>
 
         {/* Section: Thông tin chung (Từ BE) */}
         <View style={userProfileStyles.sectionContainer}>
           <Text style={userProfileStyles.sectionTitle}>{t('profile.contact_info')}</Text>
-          
-          <View style={userProfileStyles.infoItem}>
-            <View style={userProfileStyles.infoIcon}>
-                <Icons.mail size={20} color="#666" />
-            </View>
-            <View style={userProfileStyles.infoContent}>
-                <Text style={userProfileStyles.infoLabel}>{t('profile.email')}</Text>
-                <Text style={userProfileStyles.infoValue}>{displayEmail}</Text>
-            </View>
-          </View>
 
-          <View style={[userProfileStyles.infoItem, { borderBottomWidth: 0 }]}>
-            <View style={userProfileStyles.infoIcon}>
-                <Icons.call size={20} color="#666" />
+          {!profileLoaded ? (
+            <View style={{ paddingVertical: 24, alignItems: "center" }}>
+              <ActivityIndicator color={brandPrimary} accessibilityLabel={t("common.loading")} />
             </View>
-            <View style={userProfileStyles.infoContent}>
-                <Text style={userProfileStyles.infoLabel}>{t('profile.phone')}</Text>
-                <Text style={userProfileStyles.infoValue}>{displayPhone}</Text>
-            </View>
-          </View>
+          ) : (
+            <>
+              <View style={userProfileStyles.infoItem}>
+                <View style={userProfileStyles.infoIcon}>
+                  <Icons.mail size={20} color="#666" />
+                </View>
+                <View style={userProfileStyles.infoContent}>
+                  <Text style={userProfileStyles.infoLabel}>{t('profile.email')}</Text>
+                  <Text style={userProfileStyles.infoValue}>{displayEmail}</Text>
+                </View>
+              </View>
+
+              <View style={[userProfileStyles.infoItem, { borderBottomWidth: 0 }]}>
+                <View style={userProfileStyles.infoIcon}>
+                  <Icons.call size={20} color="#666" />
+                </View>
+                <View style={userProfileStyles.infoContent}>
+                  <Text style={userProfileStyles.infoLabel}>{t('profile.phone')}</Text>
+                  <Text style={userProfileStyles.infoValue}>{displayPhone}</Text>
+                </View>
+              </View>
+            </>
+          )}
         </View>
 
         {/* Section: Bảo mật (Custom Page) */}
