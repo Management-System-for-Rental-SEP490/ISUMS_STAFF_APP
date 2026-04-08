@@ -409,7 +409,7 @@ export const updateAssetItem = async (
         functional_area_id: functionAreaId,
       };
 
-  const putUrl = `${FALLBACK_BACKEND_URL}/assets/items/${encodeURIComponent(id)}`;
+  const putUrl = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(id)}`;
 
   const response = await axiosClient.put<UpdateAssetItemApiResponse>(putUrl, body);
   const res = response.data;

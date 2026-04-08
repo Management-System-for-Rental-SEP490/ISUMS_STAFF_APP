@@ -1,12 +1,10 @@
-import axios from "axios";
 import axiosClient from "../api/axiosClient";
 import { BACKEND_API_BASE } from "../api/config";
 import type { ApiResponse, UserProfileResponse } from "../types/api";
+import type { GetUserProfileOptions } from "./userProfileDirectApi";
 
-export type GetUserProfileOptions = {
-  /** Mặc định `BACKEND_API_BASE`; truyền `FALLBACK_BACKEND_URL` khi /users/me chỉ có trên BE dev/ngrok. */
-  apiBase?: string;
-};
+export type { GetUserProfileOptions } from "./userProfileDirectApi";
+export { getUserProfileWithAccessToken } from "./userProfileDirectApi";
 
 /**
  * Lấy thông tin chi tiết user hiện tại (GET /api/users/me).
@@ -19,7 +17,7 @@ export const getUserProfile = async (
   const url = `${BACKEND_API_BASE}/users/me`;
   try {
     const response = await axiosClient.get<ApiResponse<UserProfileResponse>>(url);
-    
+
     if (response.data && response.data.success) {
       return response.data.data;
     }
@@ -28,49 +26,14 @@ export const getUserProfile = async (
     // Log chi tiết để debug
     console.error(`[UserProfile] Lỗi gọi API ${url}:`);
     if (error.response) {
-        // Server trả về response lỗi (4xx, 5xx)
-        console.error(`- Status: ${error.response.status}`);
-        console.error(`- Data:`, error.response.data);
-    } else if (error.request) {
-        // Không nhận được response (Network Error)
-        console.error("- Không nhận được phản hồi từ server (Network Error hoặc Server Down)");
-    } else {
-        console.error("- Lỗi setup request:", error.message);
-    }
-    return null;
-  }
-};
-
-/**
- * GET /api/users/me với Bearer cụ thể (dùng ngay sau khi đổi code lấy token, khi store chưa có token).
- */
-export const getUserProfileWithAccessToken = async (
-  accessToken: string,
-  options?: GetUserProfileOptions
-): Promise<UserProfileResponse | null> => {
-  const base = (options?.apiBase ?? BACKEND_API_BASE).replace(/\/$/, "");
-  const url = `${base}/users/me`;
-  try {
-    const response = await axios.get<ApiResponse<UserProfileResponse>>(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Accept: "*/*",
-      },
-    });
-    if (response.data?.success && response.data.data) {
-      return response.data.data;
-    }
-    return null;
-  } catch (error: any) {
-    console.error(`[UserProfile] Lỗi gọi API ${url} (Bearer trực tiếp):`);
-    if (error.response) {
-      console.error(`- Status:`, error.response.status);
+      // Server trả về response lỗi (4xx, 5xx)
+      console.error(`- Status: ${error.response.status}`);
       console.error(`- Data:`, error.response.data);
     } else if (error.request) {
-      console.error("- Không nhận được phản hồi từ server");
+      // Không nhận được response (Network Error)
+      console.error("- Không nhận được phản hồi từ server (Network Error hoặc Server Down)");
     } else {
-      console.error("- Lỗi request:", error.message);
+      console.error("- Lỗi setup request:", error.message);
     }
     return null;
   }

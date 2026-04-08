@@ -6,7 +6,7 @@ import { AuthPayload, UserRole } from "../types";
 import { useAuthStore } from "../../store/useAuthStore";
 import { CustomAlert } from "../components/alert";
 import i18n from "../i18n";
-import { getUserProfileWithAccessToken } from "./userApi";
+import { getUserProfileWithAccessToken } from "./userProfileDirectApi";
 
 // Đảm bảo WebBrowser hoạt động đúng trên Web
 WebBrowser.maybeCompleteAuthSession();
