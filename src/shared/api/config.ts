@@ -1,7 +1,18 @@
 // PRIMARY = API chung (users, houses, schedules…). FALLBACK/ngrok = bản dev cục bộ.
 // Module asset (/assets/*) mặc định gọi ASSETS_API_BASE (= fallback) khi asset chưa merge lên primary.
 
-const DEFAULT_PRIMARY = "https://api.isums.pro/api";
+/**
+ * Thời gian chờ tối đa (ms) cho mọi luồng tải dữ liệu (axios, pull-to-refresh/refetch, IoT REST usage…).
+ * Đây là **trần**, không phải thời lượng tối thiểu: BE trả về sớm thì hiển thị ngay, không ép chờ 8 giây.
+ * Quá hạn mà chưa có phản hồi hợp lệ → coi như không có dữ liệu; người dùng tải lại (vào lại trang / kéo refresh).
+ */
+export const DATA_LOAD_TIMEOUT_MS = 8000 as const;
+
+/** Cùng giá trị với {@link DATA_LOAD_TIMEOUT_MS} — `axios` dùng làm `timeout` (hủy request nếu quá lâu). */
+export const API_REQUEST_TIMEOUT_MS = DATA_LOAD_TIMEOUT_MS;
+
+/** Mặc định trùng môi trường Swagger/QA (api-dev). Production: đặt EXPO_PUBLIC_BACKEND_API_PRIMARY. */
+const DEFAULT_PRIMARY = "https://api-dev.isums.pro/api";
 const DEFAULT_FALLBACK = "https://unrestrictable-lan-syzygial.ngrok-free.dev/api";
 
 function readEnvTrimmed(envKey: string, fallback: string): string {

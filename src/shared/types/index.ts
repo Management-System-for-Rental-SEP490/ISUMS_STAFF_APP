@@ -1,3 +1,4 @@
+import type { NavigatorScreenParams } from "@react-navigation/native";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { AssetCategoryFromApi, AssetItemFromApi, FunctionalAreaFromApi } from "./api";
 
@@ -11,19 +12,48 @@ export type MainTabParamList = {
   WaterUsage: undefined;
   Billing: undefined;
   Profile: undefined;
-  Calendar: undefined;
-  Notification: undefined;
+  /** `focusDateYmd` (YYYY-MM-DD): nhảy đúng tuần/ngày trên lịch sau khi hoàn thành ca. */
+  Calendar: { focusDateYmd?: string; focusWorkSlotId?: string } | undefined;
+  /** Tab danh sách thiết bị (ItemListScreen) */
+  Devices: undefined;
   /** Tab danh sách ticket dành cho Staff (thay vì Billing) */
   Ticket: undefined;
 };
+
+/** Tham số màn Camera: assign / lookup từ menu hoặc footer (xem mô tả route Camera trong navigator). */
+export type RootStackCameraParams =
+  | undefined
+  | {
+      assignForDevice?: AssetItemFromApi;
+      mode?: "lookup" | "assign";
+      initialScanMode?: "qr" | "nfc";
+    };
+
+export type DeviceType = "electric" | "water" | "other";
+export type DeviceStatus = "active" | "inactive" | "maintenance" | "pending";
+export type Device = {
+  id: string;
+  name: string;
+  type: DeviceType;
+  nfcTagId: string;
+  location: string;
+  status: DeviceStatus;
+  metadata?: {
+    serialNumber?: string;
+    manufacturer?: string;
+    model?: string;
+    installationDate?: string;
+  };
+};
+
 export type HeaderVariant = "default" | "electric" | "water"; // định nghĩa các loại variant của header
 export type RootStackParamList = AuthStackParamList & {
-  Main: undefined;
+  Main: NavigatorScreenParams<MainTabParamList> | undefined;
   OnBoarding: undefined;
+  /** Thông báo staff (mở từ chuông header / hồ sơ) */
+  StaffNotification: undefined;
   /** Quét QR/NFC. Tenant: hiện DeviceDetail. Staff: tra cứu thiết bị theo NFC (chỉ mã đã gán) hoặc gán NFC (khi mode assign hoặc assignForDevice). */
-  Camera:
-    | undefined
-    | { assignForDevice?: AssetItemFromApi; /** "assign" = từ menu + Gán NFC: quét thẻ mới để gán; không truyền = từ footer: chỉ tra cứu mã đã gán */ mode?: "lookup" | "assign"; initialScanMode?: "qr" | "nfc" };
+  Camera: RootStackCameraParams;
   DeviceDetail: { device: Device };
   Ticket: { device: Device };
   /** Chi tiết nhà cho Staff: danh sách thiết bị + nút gán NFC. Có thể truyền thêm thông tin từ API houses. */
@@ -76,8 +106,6 @@ export type RootStackParamList = AuthStackParamList & {
   CategoryList: undefined;
   /** Màn chỉnh sửa danh mục (Staff), hiện dạng modal. Param: category cần sửa. */
   CategoryEdit: { category: AssetCategoryFromApi };
-  /** Màn danh sách thiết bị (Staff), xếp theo category. */
-  ItemList: undefined;
   /** Màn form thêm thiết bị (Staff). */
   ItemCreate: undefined;
   /** Màn chỉnh sửa thiết bị (Staff), hiện dạng modal. Param: item cần sửa. */
@@ -223,23 +251,8 @@ export type UserState = {
   setName: (name: string) => void;
   setEmail: (email: string) => void;
   setPassword: (password: string) => void;
-}; 
-export type DeviceType = "electric" | "water" | "other";
-export type DeviceStatus = "active" | "inactive" | "maintenance" | "pending";
-export type Device = {
-  id: string;
-  name: string;
-  type: DeviceType;
-  nfcTagId: string;
-  location: string;
-  status: DeviceStatus;
-  metadata?: {
-    serialNumber?: string;
-    manufacturer?: string;
-    model?: string;
-    installationDate?: string;
-  };
 };
+
 export interface RentalHouse {
   id: string;
   name: string; // Tên phòng/nhà (VD: Phòng 101, Căn hộ A2)

@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import { neutral } from "../theme/color";
+import { headerOnBrand, neutral } from "../theme/color";
 import { appTypography } from "../utils/typography";
 // Định nghĩa một object các style sử dụng trong header bằng StyleSheet.create({
 const headerStyles = StyleSheet.create({
@@ -10,6 +10,10 @@ const headerStyles = StyleSheet.create({
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
     overflow: "hidden",
+  },
+  /** Tab staff welcome: bỏ paddingVertical mặc định — chỉ dùng paddingTop/Bottom chỉnh tay trong Header. */
+  gradientStaffWelcome: {
+    paddingVertical: 0,
   },
   container: {
     width: "100%",
@@ -87,6 +91,108 @@ const headerStyles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.25)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  /** Hành động header (logo row): icon phẳng, không viền. */
+  actionButtonPlain: {
+    position: "absolute",
+    right: 0,
+    top: "50%",
+    marginTop: -16,
+    minWidth: 32,
+    minHeight: 32,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  /** Lời chào + nút +: neo đầu dòng với lời chào dài nhiều dòng; chữ theo token typography. */
+  staffTabWelcomeRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    width: "100%",
+    gap: 10,
+    paddingTop: 0,
+    marginBottom: 0,
+  },
+  /** Cột chữ: flex + minWidth 0 để xuống dòng đúng trong row. */
+  staffTabWelcomeTextCol: {
+    flex: 1,
+    minWidth: 0,
+    alignSelf: "stretch",
+    justifyContent: "flex-end",
+    paddingRight: 2,
+    paddingBottom: 0,
+    paddingTop: 0,
+  },
+  staffTabWelcomeGreeting: {
+    ...appTypography.sectionHeading,
+    color: headerOnBrand.fg,
+    textAlign: "left",
+    letterSpacing: -0.2,
+    marginBottom: 0,
+  },
+  staffTabWelcomeGreetingCompact: {
+    ...appTypography.listTitle,
+    fontWeight: "700",
+    color: headerOnBrand.fg,
+    textAlign: "left",
+    letterSpacing: -0.15,
+  },
+  staffTabWelcomeActionBtn: {
+    flexShrink: 0,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginTop: 0,
+    backgroundColor: headerOnBrand.btnGlass,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.42)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: neutral.slate900,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  /** Chuông thông báo: chỉ icon, không khung kính. */
+  staffTabWelcomeIconPlain: {
+    flexShrink: 0,
+    marginTop: 0,
+    padding: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  staffTabWelcomeBackBtn: {
+    flexShrink: 0,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginTop: 0,
+    marginRight: 4,
+    backgroundColor: headerOnBrand.btnGlass,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.42)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  /** Hàng badge tên trang (tab): trái / giữa / phải 48px để cân với nút phải. */
+  staffTabPageBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+  },
+  staffTabPageBadgeSide: {
+    width: 48,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  staffTabPageBadgeCenter: {
+    flex: 1,
+    minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
   },

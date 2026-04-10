@@ -41,6 +41,57 @@ export function templateDayOfWeekFromJsDate(d: Date): number {
   return js === 0 ? 7 : js;
 }
 
+function formatLocalYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Khoảng ngày T2 → T7 (cùng tuần lịch với `reference`), timezone local.
+ * Khớp API đăng ký slot (BE không trả Chủ nhật).
+ */
+export function getWorkWeekMonToSatYmd(
+  reference: Date = new Date()
+): { startYmd: string; endYmd: string } {
+  const monday = new Date(reference);
+  const dow = monday.getDay();
+  const toMonday = dow === 0 ? -6 : 1 - dow;
+  monday.setDate(monday.getDate() + toMonday);
+  monday.setHours(12, 0, 0, 0);
+  const saturday = new Date(monday);
+  saturday.setDate(saturday.getDate() + 5);
+  return { startYmd: formatLocalYmd(monday), endYmd: formatLocalYmd(saturday) };
+}
+
+/**
+ * Tuần làm việc hiện tại + tuần sau: T2 (tuần này) → T7 (tuần sau), timezone local.
+ * Dùng cho GET .../slots/me (khoảng rộng hơn một tuần).
+ */
+export function getThisAndNextWorkWeekMonToSatYmd(
+  reference: Date = new Date()
+): { startYmd: string; endYmd: string } {
+  const monday = new Date(reference);
+  const dow = monday.getDay();
+  const toMonday = dow === 0 ? -6 : 1 - dow;
+  monday.setDate(monday.getDate() + toMonday);
+  monday.setHours(12, 0, 0, 0);
+  const saturdayNextWeek = new Date(monday);
+  saturdayNextWeek.setDate(saturdayNextWeek.getDate() + 12);
+  return { startYmd: formatLocalYmd(monday), endYmd: formatLocalYmd(saturdayNextWeek) };
+}
+
+/** Cộng/trừ ngày trên chuỗi YYYY-MM-DD (local). */
+export function addDaysToYmd(ymd: string, deltaDays: number): string {
+  const parts = ymd.split("-").map(Number);
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return ymd;
+  const d = new Date(parts[0], parts[1] - 1, parts[2]);
+  d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() + deltaDays);
+  return formatLocalYmd(d);
+}
+
 /**
  * Parse workingDays "MON,TUE,..." → Set<number> với 1=T2 … 7=CN.
  */

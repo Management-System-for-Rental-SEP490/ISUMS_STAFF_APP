@@ -16,28 +16,21 @@ import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../../../../shared/types";
-import Icons from "../../../../shared/theme/icon";
-import { useAssetCategories, useAssetItems, useHouses } from "../../../../shared/hooks";
+import { MainTabParamList, RootStackParamList } from "../../../../shared/types";
+import { useAssetCategories, useAssetItems, useHouses, useRefreshControlGate } from "../../../../shared/hooks";
 import { getHouses } from "../../../../shared/services/houseApi";
 import { useAuthStore } from "../../../../store/useAuthStore";
 import { itemScreenStyles } from "./itemScreenStyles";
 import { brandPrimary } from "../../../../shared/theme/color";
-import {
-  StackScreenTitleBadge,
-  StackScreenTitleHeaderStrip,
-  stackScreenTitleBackBtnOnBrand,
-  stackScreenTitleCenterSlotStyle,
-  stackScreenTitleOnBrandIconColor,
-  stackScreenTitleRowStyle,
-  stackScreenTitleSideSlotStyle,
-} from "../../../../shared/components/StackScreenTitleBadge";
+import Header from "../../../../shared/components/header";
+import { StaffScreenActionFab } from "../../../../shared/components/StaffScreenActionFab";
 import type { AssetItemFromApi, HouseFromApi } from "../../../../shared/types/api";
 import { normalizeAssetItemStatusFromApi } from "../../../../shared/types/api";
 import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
 
-type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemList">;
+type NavProp = BottomTabNavigationProp<MainTabParamList, "Devices">;
 
 type ItemListRow = { item: AssetItemFromApi; categoryName: string };
 
@@ -100,9 +93,11 @@ export default function ItemListScreen() {
   const rawItems: AssetItemFromApi[] = itemsData?.data ?? [];
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  /** Mỗi lần vào màn (focus) tăng để DropdownBox luôn mở panel danh sách — kể cả khi tab giữ component mounted. */
+  const [itemListDropdownExpandSig, setItemListDropdownExpandSig] = useState(0);
 
   const openCreateItem = () => {
-    navigation.navigate("ItemCreate");
+    navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate("ItemCreate");
   };
 
   const sortItemsForStaff = useCallback(
@@ -229,44 +224,30 @@ export default function ItemListScreen() {
       const row = categoryFilteredRows.find((r) => r.item.id === itemId);
       if (!row) return;
       if (staffHouseIdSet.has(row.item.houseId)) {
-        navigation.navigate("ItemEdit", { item: row.item });
+        navigation
+          .getParent<NativeStackNavigationProp<RootStackParamList>>()
+          ?.navigate("ItemEdit", { item: row.item });
       } else {
-        navigation.navigate("ItemDescription", { item: row.item, hideEdit: true });
+        navigation
+          .getParent<NativeStackNavigationProp<RootStackParamList>>()
+          ?.navigate("ItemDescription", { item: row.item, hideEdit: true });
       }
     },
     [categoryFilteredRows, navigation, staffHouseIdSet]
   );
 
-  const itemListTopBar = (
-    <StackScreenTitleHeaderStrip>
-      <View style={stackScreenTitleRowStyle}>
-        <View style={stackScreenTitleSideSlotStyle}>
-          <TouchableOpacity
-            style={stackScreenTitleBackBtnOnBrand}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-          >
-            <Icons.chevronBack size={24} color={stackScreenTitleOnBrandIconColor} />
-          </TouchableOpacity>
-        </View>
-        <View style={stackScreenTitleCenterSlotStyle}>
-          <StackScreenTitleBadge numberOfLines={1}>{t("staff_item_list.title")}</StackScreenTitleBadge>
-        </View>
-        <View style={stackScreenTitleSideSlotStyle}>
-          <TouchableOpacity
-            style={stackScreenTitleBackBtnOnBrand}
-            onPress={openCreateItem}
-            activeOpacity={0.7}
-          >
-            <Icons.plus size={22} color={stackScreenTitleOnBrandIconColor} />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </StackScreenTitleHeaderStrip>
+  const staffTabHeader = (
+    <Header
+      variant="default"
+      staffTabWelcome
+      staffTabPageBadgeTitle={t("staff_item_list.title")}
+    />
   );
 
   const listRefreshing =
     housesRefetching || categoriesRefetching || itemsRefetching || allHousesRefetching;
+  const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
+  const showPullRefresh = scrollAtTop || listRefreshing;
   const onPullRefresh = useCallback(() => {
     return Promise.all([refetchHouses(), refetchCategories(), refetch(), refetchAllHouses()]);
   }, [refetchHouses, refetchCategories, refetch, refetchAllHouses]);
@@ -276,16 +257,22 @@ export default function ItemListScreen() {
       refetch();
       refetchCategories();
       refetchAllHouses();
+      setItemListDropdownExpandSig((n) => n + 1);
     }, [refetch, refetchCategories, refetchAllHouses])
   );
 
   if (isLoading) {
     return (
       <View style={itemScreenStyles.container}>
-        {itemListTopBar}
+        {staffTabHeader}
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={brandPrimary} />
         </View>
+        <StaffScreenActionFab
+          insetAboveTabBar
+          onPress={openCreateItem}
+          accessibilityLabel={t("staff_home.add_menu_create_device")}
+        />
       </View>
     );
   }
@@ -293,19 +280,28 @@ export default function ItemListScreen() {
   if (isError) {
     return (
       <View style={itemScreenStyles.container}>
-        {itemListTopBar}
+        {staffTabHeader}
         <ScrollView
           contentContainerStyle={[
             itemScreenStyles.scrollContent,
-            { flexGrow: 1, justifyContent: "center", alignItems: "center" },
+            {
+              flexGrow: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              paddingBottom: 24 + insets.bottom + 72,
+            },
           ]}
+          onScroll={onScrollForRefreshGate}
+          scrollEventThrottle={16}
           refreshControl={
-            <RefreshControl
-              refreshing={listRefreshing}
-              onRefresh={onPullRefresh}
-              tintColor={brandPrimary}
-              colors={[brandPrimary]}
-            />
+            showPullRefresh ? (
+              <RefreshControl
+                refreshing={listRefreshing}
+                onRefresh={onPullRefresh}
+                tintColor={brandPrimary}
+                colors={[brandPrimary]}
+              />
+            ) : undefined
           }
         >
           <Text style={itemScreenStyles.errorMessage}>{t("staff_item_list.error")}</Text>
@@ -313,24 +309,36 @@ export default function ItemListScreen() {
             <Text style={itemScreenStyles.tryAgainBtnText}>{t("common.try_again")}</Text>
           </TouchableOpacity>
         </ScrollView>
+        <StaffScreenActionFab
+          insetAboveTabBar
+          onPress={openCreateItem}
+          accessibilityLabel={t("staff_home.add_menu_create_device")}
+        />
       </View>
     );
   }
 
   return (
     <View style={itemScreenStyles.container}>
-      {itemListTopBar}
+      {staffTabHeader}
 
       <ScrollView
-        contentContainerStyle={[itemScreenStyles.scrollContent, { paddingBottom: 24 + insets.bottom }]}
+        contentContainerStyle={[
+          itemScreenStyles.scrollContent,
+          { paddingBottom: 24 + insets.bottom + 72 },
+        ]}
         showsVerticalScrollIndicator={false}
+        onScroll={onScrollForRefreshGate}
+        scrollEventThrottle={16}
         refreshControl={
-          <RefreshControl
-            refreshing={listRefreshing}
-            onRefresh={onPullRefresh}
-            tintColor={brandPrimary}
-            colors={[brandPrimary]}
-          />
+          showPullRefresh ? (
+            <RefreshControl
+              refreshing={listRefreshing}
+              onRefresh={onPullRefresh}
+              tintColor={brandPrimary}
+              colors={[brandPrimary]}
+            />
+          ) : undefined
         }
       >
         <View style={itemScreenStyles.filterWrap}>
@@ -341,8 +349,8 @@ export default function ItemListScreen() {
             style={itemScreenStyles.filterDropdown}
             searchPlaceholder={t("staff_item_list.search_device_placeholder") as string}
             searchAutoFocus={false}
-            keyboardAvoiding={false}
             defaultExpanded
+            expandSignal={itemListDropdownExpandSig}
             stayExpandedOnSelectForSections={["category"]}
             itemLayout="chips"
             resultsMaxHeight={560}
@@ -354,6 +362,11 @@ export default function ItemListScreen() {
           <Text style={itemScreenStyles.emptyText}>{t("staff_item_list.empty")}</Text>
         ) : null}
       </ScrollView>
+      <StaffScreenActionFab
+        insetAboveTabBar
+        onPress={openCreateItem}
+        accessibilityLabel={t("staff_home.add_menu_create_device")}
+      />
     </View>
   );
 }

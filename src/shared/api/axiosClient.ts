@@ -1,17 +1,28 @@
-import axios from "axios";
+import axios, { isAxiosError } from "axios";
 import i18n from "../i18n";
 import { useAuthStore } from "../../store/useAuthStore";
 import { refreshAccessToken, logoutKeycloak } from "../services/keycloakAuth";
 import { CustomAlert } from "../components/alert";
 import {
+  DATA_LOAD_TIMEOUT_MS,
   BACKEND_URL_PRIMARY,
   BACKEND_URL_FALLBACK,
 } from "./config";
 
+function isAxiosTimeout(error: unknown): boolean {
+  if (!isAxiosError(error)) return false;
+  return (
+    error.code === "ECONNABORTED" ||
+    /timeout/i.test(String(error.message ?? ""))
+  );
+}
+
 const axiosClient = axios.create({
   // Base URL của Backend API (Không phải Keycloak)
   // Bạn có thể đặt biến môi trường hoặc hardcode tạm
-  // baseURL: "http://your-backend-api.com/api", 
+  // baseURL: "http://your-backend-api.com/api",
+  // Trần thời gian chờ (ms): request xong sớm thì trả ngay; quá hạn thì axios hủy — không ép chờ đủ số ms.
+  timeout: DATA_LOAD_TIMEOUT_MS,
   headers: {
     "Content-Type": "application/json",
   },
@@ -119,10 +130,12 @@ axiosClient.interceptors.response.use(
     }
 
     // Fallback: nếu request tới primary BE (api-dev) thất bại → thử lại với ngrok
+    // Hết timeout (DATA_LOAD_TIMEOUT_MS) → không fallback để tổng thời gian chờ không vượt giới hạn.
     const url = originalRequest?.url ?? "";
     if (
       !originalRequest._retriedWithFallback &&
-      url.startsWith(BACKEND_URL_PRIMARY)
+      url.startsWith(BACKEND_URL_PRIMARY) &&
+      !isAxiosTimeout(error)
     ) {
       originalRequest._retriedWithFallback = true;
       originalRequest.url = url.replace(BACKEND_URL_PRIMARY, BACKEND_URL_FALLBACK);

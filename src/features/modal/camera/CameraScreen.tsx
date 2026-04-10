@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Pressable,
   Animated,
+  StatusBar,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CustomAlert as Alert } from "../../../shared/components/alert";
@@ -25,11 +26,14 @@ import { normalizeAssetItemStatusFromApi } from "../../../shared/types/api";
 import { AssignNfcModal } from "../../staff/modal/assignNFC/AssignNfcModal";
 import Icons from "../../../shared/theme/icon";
 import { brandPrimary, brandSecondary, neutral } from "../../../shared/theme/color";
+import { useAndroidKeycloakWebViewSystemUi } from "../../../shared/hooks/useAndroidKeycloakWebViewSystemUi";
 
 
 const CameraScreen = () => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  /** Android: nền vẽ phía sau thanh điều hướng (trong suốt + nút sáng), cùng pattern WebView Keycloak. */
+  useAndroidKeycloakWebViewSystemUi(true);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "Camera">>();
   const role = useAuthStore((s) => s.role);
@@ -515,16 +519,18 @@ const CameraScreen = () => {
 
   if (!permission) { 
     return (
-      <View style={cameraStyles.container}>
-        <Text style={cameraStyles.text}>{t('camera.loading')}</Text>
+      <View style={[cameraStyles.container, cameraStyles.rootBleed]}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <Text style={[cameraStyles.text, cameraStyles.textBleed]}>{t('camera.loading')}</Text>
       </View>
     );
   }
 
   if (!permission.granted) { 
     return (
-      <View style={cameraStyles.container}>
-        <Text style={cameraStyles.text}>{t('camera.no_permission')}</Text>
+      <View style={[cameraStyles.container, cameraStyles.rootBleed]}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <Text style={[cameraStyles.text, cameraStyles.textBleed]}>{t('camera.no_permission')}</Text>
         <TouchableOpacity onPress={requestPermission} style={cameraStyles.button}>
           <Text style={cameraStyles.buttonText}>{t('camera.grant_permission')}</Text>
         </TouchableOpacity>
@@ -533,7 +539,8 @@ const CameraScreen = () => {
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={cameraStyles.rootBleed}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <View
         style={[
           cameraStyles.modeToggleContainer,
@@ -627,9 +634,9 @@ const CameraScreen = () => {
           <Text style={cameraStyles.nfcTitle}>
             {nfcScanning ? t("camera.nfc_scanning") : t("camera.nfc_instruction")}
           </Text>
-          <Text style={cameraStyles.nfcDescription}>
-            {nfcScanning ? t("camera.nfc_wait") : t("camera.nfc_start")}
-          </Text>
+          {nfcScanning ? (
+            <Text style={cameraStyles.nfcDescription}>{t("camera.nfc_wait")}</Text>
+          ) : null}
           {!nfcScanning && !scanned && (
             <TouchableOpacity
               style={cameraStyles.nfcScanButton}

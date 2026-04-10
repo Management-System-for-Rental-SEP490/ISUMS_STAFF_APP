@@ -12,16 +12,23 @@ import {
   RefreshControl,
 } from "react-native";
 import { useTranslation } from "react-i18next";
-import { useNavigation, useFocusEffect, type NavigationProp } from "@react-navigation/native";
+import {
+  useNavigation,
+  useFocusEffect,
+  useRoute,
+  type NavigationProp,
+  type RouteProp,
+} from "@react-navigation/native";
 import {
   useInvalidateScheduleRelatedQueries,
   SCHEDULE_DATA_KEYS,
 } from "../../hooks/useStaffScheduleData";
 import { useQueryClient } from "@tanstack/react-query";
 import { brandPrimary } from "../../../../shared/theme/color";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../../../../shared/types";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { MainTabParamList, RootStackParamList } from "../../../../shared/types";
 import Header from "../../../../shared/components/header";
+import { StaffScreenActionFab } from "../../../../shared/components/StaffScreenActionFab";
 import { getWorkingDaysFromTemplate } from "../../data/mockStaffData";
 import type { WorkSlot } from "../../data/mockStaffData";
 import { useStaffSchedule } from "../../context/StaffScheduleContext";
@@ -31,7 +38,8 @@ import {
   calendarWorkSlotCardSurface,
   calendarWorkSlotTaskText,
 } from "./staffCalendarStyles";
-import { formatDateRangeDdMmYyyy, formatMonthYearSlashed } from "../../../../shared/utils";
+import { formatMonthYearSlashed } from "../../../../shared/utils";
+import { useRefreshControlGate } from "../../../../shared/hooks";
 
 /** Key i18n cho ngày ngắn (T2, Mon, 月...) - 1=Mon..7=Sun */
 const DAY_SHORT_KEYS: Record<number, string> = {
@@ -42,17 +50,6 @@ const DAY_SHORT_KEYS: Record<number, string> = {
   5: "staff_calendar.day_short_5",
   6: "staff_calendar.day_short_6",
   7: "staff_calendar.day_short_7",
-};
-
-/** Key i18n cho ngày đầy đủ (Thứ Hai, Monday, 月曜日...) - 1=Mon..7=Sun */
-const DAY_FULL_KEYS: Record<number, string> = {
-  1: "staff_calendar.day_full_1",
-  2: "staff_calendar.day_full_2",
-  3: "staff_calendar.day_full_3",
-  4: "staff_calendar.day_full_4",
-  5: "staff_calendar.day_full_5",
-  6: "staff_calendar.day_full_6",
-  7: "staff_calendar.day_full_7",
 };
 
 const JOB_STATUS_KEYS = new Set([
@@ -75,14 +72,33 @@ function getJobStatusKey(status: string | undefined): string {
   return JOB_STATUS_KEYS.has(n) ? key : "staff_calendar.job_status_OTHER";
 }
 
+function parseYmdToLocalDate(ymd: string): Date {
+  const parts = ymd.split("-").map((x) => parseInt(x, 10));
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) {
+    return new Date();
+  }
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function getMonday(d: Date): Date {
+  const day = d.getDay();
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
 /** Giữ để tương thích - workslot không hiển thị ticket nữa, chỉ status + time + jobType */
 function formatTicketDisplay(_ticketId?: string): string {
   return "";
 }
 
+type CalendarRouteProp = RouteProp<MainTabParamList, "Calendar">;
+
 export default function CalendarScreen() {
   const { t } = useTranslation();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<CalendarRouteProp>();
+  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList, "Calendar">>();
   const {
     dayOffList,
     scheduleTemplate,
@@ -95,6 +111,8 @@ export default function CalendarScreen() {
   const invalidateScheduleRelated = useInvalidateScheduleRelatedQueries();
   const [dayOffActionVisible, setDayOffActionVisible] = useState(false);
   const [timetableRefreshing, setTimetableRefreshing] = useState(false);
+  const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
+  const showPullRefresh = scrollAtTop || timetableRefreshing;
   const [weekOffset, setWeekOffset] = useState(0);
   /** null = hiển thị full tuần, string = chỉ hiển thị ngày đó */
   const [selectedDateYMD, setSelectedDateYMD] = useState<string | null>(null);
@@ -148,6 +166,7 @@ export default function CalendarScreen() {
     return (date: string) => set.has(date);
   }, [dayOffList]);
 
+  /** Ngày hôm nay (YYYY-MM-DD) — so khớp với từng ô trong strip tuần */
   const todayYMD = useMemo(() => {
     const n = new Date();
     return `${n.getFullYear()}-${(n.getMonth() + 1).toString().padStart(2, "0")}-${n.getDate().toString().padStart(2, "0")}`;
@@ -166,6 +185,25 @@ export default function CalendarScreen() {
   useEffect(() => {
     if (weekOffset !== 0) setSelectedDateYMD(null);
   }, [weekOffset]);
+
+  /** Sau khi hoàn thành ca: mở đúng tuần + highlight ngày của slot trên lịch. */
+  useEffect(() => {
+    const ymd = route.params?.focusDateYmd;
+    if (!ymd) return;
+    const target = parseYmdToLocalDate(ymd);
+    const today = new Date();
+    const mondayThis = getMonday(today);
+    const mondayTarget = getMonday(target);
+    const diffWeeks = Math.round(
+      (mondayTarget.getTime() - mondayThis.getTime()) / (7 * 24 * 60 * 60 * 1000)
+    );
+    setWeekOffset(diffWeeks);
+    setSelectedDateYMD(ymd);
+    navigation.setParams({
+      focusDateYmd: undefined,
+      focusWorkSlotId: undefined,
+    });
+  }, [route.params?.focusDateYmd, navigation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -195,21 +233,13 @@ export default function CalendarScreen() {
     <View style={staffCalendarStyles.container}>
       <Header
         variant="default"
-        showActionButton
-        onActionPress={() => setDayOffActionVisible(true)}
-        actionAccessibilityLabel={t("staff_calendar.add_menu_open")}
+        staffTabWelcome
+        staffTabPageBadgeTitle={t("staff_calendar.weekly_timetable")}
       />
-      {/* Phần cố định: title + week nav + danh sách ngày - không scroll */}
+      {/* Phần cố định: week nav + danh sách ngày - không scroll */}
       <View style={staffCalendarStyles.fixedTopSection}>
-        <Text style={staffCalendarStyles.sectionTitle}>
-          {t("staff_calendar.weekly_timetable")}
-        </Text>
-
         {weekStart && weekEnd && (
           <View style={staffCalendarStyles.weekNavRow}>
-            <Text style={staffCalendarStyles.weekNavLabel}>
-              {t("staff_calendar.current_week")}: {formatDateRangeDdMmYyyy(weekStart, weekEnd)}
-            </Text>
             <View style={staffCalendarStyles.weekNavArrows}>
               <TouchableOpacity style={staffCalendarStyles.navArrow} onPress={() => navigateWeek(-1)} activeOpacity={0.7}>
                 <View style={staffCalendarStyles.navArrowInner}>
@@ -237,21 +267,42 @@ export default function CalendarScreen() {
             const daySlots = slotsByDate[date] ?? [];
             const hasWorkslots = daySlots.length > 0;
             const isSelected = dateYMD === effectiveSelected;
-            const dayLabel = t(DAY_FULL_KEYS[dayOfWeek] ?? "staff_calendar.day_full_1");
+            const isCalendarToday = dateYMD === todayYMD;
+            const dayLabel = t(DAY_SHORT_KEYS[dayOfWeek] ?? "staff_calendar.day_short_1");
             return (
               <TouchableOpacity
-                key={dayOfWeek}
+                key={`${dateYMD}-${dayOfWeek}`}
                 style={staffCalendarStyles.daysHeaderCell}
                 onPress={() => setSelectedDateYMD(selectedDateYMD === dateYMD ? null : dateYMD)}
                 activeOpacity={0.7}
               >
-                <Text style={[staffCalendarStyles.daysHeaderDay, isSelected && staffCalendarStyles.daysHeaderDayToday]}>
+                <Text
+                  style={[
+                    staffCalendarStyles.daysHeaderDay,
+                    isSelected && staffCalendarStyles.daysHeaderDayToday,
+                    isCalendarToday && staffCalendarStyles.daysHeaderDayIsToday,
+                  ]}
+                >
                   {dayLabel}
                 </Text>
-                <View style={[staffCalendarStyles.daysHeaderNumWrap, isSelected && staffCalendarStyles.daysHeaderNumWrapToday]}>
-                  <Text style={[staffCalendarStyles.daysHeaderNum, isSelected && staffCalendarStyles.daysHeaderNumToday]}>
-                    {date.split("/")[0]}
-                  </Text>
+                <View style={staffCalendarStyles.daysHeaderNumRow}>
+                  <View
+                    style={[
+                      staffCalendarStyles.daysHeaderNumWrap,
+                      isSelected && staffCalendarStyles.daysHeaderNumWrapToday,
+                      isCalendarToday && !isSelected && staffCalendarStyles.daysHeaderNumWrapIsToday,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        staffCalendarStyles.daysHeaderNum,
+                        isSelected && staffCalendarStyles.daysHeaderNumToday,
+                        isCalendarToday && !isSelected && staffCalendarStyles.daysHeaderNumIsToday,
+                      ]}
+                    >
+                      {date.split("/")[0]}
+                    </Text>
+                  </View>
                 </View>
                 {hasWorkslots && <View style={staffCalendarStyles.daysHeaderDot} />}
               </TouchableOpacity>
@@ -265,13 +316,17 @@ export default function CalendarScreen() {
         style={staffCalendarStyles.timetableScroll}
         contentContainerStyle={staffCalendarStyles.timetableScrollContent}
         showsVerticalScrollIndicator={false}
+        onScroll={onScrollForRefreshGate}
+        scrollEventThrottle={16}
         refreshControl={
-          <RefreshControl
-            refreshing={timetableRefreshing}
-            onRefresh={onTimetableRefresh}
-            tintColor={brandPrimary}
-            colors={[brandPrimary]}
-          />
+          showPullRefresh ? (
+            <RefreshControl
+              refreshing={timetableRefreshing}
+              onRefresh={onTimetableRefresh}
+              tintColor={brandPrimary}
+              colors={[brandPrimary]}
+            />
+          ) : undefined
         }
       >
         <View style={staffCalendarStyles.timetableFrame}>
@@ -342,6 +397,12 @@ export default function CalendarScreen() {
           })}
         </View>
       </ScrollView>
+
+      <StaffScreenActionFab
+        insetAboveTabBar
+        onPress={() => setDayOffActionVisible(true)}
+        accessibilityLabel={t("staff_calendar.add_menu_open")}
+      />
 
       <DayOffActionModal
         visible={dayOffActionVisible}

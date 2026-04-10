@@ -4,7 +4,7 @@
  * Không gán cứng houseId/areaId/thingId; các giá trị đó truyền qua param.
  */
 import { EventEmitter } from "eventemitter3";
-import { IOT_WS_URL, IOT_REST_BASE } from "../api/config";
+import { DATA_LOAD_TIMEOUT_MS, IOT_WS_URL, IOT_REST_BASE } from "../api/config";
 import type { TelemetryMessage, UsageData } from "../types/iot";
 
 class IotClient extends EventEmitter {
@@ -38,6 +38,7 @@ class IotClient extends EventEmitter {
 
   /**
    * Gọi REST API usage của AWS.
+   * Trần thời gian = `DATA_LOAD_TIMEOUT_MS` (fetch abort nếu quá lâu; phản hồi sớm vẫn trả ngay).
    * @param pk – partition key, format: `${houseId}#${metric}` (metric = "electricity" | "water").
    * @param period – "day" | "week" | "month".
    * @param value – chuỗi ngày/tuần/tháng (vd "2026-03-10", "2026-W10", "2026-03").
@@ -47,13 +48,17 @@ class IotClient extends EventEmitter {
     period: "day" | "week" | "month",
     value: string
   ): Promise<UsageData | null> {
+    const url = `${IOT_REST_BASE}/usage?pk=${encodeURIComponent(pk)}&period=${period}&value=${encodeURIComponent(value)}`;
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), DATA_LOAD_TIMEOUT_MS);
     try {
-      const url = `${IOT_REST_BASE}/usage?pk=${encodeURIComponent(pk)}&period=${period}&value=${encodeURIComponent(value)}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: controller.signal });
       if (!res.ok) return null;
       return await res.json();
     } catch {
       return null;
+    } finally {
+      clearTimeout(tid);
     }
   }
 

@@ -30,7 +30,11 @@ import {
   brandTintBg,
   neutral,
 } from "../../../../shared/theme/color";
-import { appTypography, formatViTicketCreatedAt } from "../../../../shared/utils";
+import {
+  appTypography,
+  formatDdMmYyyy,
+  getThisAndNextWorkWeekMonToSatYmd,
+} from "../../../../shared/utils";
 import {
   StackScreenTitleBadge,
   StackScreenTitleBarBalance,
@@ -44,16 +48,13 @@ import {
 import { ISSUE_TICKET_KEYS, useIssueTicketById } from "../../../../shared/hooks/useUserProfile";
 import { useHouses } from "../../../../shared/hooks/useHouses";
 import { useAssetItems } from "../../../../shared/hooks/useAssetItems";
-import {
-  SCHEDULE_DATA_KEYS,
-  useGeneratedWorkSlotsQuery,
-} from "../../hooks/useStaffScheduleData";
+import { SCHEDULE_DATA_KEYS } from "../../hooks/useStaffScheduleData";
 import {
   confirmStaffWorkSlotForJob,
   getStaffIdForSchedule,
 } from "../../../../shared/services/scheduleApi";
 import { getIssueTicketImages } from "../../../../shared/services/issuesApi";
-import { listAvailableGeneratedSlotChoices, type AvailableGeneratedSlotChoice } from "../../../../shared/utils";
+import ChooseScheduleSlotModal from "../staffCalendar/modals/ChooseScheduleSlotModal";
 
 type TicketDetailRouteProp = RouteProp<RootStackParamList, "TicketDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "TicketDetail">;
@@ -98,29 +99,24 @@ function getTypeLabel(type: string, t: (k: string) => string) {
   return translated !== key ? translated : t("staff_ticket_list.type_other");
 }
 
-function formatDateToYmd(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function parseSlotStartDate(choice: AvailableGeneratedSlotChoice): Date {
-  const raw = choice.startTime?.trim();
-  const normalized =
-    raw.length === 5 ? `${raw}:00` : raw.length >= 8 ? raw.slice(0, 8) : raw;
-  return new Date(`${choice.dateYmd}T${normalized}`);
-}
-
-function formatDateLabelVi(dateYmd: string): string {
-  const d = new Date(`${dateYmd}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return dateYmd;
-  return d.toLocaleDateString("vi-VN", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+function DetailSection({
+  title,
+  headerIcon,
+  children,
+}: {
+  title: string;
+  headerIcon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={staffTicketDetailStyles.detailCard}>
+      <View style={staffTicketDetailStyles.detailCardHeaderRow}>
+        {headerIcon}
+        <Text style={staffTicketDetailStyles.detailCardHeaderLabel}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
 }
 
 /**
@@ -157,8 +153,6 @@ export default function TicketDetailScreen() {
   const { data: housesRes } = useHouses();
   const { data: assetsRes } = useAssetItems();
   const [slotModalVisible, setSlotModalVisible] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<AvailableGeneratedSlotChoice | null>(null);
-  const [selectedDateYmd, setSelectedDateYmd] = useState<string | null>(null);
   /** Sau khi gọi API confirm slot thành công (phiên hiện tại); reset khi đổi ticket. */
   const [slotRegistrationSubmitted, setSlotRegistrationSubmitted] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -175,70 +169,16 @@ export default function TicketDetailScreen() {
     }, [refetch])
   );
 
-  const generatedRange = useMemo(() => {
-    const today = new Date();
-    const end = new Date(today);
-    end.setDate(end.getDate() + 13);
-    return {
-      startYmd: formatDateToYmd(today),
-      endYmd: formatDateToYmd(end),
-    };
-  }, []);
-  const {
-    data: generatedDays = [],
-    isLoading: isGeneratedSlotsLoading,
-    isError: isGeneratedSlotsError,
-  } = useGeneratedWorkSlotsQuery(generatedRange.startYmd, generatedRange.endYmd, {
-    enabled: slotModalVisible,
-  });
+  /** Tuần này + tuần sau (T2 tuần này → T7 tuần sau), khớp GET .../slots/me. */
+  const generatedRange = useMemo(() => getThisAndNextWorkWeekMonToSatYmd(new Date()), []);
 
-  const selectableSlots = useMemo(() => {
-    const now = Date.now();
-    return listAvailableGeneratedSlotChoices(generatedDays)
-      .filter((choice) => parseSlotStartDate(choice).getTime() >= now)
-      .sort((a, b) => parseSlotStartDate(a).getTime() - parseSlotStartDate(b).getTime());
-  }, [generatedDays]);
-
-  const slotsByDate = useMemo(() => {
-    const map = new Map<string, AvailableGeneratedSlotChoice[]>();
-    for (const slot of selectableSlots) {
-      const list = map.get(slot.dateYmd) ?? [];
-      list.push(slot);
-      map.set(slot.dateYmd, list);
-    }
-    return map;
-  }, [selectableSlots]);
-
-  const availableDateYmds = useMemo(() => Array.from(slotsByDate.keys()), [slotsByDate]);
-  const slotsInSelectedDate = useMemo(() => {
-    if (!selectedDateYmd) return [];
-    return slotsByDate.get(selectedDateYmd) ?? [];
-  }, [selectedDateYmd, slotsByDate]);
-
-  useEffect(() => {
-    if (availableDateYmds.length === 0) {
-      setSelectedDateYmd(null);
-      setSelectedSlot(null);
-      return;
-    }
-    setSelectedDateYmd((prev) => (prev && slotsByDate.has(prev) ? prev : availableDateYmds[0]));
-    setSelectedSlot((prev) => {
-      if (!prev) return null;
-      const list = slotsByDate.get(prev.dateYmd) ?? [];
-      const stillExists = list.some(
-        (s) =>
-          s.dateYmd === prev.dateYmd &&
-          s.startTime === prev.startTime &&
-          s.endTime === prev.endTime
-      );
-      return stillExists ? prev : null;
-    });
-  }, [availableDateYmds, slotsByDate]);
+  /** Tải slot trước khi mở modal (prefetch trong ChooseScheduleSlotModal). */
+  const prefetchRegisterSlots =
+    ticket != null &&
+    shouldShowIssueRegisterTimeButton(ticket.status, slotRegistrationSubmitted);
 
   const handleCloseModal = useCallback(() => {
     setSlotModalVisible(false);
-    setSelectedSlot(null);
-    setSelectedDateYmd(null);
   }, []);
 
   const queryClient = useQueryClient();
@@ -338,23 +278,13 @@ export default function TicketDetailScreen() {
   const createdAt = new Date(ticket.createdAt);
   const createdAtStr = Number.isNaN(createdAt.getTime())
     ? ticket.createdAt
-    : formatViTicketCreatedAt(createdAt);
+    : formatDdMmYyyy(createdAt);
   const houseName = houseNameById.get(ticket.houseId) ?? ticket.houseId;
   const assetName = assetNameById.get(ticket.assetId) ?? ticket.assetId;
   const tenantPhone = ticket.tenantPhone ? ticket.tenantPhone : t("staff_ticket_list.phone_unavailable");
 
   const handleRegisterTime = () => {
-    setSelectedSlot(null);
-    setSelectedDateYmd(null);
     setSlotModalVisible(true);
-  };
-
-  const handleConfirmSlot = () => {
-    if (!selectedSlot || confirmSlotMutation.isPending) return;
-    confirmSlotMutation.mutate({
-      jobId: ticketId,
-      startTime: selectedSlot.startTimeLocalIso,
-    });
   };
 
   // Không dùng `useCallback` ở đây để tránh thay đổi số lượng hook khi render theo nhánh `isLoading`.
@@ -398,91 +328,102 @@ export default function TicketDetailScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        <View style={staffTicketDetailStyles.card}>
-          <View style={staffTicketDetailStyles.row}>
-            <Text style={staffTicketDetailStyles.cardLabel}>{t("staff_ticket_detail.status")}</Text>
+        <View style={staffTicketDetailStyles.heroCard}>
+          <Text style={staffTicketDetailStyles.heroTitle}>{ticket.title}</Text>
+          <View style={staffTicketDetailStyles.badgeRow}>
+            <View style={staffTicketDetailStyles.typePill}>
+              <Text style={staffTicketDetailStyles.typePillText}>{getTypeLabel(ticket.type, t)}</Text>
+            </View>
             <View style={[staffTicketDetailStyles.statusBadge, { backgroundColor: statusStyle.bg }]}>
               <Text style={[staffTicketDetailStyles.statusText, { color: statusStyle.color }]}>
                 {getStatusLabel(ticket.status, t)}
               </Text>
             </View>
           </View>
-          <View style={staffTicketDetailStyles.row}>
-            <Text style={staffTicketDetailStyles.cardLabel}>{t("staff_ticket_detail.title_label")}</Text>
-            <Text style={staffTicketDetailStyles.cardValue}>{ticket.title}</Text>
-          </View>
-          <View style={staffTicketDetailStyles.row}>
-            <Text style={staffTicketDetailStyles.cardLabel}>{t("staff_ticket_detail.type")}</Text>
-            <Text style={staffTicketDetailStyles.cardValue}>{getTypeLabel(ticket.type, t)}</Text>
-          </View>
-          <View style={staffTicketDetailStyles.row}>
-            <Text style={staffTicketDetailStyles.cardLabel}>{t("staff_ticket_detail.description")}</Text>
-            <Text style={staffTicketDetailStyles.cardValue}>{ticket.description}</Text>
-          </View>
-          <View style={staffTicketDetailStyles.row}>
-            <Text style={staffTicketDetailStyles.cardLabel}>{t("staff_ticket_detail.device")}</Text>
-            <Text style={staffTicketDetailStyles.cardValue}>{assetName}</Text>
-          </View>
-          <View style={staffTicketDetailStyles.row}>
-            <Text style={staffTicketDetailStyles.cardLabel}>{t("staff_ticket_detail.building")}</Text>
-            <Text style={staffTicketDetailStyles.cardValue}>{houseName}</Text>
-          </View>
-          <View style={[staffTicketDetailStyles.row, staffTicketDetailStyles.rowLast]}>
-            <Text style={staffTicketDetailStyles.cardLabel}>{t("staff_ticket_detail.tenant_phone")}</Text>
-            <Text style={staffTicketDetailStyles.cardValue}>{tenantPhone}</Text>
-          </View>
-          <View style={staffTicketDetailStyles.row}>
-            <Text style={staffTicketDetailStyles.cardLabel}>{t("staff_ticket_detail.created_at")}</Text>
-            <Text style={staffTicketDetailStyles.cardValue}>{createdAtStr}</Text>
-          </View>
-
-          <View style={{ marginTop: 4 }}>
-            <Text style={staffTicketDetailStyles.imageSectionTitle}>
-              {t("staff_ticket_detail.images_label")}
+          <View style={staffTicketDetailStyles.heroDateRow}>
+            <Icons.accessTime size={15} color={neutral.textMuted} />
+            <Text style={staffTicketDetailStyles.heroDateText}>
+              {t("staff_ticket_detail.sent_at")}: {createdAtStr}
             </Text>
-            {ticketImagesLoading ? (
-              <View style={staffTicketDetailStyles.imageLoadingRow}>
-                <ActivityIndicator size="small" color={neutral.textSecondary} />
-                <Text style={staffTicketDetailStyles.imageEmptyText}>{t("common.loading")}</Text>
-              </View>
-            ) : ticketImages.length > 0 ? (
-              <ScrollView
-                horizontal
-                nestedScrollEnabled
-                showsHorizontalScrollIndicator={false}
-                style={staffTicketDetailStyles.ticketImagesScroll}
-                contentContainerStyle={staffTicketDetailStyles.ticketImagesStrip}
-              >
-                {ticketImages.map((img) => (
-                  <TouchableOpacity
-                    key={img.id}
-                    style={staffTicketDetailStyles.ticketImageThumb}
-                    activeOpacity={0.85}
-                    onPress={() => setActiveImageUrl(img.url)}
-                  >
-                    <Image
-                      source={{ uri: img.url }}
-                      style={staffTicketDetailStyles.ticketImage}
-                      resizeMode="cover"
-                    />
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            ) : (
-              <Text style={staffTicketDetailStyles.imageEmptyText}>
-                {t("staff_ticket_detail.images_empty")}
-              </Text>
-            )}
           </View>
         </View>
 
-        {showRegisterTimeButton && (
+        <DetailSection
+          title={t("staff_ticket_detail.section_info")}
+          headerIcon={<Icons.infoOutline size={22} color={brandPrimary} />}
+        >
+          <View style={staffTicketDetailStyles.detailFieldRow}>
+            <Text style={staffTicketDetailStyles.fieldLabel}>{t("staff_ticket_detail.device")}</Text>
+            <Text style={staffTicketDetailStyles.fieldValue} selectable>
+              {assetName}
+            </Text>
+          </View>
+          <View style={staffTicketDetailStyles.detailFieldRow}>
+            <Text style={staffTicketDetailStyles.fieldLabel}>{t("staff_ticket_detail.building")}</Text>
+            <Text style={staffTicketDetailStyles.fieldValue} selectable>
+              {houseName}
+            </Text>
+          </View>
+          <View style={staffTicketDetailStyles.detailFieldRow}>
+            <Text style={staffTicketDetailStyles.fieldLabel}>{t("staff_ticket_detail.tenant_phone")}</Text>
+            <Text style={staffTicketDetailStyles.fieldValue} selectable>
+              {tenantPhone}
+            </Text>
+          </View>
+          <View style={[staffTicketDetailStyles.detailFieldRow, staffTicketDetailStyles.detailFieldRowLast]}>
+            <Text style={staffTicketDetailStyles.fieldLabel}>{t("staff_ticket_detail.created_at")}</Text>
+            <Text style={staffTicketDetailStyles.fieldValue} selectable>
+              {createdAtStr}
+            </Text>
+          </View>
+        </DetailSection>
+
+        <DetailSection
+          title={t("staff_ticket_detail.section_description")}
+          headerIcon={<Icons.subject size={22} color={brandPrimary} />}
+        >
+          <Text style={staffTicketDetailStyles.descriptionBody} selectable>
+            {ticket.description?.trim() ? ticket.description : "—"}
+          </Text>
+        </DetailSection>
+
+        <DetailSection
+          title={t("staff_ticket_detail.images_label")}
+          headerIcon={<Icons.photoLibrary size={22} color={brandPrimary} />}
+        >
+          {ticketImagesLoading ? (
+            <View style={staffTicketDetailStyles.assetLoadingRow}>
+              <ActivityIndicator size="small" color={brandSecondary} />
+              <Text style={staffTicketDetailStyles.fieldValueMuted}>{t("common.loading")}</Text>
+            </View>
+          ) : ticketImages.length > 0 ? (
+            <View style={staffTicketDetailStyles.ticketImagesWrap}>
+              {ticketImages.map((img) => (
+                <Pressable
+                  key={img.id}
+                  style={staffTicketDetailStyles.ticketImageThumb}
+                  onPress={() => setActiveImageUrl(img.url)}
+                >
+                  <Image
+                    source={{ uri: img.url }}
+                    style={staffTicketDetailStyles.ticketImage}
+                    resizeMode="cover"
+                  />
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={staffTicketDetailStyles.fieldValueMuted}>{t("staff_ticket_detail.images_empty")}</Text>
+          )}
+        </DetailSection>
+
+        {showRegisterTimeButton ? (
           <Pressable style={staffTicketDetailStyles.acceptBtn} onPress={handleRegisterTime}>
             <Text style={staffTicketDetailStyles.acceptBtnText}>
               {t("staff_ticket_detail.register_time")}
             </Text>
           </Pressable>
-        )}
+        ) : null}
       </ScrollView>
 
       <Modal
@@ -521,148 +462,24 @@ export default function TicketDetailScreen() {
         </TouchableOpacity>
       </Modal>
 
-      <Modal
+      <ChooseScheduleSlotModal
         visible={slotModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={handleCloseModal}
-      >
-        <View style={staffTicketDetailStyles.placeholderModalBackdrop}>
-          <View style={staffTicketDetailStyles.placeholderModalCard}>
-            <Text style={staffTicketDetailStyles.placeholderModalTitle}>
-              {t("staff_ticket_detail.choose_slot_modal_title")}
-            </Text>
-            <Text style={staffTicketDetailStyles.placeholderModalBody}>
-              {t("staff_ticket_detail.choose_slot_modal_hint")}
-            </Text>
-
-            {isGeneratedSlotsLoading ? (
-              <View style={staffTicketDetailStyles.slotLoadingWrap}>
-                <ActivityIndicator size="small" color={brandPrimary} />
-                <Text style={staffTicketDetailStyles.slotLoadingText}>{t("common.loading")}</Text>
-              </View>
-            ) : isGeneratedSlotsError ? (
-              <Text style={staffTicketDetailStyles.slotErrorText}>
-                {t("staff_calendar.work_slots_load_error")}
-              </Text>
-            ) : selectableSlots.length === 0 ? (
-              <Text style={staffTicketDetailStyles.slotEmptyText}>
-                {t("staff_ticket_detail.choose_slot_no_free")}
-              </Text>
-            ) : (
-              <>
-                <View style={staffTicketDetailStyles.slotSection}>
-                  <Text style={staffTicketDetailStyles.slotSectionTitle}>
-                    {t("common.date")}
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={staffTicketDetailStyles.dateListContent}
-                  >
-                    {availableDateYmds.map((dateYmd) => {
-                      const isSelectedDate = selectedDateYmd === dateYmd;
-                      return (
-                        <Pressable
-                          key={dateYmd}
-                          style={[
-                            staffTicketDetailStyles.dateChip,
-                            isSelectedDate && staffTicketDetailStyles.dateChipSelected,
-                          ]}
-                          onPress={() => {
-                            setSelectedDateYmd(dateYmd);
-                            setSelectedSlot(null);
-                          }}
-                        >
-                          <Text
-                            style={[
-                              staffTicketDetailStyles.dateChipText,
-                              isSelectedDate && staffTicketDetailStyles.dateChipTextSelected,
-                            ]}
-                          >
-                            {formatDateLabelVi(dateYmd)}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-
-                <View style={staffTicketDetailStyles.slotSection}>
-                  <Text style={staffTicketDetailStyles.slotSectionTitle}>
-                    {t("staff_ticket_detail.register_time")}
-                  </Text>
-                  <ScrollView
-                    style={staffTicketDetailStyles.slotList}
-                    contentContainerStyle={staffTicketDetailStyles.slotListContent}
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {slotsInSelectedDate.map((slot) => {
-                      const isSelected =
-                        selectedSlot?.dateYmd === slot.dateYmd &&
-                        selectedSlot.startTime === slot.startTime &&
-                        selectedSlot.endTime === slot.endTime;
-                      return (
-                        <Pressable
-                          key={`${slot.dateYmd}-${slot.startTime}-${slot.endTime}`}
-                          style={[
-                            staffTicketDetailStyles.slotRow,
-                            isSelected && staffTicketDetailStyles.slotRowSelected,
-                          ]}
-                          onPress={() => setSelectedSlot(slot)}
-                        >
-                          <Text
-                            style={[
-                              staffTicketDetailStyles.slotRowText,
-                              isSelected && staffTicketDetailStyles.slotRowTextSelected,
-                            ]}
-                          >
-                            {slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              </>
-            )}
-
-            <View style={staffTicketDetailStyles.placeholderModalActions}>
-              <Pressable
-                style={staffTicketDetailStyles.placeholderModalGhostBtn}
-                onPress={handleCloseModal}
-              >
-                <Text style={staffTicketDetailStyles.placeholderModalGhostText}>
-                  {t("common.close")}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  staffTicketDetailStyles.placeholderModalCloseBtn,
-                  (!selectedSlot ||
-                    selectableSlots.length === 0 ||
-                    confirmSlotMutation.isPending) &&
-                    staffTicketDetailStyles.placeholderModalCloseBtnDisabled,
-                ]}
-                onPress={handleConfirmSlot}
-                disabled={
-                  !selectedSlot ||
-                  selectableSlots.length === 0 ||
-                  confirmSlotMutation.isPending
-                }
-              >
-                {confirmSlotMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={staffTicketDetailStyles.placeholderModalCloseText}>
-                    {t("staff_ticket_detail.confirm_slot")}
-                  </Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => {
+          if (!confirmSlotMutation.isPending) handleCloseModal();
+        }}
+        startYmd={generatedRange.startYmd}
+        endYmd={generatedRange.endYmd}
+        prefetchSlots={prefetchRegisterSlots}
+        onConfirm={(slot) => {
+          if (confirmSlotMutation.isPending) return;
+          confirmSlotMutation.mutate({
+            jobId: ticketId,
+            startTime: slot.startTimeLocalIso,
+          });
+        }}
+        isSubmitting={confirmSlotMutation.isPending}
+        closeOnConfirm={false}
+      />
     </View>
   );
 }

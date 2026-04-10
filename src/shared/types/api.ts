@@ -705,11 +705,13 @@ export interface ConfirmStaffWorkSlotResponse {
 /** Trạng thái slot do BE sinh (VD: AVAILABLE để staff chọn đăng ký issue). */
 export type GeneratedWorkSlotStatus = "AVAILABLE" | string;
 
-/** Một khung giờ trong ngày từ API generate. */
+/** Một khung giờ trong ngày từ API generate hoặc GET .../slots/me. */
 export interface GeneratedWorkSlotTimeFromApi {
   startTime: string;
   endTime: string;
   status: GeneratedWorkSlotStatus;
+  /** Có trên API slots/me (số staff còn trống trong khung). */
+  availableStaffCount?: number;
 }
 
 /** Một ngày và danh sách slot trống/đã book từ generate. */
@@ -718,7 +720,11 @@ export interface GeneratedWorkSlotsDayFromApi {
   slots: GeneratedWorkSlotTimeFromApi[];
 }
 
-/** Response GET /api/schedules/work_slots/generate?start=YYYY-MM-DD&end=YYYY-MM-DD */
+/**
+ * Response GET /api/schedules/work_slots/generate?start=&end=
+ * hoặc GET /api/schedules/work_slots/slots/me?startDate=&endDate=
+ * (khoảng ngày có thể gồm Chủ nhật; BE chỉ trả các ngày làm việc trong tuần, không có Chủ nhật).
+ */
 export interface GenerateWorkSlotsApiResponse {
   data: GeneratedWorkSlotsDayFromApi[];
   message: string;
@@ -821,6 +827,8 @@ export interface InspectionFromApi {
   assignedStaffId: string;
   slotId: string;
   status: string;
+  /** CHECK_IN | CHECK_OUT (kiểu phiếu kiểm định). */
+  type?: string | null;
   note?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;

@@ -28,7 +28,12 @@ import type {
 import Icons from "../../../../shared/theme/icon";
 import { staffBuildingDetailStyles } from "./staffBuildingDetailStyles";
 import { FloorPlanView } from "../../houseStructure";
-import { useAssetItems, useAssetCategories, useFunctionalAreasByHouseId } from "../../../../shared/hooks";
+import {
+  useAssetItems,
+  useAssetCategories,
+  useFunctionalAreasByHouseId,
+  useRefreshControlGate,
+} from "../../../../shared/hooks";
 import { useCategoryFilterStore } from "../../../../store/useCategoryFilterStore";
 import {
   DROPDOWN_SEARCH_TOP_INSET_PX,
@@ -223,6 +228,8 @@ export default function BuildingDetailScreen() {
   const categories: AssetCategoryFromApi[] = categoriesData?.data ?? [];
 
   const listRefreshing = itemsRefetching || categoriesRefetching;
+  const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
+  const showPullRefresh = scrollAtTop || listRefreshing;
   const onPullRefresh = () => Promise.all([refetchItems(), refetchCategories()]);
 
   const groupItemsByCategory = useCallback(
@@ -430,13 +437,17 @@ export default function BuildingDetailScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        onScroll={onScrollForRefreshGate}
+        scrollEventThrottle={16}
         refreshControl={
-          <RefreshControl
-            refreshing={listRefreshing}
-            onRefresh={onPullRefresh}
-            tintColor={brandPrimary}
-            colors={[brandPrimary]}
-          />
+          showPullRefresh ? (
+            <RefreshControl
+              refreshing={listRefreshing}
+              onRefresh={onPullRefresh}
+              tintColor={brandPrimary}
+              colors={[brandPrimary]}
+            />
+          ) : undefined
         }
       >
         <View style={staffBuildingDetailStyles.headerCard}>

@@ -1,232 +1,288 @@
 /**
- * Modal chọn khung giờ từ lịch làm việc tuần này (khi staff nhấn "Nhận ticket").
- * Hiển thị bảng lịch tuần này, staff chọn một slot rồi nhấn Xác nhận.
- * Sau có API sẽ gửi lên server để gán ticket vào slot đó.
+ * Modal chọn khung giờ đăng ký xử lý ticket (layout giống bản trước: chip ngày + danh sách giờ).
+ * Dữ liệu: GET .../work_slots/slots/me; chỉ slot status AVAILABLE (listAvailableGeneratedSlotChoices).
  */
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   Modal,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
-  StyleSheet,
+  ActivityIndicator,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { WorkSlot } from "../../../data/mockStaffData";
+import { useGeneratedWorkSlotsQuery } from "../../../hooks/useStaffScheduleData";
 import {
-  brandPrimary,
-  brandTintBg,
-} from "../../../../../shared/theme/color";
+  listAvailableGeneratedSlotChoices,
+  type AvailableGeneratedSlotChoice,
+} from "../../../../../shared/utils";
+import { brandPrimary } from "../../../../../shared/theme/color";
+import { staffTicketDetailStyles } from "../../staffTicket/staffTicketDetailStyles";
 
-const DAY_LABELS: Record<number, string> = {
-  1: "T2",
-  2: "T3",
-  3: "T4",
-  4: "T5",
-  5: "T6",
-  6: "T7",
-  7: "CN",
-};
+function parseSlotStartDate(choice: AvailableGeneratedSlotChoice): Date {
+  const raw = choice.startTime?.trim();
+  const normalized =
+    raw.length === 5 ? `${raw}:00` : raw.length >= 8 ? raw.slice(0, 8) : raw;
+  return new Date(`${choice.dateYmd}T${normalized}`);
+}
+
+function formatDateLabelVi(dateYmd: string): string {
+  const d = new Date(`${dateYmd}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateYmd;
+  return d.toLocaleDateString("vi-VN", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
 
 type ChooseScheduleSlotModalProps = {
   visible: boolean;
   onClose: () => void;
-  slots: WorkSlot[];
-  onConfirm: (slot: WorkSlot) => void;
+  startYmd: string;
+  endYmd: string;
+  onConfirm: (slot: AvailableGeneratedSlotChoice) => void;
+  isSubmitting?: boolean;
+  closeOnConfirm?: boolean;
+  prefetchSlots?: boolean;
 };
 
 export default function ChooseScheduleSlotModal({
-  visible, // hiển thị modal
+  visible,
   onClose,
-  slots,
+  startYmd,
+  endYmd,
   onConfirm,
+  isSubmitting = false,
+  closeOnConfirm = true,
+  prefetchSlots = false,
 }: ChooseScheduleSlotModalProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const [selectedSlot, setSelectedSlot] = useState<WorkSlot | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<AvailableGeneratedSlotChoice | null>(null);
+  const [selectedDateYmd, setSelectedDateYmd] = useState<string | null>(null);
+
+  const {
+    data: generatedDays = [],
+    isLoading,
+    isError,
+  } = useGeneratedWorkSlotsQuery(startYmd, endYmd, {
+    enabled: Boolean(startYmd && endYmd) && (prefetchSlots || visible),
+  });
+
+  const selectableSlots = useMemo(() => {
+    const now = Date.now();
+    return listAvailableGeneratedSlotChoices(generatedDays)
+      .filter((choice) => parseSlotStartDate(choice).getTime() >= now)
+      .sort((a, b) => parseSlotStartDate(a).getTime() - parseSlotStartDate(b).getTime());
+  }, [generatedDays]);
+
+  const slotsByDate = useMemo(() => {
+    const map = new Map<string, AvailableGeneratedSlotChoice[]>();
+    for (const slot of selectableSlots) {
+      const list = map.get(slot.dateYmd) ?? [];
+      list.push(slot);
+      map.set(slot.dateYmd, list);
+    }
+    return map;
+  }, [selectableSlots]);
+
+  const availableDateYmds = useMemo(() => Array.from(slotsByDate.keys()), [slotsByDate]);
+
+  const displayDateYmd = useMemo(() => {
+    if (selectedDateYmd && slotsByDate.has(selectedDateYmd)) return selectedDateYmd;
+    return availableDateYmds[0] ?? null;
+  }, [selectedDateYmd, slotsByDate, availableDateYmds]);
+
+  const slotsForDisplay = useMemo(() => {
+    if (!displayDateYmd) return [];
+    return slotsByDate.get(displayDateYmd) ?? [];
+  }, [displayDateYmd, slotsByDate]);
+
+  useEffect(() => {
+    if (!visible) return;
+    setSelectedSlot(null);
+    setSelectedDateYmd(null);
+  }, [visible]);
+
+  useEffect(() => {
+    if (availableDateYmds.length === 0) {
+      setSelectedDateYmd(null);
+      setSelectedSlot(null);
+      return;
+    }
+    setSelectedDateYmd((prev) => (prev && slotsByDate.has(prev) ? prev : null));
+    setSelectedSlot((prev) => {
+      if (!prev) return null;
+      const list = slotsByDate.get(prev.dateYmd) ?? [];
+      const stillExists = list.some(
+        (s) =>
+          s.dateYmd === prev.dateYmd &&
+          s.startTime === prev.startTime &&
+          s.endTime === prev.endTime
+      );
+      return stillExists ? prev : null;
+    });
+  }, [availableDateYmds, slotsByDate]);
 
   const handleConfirm = () => {
-    if (selectedSlot) {
+    if (selectedSlot && !isSubmitting) {
       onConfirm(selectedSlot);
-      onClose();
+      if (closeOnConfirm) onClose();
     }
   };
 
   return (
     <Modal
       visible={visible}
-      animationType="slide"
       transparent
-      onRequestClose={onClose}
+      animationType="fade"
+      onRequestClose={() => {
+        if (!isSubmitting) onClose();
+      }}
     >
-      <View style={styles.overlay}>
-        <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-          <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
-            <Text style={styles.title}>{t("staff_ticket_detail.choose_slot_modal_title")}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={12}>
-              <Text style={styles.closeBtnText}>{t("common.close")}</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.hint}>{t("staff_ticket_detail.choose_slot_modal_hint")}</Text>
-          <ScrollView style={styles.tableWrap} showsVerticalScrollIndicator={false}>
-            {slots.length === 0 ? (
-              <View style={styles.emptySlots}>
-                <Text style={styles.emptySlotsText}>{t("staff_ticket_detail.choose_slot_no_free")}</Text>
-              </View>
-            ) : (
-              <>
-                <View style={styles.tableHeader}>
-                  <Text style={[styles.th, styles.colTime]}>{t("staff_home.schedule_col_time")}</Text>
-                  <Text style={[styles.th, styles.colBuilding]}>{t("staff_home.schedule_col_building")}</Text>
-                  <Text style={[styles.th, styles.colTask]}>{t("staff_home.schedule_col_task")}</Text>
-                </View>
-                {slots.map((slot) => {
-              const isSelected = selectedSlot?.id === slot.id;
-              const dayLabel = DAY_LABELS[slot.dayOfWeek] ?? "";
-              return (
-                <TouchableOpacity
-                  key={slot.id}
-                  style={[styles.tableRow, isSelected && styles.tableRowSelected]}
-                  onPress={() => setSelectedSlot(slot)}
-                  activeOpacity={0.8}
+      <View style={staffTicketDetailStyles.placeholderModalBackdrop}>
+        <View
+          style={[
+            staffTicketDetailStyles.placeholderModalCard,
+            { paddingBottom: Math.max(insets.bottom, 18) },
+          ]}
+        >
+          <Text style={staffTicketDetailStyles.placeholderModalTitle}>
+            {t("staff_ticket_detail.choose_slot_modal_title")}
+          </Text>
+
+          {isLoading ? (
+            <View style={staffTicketDetailStyles.slotLoadingWrap}>
+              <ActivityIndicator size="small" color={brandPrimary} />
+              <Text style={staffTicketDetailStyles.slotLoadingText}>{t("common.loading")}</Text>
+            </View>
+          ) : isError ? (
+            <Text style={staffTicketDetailStyles.slotErrorText}>
+              {t("staff_calendar.work_slots_load_error")}
+            </Text>
+          ) : selectableSlots.length === 0 ? (
+            <Text style={staffTicketDetailStyles.slotEmptyText}>
+              {t("staff_ticket_detail.choose_slot_no_free")}
+            </Text>
+          ) : (
+            <>
+              <View style={staffTicketDetailStyles.slotSection}>
+                <Text style={staffTicketDetailStyles.slotSectionTitle}>{t("common.date")}</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={staffTicketDetailStyles.dateListContent}
                 >
-                  <Text style={[styles.td, styles.colTime]} numberOfLines={1}>
-                    {dayLabel} {slot.date} • {slot.timeRange}
-                  </Text>
-                  <Text style={[styles.td, styles.colBuilding]} numberOfLines={1}>
-                    {slot.buildingName}
-                  </Text>
-                  <Text style={[styles.td, styles.colTask]} numberOfLines={2}>
-                    {slot.task}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-              </>
-            )}
-          </ScrollView>
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.confirmBtn, (!selectedSlot || slots.length === 0) && styles.confirmBtnDisabled]}
-              onPress={handleConfirm}
-              disabled={!selectedSlot || slots.length === 0}
-              activeOpacity={0.8}
+                  {availableDateYmds.map((dateYmd) => {
+                    const isSelectedDate = displayDateYmd === dateYmd;
+                    return (
+                      <Pressable
+                        key={dateYmd}
+                        style={[
+                          staffTicketDetailStyles.dateChip,
+                          isSelectedDate && staffTicketDetailStyles.dateChipSelected,
+                        ]}
+                        onPress={() => {
+                          setSelectedDateYmd(dateYmd);
+                          setSelectedSlot(null);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            staffTicketDetailStyles.dateChipText,
+                            isSelectedDate && staffTicketDetailStyles.dateChipTextSelected,
+                          ]}
+                        >
+                          {formatDateLabelVi(dateYmd)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              <View style={staffTicketDetailStyles.slotSection}>
+                <Text style={staffTicketDetailStyles.slotSectionTitle}>
+                  {t("staff_ticket_detail.register_time")}
+                </Text>
+                <ScrollView
+                  style={staffTicketDetailStyles.slotList}
+                  contentContainerStyle={staffTicketDetailStyles.slotListContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {slotsForDisplay.map((slot) => {
+                    const isSelected =
+                      selectedSlot?.dateYmd === slot.dateYmd &&
+                      selectedSlot.startTime === slot.startTime &&
+                      selectedSlot.endTime === slot.endTime;
+                    return (
+                      <Pressable
+                        key={`${slot.dateYmd}-${slot.startTime}-${slot.endTime}`}
+                        style={[
+                          staffTicketDetailStyles.slotRow,
+                          isSelected && staffTicketDetailStyles.slotRowSelected,
+                        ]}
+                        onPress={() => setSelectedSlot(slot)}
+                      >
+                        <Text
+                          style={[
+                            staffTicketDetailStyles.slotRowText,
+                            isSelected && staffTicketDetailStyles.slotRowTextSelected,
+                          ]}
+                        >
+                          {slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </>
+          )}
+
+          <View style={staffTicketDetailStyles.placeholderModalActions}>
+            <Pressable
+              style={staffTicketDetailStyles.placeholderModalGhostBtn}
+              onPress={onClose}
+              disabled={isSubmitting}
             >
-              <Text style={styles.confirmBtnText}>
+              <Text style={staffTicketDetailStyles.placeholderModalGhostText}>
+                {t("common.close")}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                staffTicketDetailStyles.placeholderModalCloseBtn,
+                (!selectedSlot ||
+                  selectableSlots.length === 0 ||
+                  isSubmitting) &&
+                  staffTicketDetailStyles.placeholderModalCloseBtnDisabled,
+              ]}
+              onPress={handleConfirm}
+              disabled={
+                !selectedSlot || selectableSlots.length === 0 || isSubmitting
+              }
+            >
+              <Text style={staffTicketDetailStyles.placeholderModalCloseText}>
                 {t("staff_ticket_detail.confirm_slot")}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
+
+          {isSubmitting && (
+            <View style={staffTicketDetailStyles.slotConfirmLoadingOverlay}>
+              <ActivityIndicator size="large" color={brandPrimary} />
+              <Text style={staffTicketDetailStyles.slotConfirmLoadingText}>
+                {t("common.loading")}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  container: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: "85%",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1e293b",
-  },
-  closeBtn: { padding: 4 },
-  closeBtnText: {
-    fontSize: 16,
-    color: brandPrimary,
-    fontWeight: "600",
-  },
-  hint: {
-    fontSize: 13,
-    color: "#64748b",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  emptySlots: {
-    paddingVertical: 32,
-    alignItems: "center",
-  },
-  emptySlotsText: {
-    fontSize: 14,
-    color: "#64748b",
-    textAlign: "center",
-  },
-  tableWrap: {
-    maxHeight: 320,
-    paddingHorizontal: 16,
-  },
-  tableHeader: {
-    flexDirection: "row",
-    paddingVertical: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: brandPrimary,
-    marginBottom: 6,
-  },
-  th: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-  tableRow: {
-    flexDirection: "row",
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-  },
-  tableRowSelected: {
-   backgroundColor: brandTintBg,
-   //borderLeftWidth: 4,
-   borderLeftColor: brandPrimary,
-   marginLeft: -4,
-   paddingLeft: 8,
-  },
-  td: {
-    fontSize: 13,
-    color: "#374151",
-  },
-  colTime: { width: "32%" },
-  colBuilding: { flex: 1, marginRight: 8 },
-  colTask: { flex: 1 },
-  footer: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  confirmBtn: {
-    backgroundColor: brandPrimary,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  confirmBtnDisabled: {
-    backgroundColor: "#cbd5e1",
-    opacity: 0.6,
-  },
-  confirmBtnText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#fff",
-  },
-});

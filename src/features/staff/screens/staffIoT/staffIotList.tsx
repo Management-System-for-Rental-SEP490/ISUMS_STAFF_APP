@@ -14,6 +14,7 @@ import {
   useFunctionalAreasByHouseId,
   useIotDevicesByHouseId,
   useDeprovisionIotControllerByHouseId,
+  useRefreshControlGate,
 } from "../../../../shared/hooks";
 import { useTranslation } from "react-i18next";
 import { staffIotStyles as s } from "./staffIotStyles";
@@ -25,8 +26,8 @@ import {
   brandPrimary,
   brandSecondary,
   iotOfflineLabelColor,
-  neutral,
 } from "../../../../shared/theme/color";
+import { StaffScreenActionFab } from "../../../../shared/components/StaffScreenActionFab";
 import { CustomAlert } from "../../../../shared/components/alert";
 import {
   StackScreenTitleBadge,
@@ -246,6 +247,8 @@ export default function StaffIotListScreen() {
   };
 
   const listRefreshing = areasRefetching || iotRefetching;
+  const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
+  const showPullRefresh = scrollAtTop || listRefreshing;
   const onPullRefresh = useCallback(() => {
     return Promise.all([refetchAreas(), refetchIot()]);
   }, [refetchAreas, refetchIot]);
@@ -326,16 +329,20 @@ export default function StaffIotListScreen() {
       <ScrollView
         contentContainerStyle={[
           s.scroll,
-          { paddingBottom: Math.max(insets.bottom, 16) + 16 },
+          { paddingBottom: Math.max(insets.bottom, 16) + 16 + 72 },
         ]}
         showsVerticalScrollIndicator={false}
+        onScroll={onScrollForRefreshGate}
+        scrollEventThrottle={16}
         refreshControl={
-          <RefreshControl
-            refreshing={listRefreshing}
-            onRefresh={onPullRefresh}
-            tintColor={brandPrimary}
-            colors={[brandPrimary]}
-          />
+          showPullRefresh ? (
+            <RefreshControl
+              refreshing={listRefreshing}
+              onRefresh={onPullRefresh}
+              tintColor={brandPrimary}
+              colors={[brandPrimary]}
+            />
+          ) : undefined
         }
       >
         <View style={s.houseCard}>
@@ -380,37 +387,7 @@ export default function StaffIotListScreen() {
               </Text>
             </TouchableOpacity>
           </ScrollView>
-
-          <TouchableOpacity
-            style={s.addBtn}
-            onPress={() => {
-              // Mở menu chọn loại thiết bị cần thêm (Controller/Node).
-              setAddMenuOpen(true);
-            }}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={t("staff_iot.add_btn")}
-          >
-            <Icons.plus size={18} color={neutral.surface} />
-          </TouchableOpacity>
         </View>
-
-        <IotAddDeviceMenuModal
-          visible={addMenuOpen}
-          onClose={() => setAddMenuOpen(false)}
-          onAddController={() => {
-            setAddMenuOpen(false);
-            navigation.navigate("StaffIotProvision", {
-              houseId,
-              houseName,
-              kind: "controller",
-            });
-          }}
-          onAddNode={() => {
-            setAddMenuOpen(false);
-            navigation.navigate("StaffIotProvision", { houseId, houseName, kind: "node" });
-          }}
-        />
 
         {iotLoading ? (
           <View style={s.loadingRow}>
@@ -537,6 +514,28 @@ export default function StaffIotListScreen() {
           ))
         )}
       </ScrollView>
+
+      <StaffScreenActionFab
+        onPress={() => setAddMenuOpen(true)}
+        accessibilityLabel={t("staff_iot.add_btn")}
+      />
+
+      <IotAddDeviceMenuModal
+        visible={addMenuOpen}
+        onClose={() => setAddMenuOpen(false)}
+        onAddController={() => {
+          setAddMenuOpen(false);
+          navigation.navigate("StaffIotProvision", {
+            houseId,
+            houseName,
+            kind: "controller",
+          });
+        }}
+        onAddNode={() => {
+          setAddMenuOpen(false);
+          navigation.navigate("StaffIotProvision", { houseId, houseName, kind: "node" });
+        }}
+      />
     </View>
   );
 }

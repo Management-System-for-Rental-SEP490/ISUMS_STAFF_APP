@@ -16,6 +16,7 @@ import { formatStaffTicketListCreatedAt, getTotalPages, slicePage } from "../../
 import { useAssetItems } from "../../../../shared/hooks/useAssetItems";
 import { useHouses } from "../../../../shared/hooks/useHouses";
 import { useStaffIssueTickets } from "../../../../shared/hooks/useUserProfile";
+import { useRefreshControlGate } from "../../../../shared/hooks";
 import Icons from "../../../../shared/theme/icon";
 
 type TicketListNavProp = CompositeNavigationProp<
@@ -95,6 +96,9 @@ export default function TicketListScreen() {
     void refetch();
   }, [refetch]);
 
+  const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
+  const showPullRefresh = scrollAtTop || isRefetching;
+
   const openTicketDetail = (ticketId: string) => {
     const root = navigation.getParent?.();
     if (root && "navigate" in root) {
@@ -143,9 +147,6 @@ export default function TicketListScreen() {
 
   const listHeader = (
     <View style={ticketListStyles.headerSection}>
-      <Text style={ticketListStyles.title}>{t("staff_ticket_list.title")}</Text>
-      <Text style={ticketListStyles.subtitle}>{t("staff_ticket_list.subtitle")}</Text>
-
       <View style={ticketListStyles.summaryRow}>
         <View style={ticketListStyles.summaryCard}>
           <Icons.ticket size={18} color={brandSecondary} />
@@ -167,10 +168,18 @@ export default function TicketListScreen() {
     </View>
   );
 
+  const staffTabHeader = (
+    <Header
+      variant="default"
+      staffTabWelcome
+      staffTabPageBadgeTitle={t("staff_ticket_list.title")}
+    />
+  );
+
   if (isLoading && sortedTickets.length === 0) {
     return (
       <View style={ticketListStyles.container}>
-        <Header variant="default" />
+        {staffTabHeader}
         <View style={ticketListStyles.stateWrapper}>
           <Text style={ticketListStyles.stateText}>{t("common.loading")}</Text>
         </View>
@@ -181,7 +190,7 @@ export default function TicketListScreen() {
   if (isError && sortedTickets.length === 0) {
     return (
       <View style={ticketListStyles.container}>
-        <Header variant="default" />
+        {staffTabHeader}
         <View style={ticketListStyles.stateWrapper}>
           <Text style={ticketListStyles.stateText}>{t("staff_ticket_list.load_error")}</Text>
           <Pressable onPress={() => void refetch()} style={ticketListStyles.retryButton}>
@@ -194,7 +203,7 @@ export default function TicketListScreen() {
 
   return (
     <View style={ticketListStyles.container}>
-      <Header variant="default" />
+      {staffTabHeader}
       <FlatList
         data={pagedTickets}
         renderItem={renderItem}
@@ -215,13 +224,17 @@ export default function TicketListScreen() {
             : ticketListStyles.listContent
         }
         showsVerticalScrollIndicator={false}
+        onScroll={onScrollForRefreshGate}
+        scrollEventThrottle={16}
         refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={onRefresh}
-            tintColor={brandPrimary}
-            colors={[brandPrimary]}
-          />
+          showPullRefresh ? (
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={onRefresh}
+              tintColor={brandPrimary}
+              colors={[brandPrimary]}
+            />
+          ) : undefined
         }
       />
     </View>

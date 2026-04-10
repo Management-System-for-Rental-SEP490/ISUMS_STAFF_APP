@@ -7,6 +7,7 @@ import {
   brandTintBg,
   neutral,
 } from "../../../../shared/theme/color";
+import { appTypography } from "../../../../shared/utils";
 
 /**
  * Styles dùng chung cho các màn hình thiết bị (Item): ItemListScreen, ItemCreateScreen, ItemEditScreen.
@@ -15,7 +16,7 @@ import {
 export const itemScreenStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: neutral.canvasMuted,
   },
   topBar: {
     flexDirection: "row",
@@ -33,46 +34,82 @@ export const itemScreenStyles = StyleSheet.create({
     justifyContent: "center",
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
     paddingBottom: 40,
+    gap: 16,
   },
   /** Padding thêm khi có bàn phím (form create/edit) */
   scrollContentWithKeyboard: {
     paddingBottom: 160,
   },
   formCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
+    backgroundColor: neutral.surface,
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 0,
+    shadowColor: neutral.slate900,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     elevation: 3,
+    borderCurve: "continuous",
+  },
+  /** Segment NFC | QR — cùng pattern Camera (tenant/staff). */
+  tagSegmentTrack: {
+    flexDirection: "row",
+    backgroundColor: neutral.surface,
+    borderRadius: 25,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: neutral.border,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  tagSegmentTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    gap: 6,
+    borderRadius: 22,
+  },
+  tagSegmentTabNfcActive: {
+    backgroundColor: brandSecondary,
+  },
+  tagSegmentTabQrActive: {
+    backgroundColor: brandPrimary,
+  },
+  tagSegmentTabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: neutral.textSecondary,
+  },
+  tagSegmentTabTextActive: {
+    color: neutral.surface,
   },
   label: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#374151",
+    color: neutral.textBody,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: "#F9FAFB",
+    backgroundColor: neutral.canvasMuted,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 10,
+    borderColor: neutral.inputBorder,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: "#1F2937",
+    color: neutral.heading,
     minHeight: 48,
+    borderCurve: "continuous",
   },
   inputReadonlyDim: {
     opacity: 0.65,
-    color: "#6B7280",
+    color: neutral.textSecondary,
   },
   fieldSpacer: {
     marginTop: 18,
@@ -339,6 +376,18 @@ export const itemScreenStyles = StyleSheet.create({
     textAlign: "center",
   },
   // ---------- ItemListScreen ----------
+  itemListIntro: {
+    gap: 8,
+    marginBottom: 4,
+  },
+  itemListIntroTitle: {
+    ...appTypography.screenHeader,
+    color: neutral.slate900,
+  },
+  itemListIntroSubtitle: {
+    ...appTypography.caption,
+    color: neutral.slate500,
+  },
   loadingCenter: {
     justifyContent: "center",
     alignItems: "center",
@@ -454,25 +503,25 @@ export const itemScreenStyles = StyleSheet.create({
   },
   // ---------- ItemDescriptionScreen (chỉ xem thông tin thiết bị khi quét NFC) ----------
   descriptionCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
+    backgroundColor: neutral.surface,
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 0,
+    shadowColor: neutral.slate900,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     elevation: 3,
+    borderCurve: "continuous",
   },
   descriptionTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#111827",
+    color: neutral.text,
     marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: neutral.borderMuted,
   },
   descriptionRow: {
     flexDirection: "row",

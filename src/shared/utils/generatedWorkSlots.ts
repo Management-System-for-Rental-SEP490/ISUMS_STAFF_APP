@@ -1,8 +1,11 @@
 /**
- * Tiện ích cho response GET /api/schedules/work_slots/generate
- * (luồng issue: modal chọn slot AVAILABLE để đăng ký ticket).
+ * Tiện ích cho response GET /api/schedules/work_slots/slots/me (và format tương thích generate).
+ * Luồng issue: chỉ hiển thị/chọn slot có status AVAILABLE để đăng ký ticket.
  */
-import type { GeneratedWorkSlotsDayFromApi } from "../types/api";
+import type {
+  GeneratedWorkSlotsDayFromApi,
+  GeneratedWorkSlotTimeFromApi,
+} from "../types/api";
 
 export type AvailableGeneratedSlotChoice = {
   dateYmd: string;
@@ -43,6 +46,33 @@ function localIsoFromYmdAndTime(dateYmd: string, timeHms: string): string {
 function isAvailableStatus(status: string): boolean {
   const normalized = String(status || "").trim().toUpperCase();
   return normalized === "AVAILABLE" || normalized === "AVAIABLE";
+}
+
+const slotIdentity = (s: Pick<GeneratedWorkSlotTimeFromApi, "startTime" | "endTime">) =>
+  `${s.startTime}\0${s.endTime}`;
+
+/**
+ * Gộp nhiều response tuần (GET slots/me gọi từng tuần) theo `date`, trùng slot thì chỉ giữ một bản.
+ */
+export function mergeGeneratedWorkSlotsDays(
+  weeks: GeneratedWorkSlotsDayFromApi[][]
+): GeneratedWorkSlotsDayFromApi[] {
+  const byDate = new Map<string, Map<string, GeneratedWorkSlotTimeFromApi>>();
+  for (const week of weeks) {
+    for (const day of week) {
+      if (!byDate.has(day.date)) byDate.set(day.date, new Map());
+      const m = byDate.get(day.date)!;
+      for (const slot of day.slots) {
+        m.set(slotIdentity(slot), slot);
+      }
+    }
+  }
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, slots]) => ({
+      date,
+      slots: Array.from(slots.values()),
+    }));
 }
 
 /**

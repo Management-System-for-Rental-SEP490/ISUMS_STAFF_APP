@@ -4,6 +4,7 @@
  * ticketId lấy từ work slot API: GET /api/schedules/work_slots/staff/{staffId}.
  */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Image,
   Modal,
@@ -13,6 +14,7 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useTranslation } from "react-i18next";
@@ -37,7 +39,6 @@ import {
   mapInspectionToJobFromApi,
   type AssetItemFromApi,
   type FunctionalAreaFromApi,
-  type HouseFromApi,
   type IssueTicketFromApi,
   type JobFromApi,
 } from "../../../../shared/types/api";
@@ -45,10 +46,14 @@ import Icons from "../../../../shared/theme/icon";
 import { iconStyles } from "../../../../shared/styles/iconStyles";
 import { staffWorkSlotStyles, STATUS_COLORS } from "./staffWorkSlotStyles";
 import { brandPrimary, brandTintBg, neutral } from "../../../../shared/theme/color";
-import { formatIsoDueDateVi, formatViTicketCreatedAt } from "../../../../shared/utils";
+import { formatDdMmYyyy, formatYmdStringToDdMmYyyy } from "../../../../shared/utils";
+import { SCHEDULE_DATA_KEYS } from "../../hooks/useStaffScheduleData";
+import {
+  isoLocalDateToYmd,
+  waitForWorkSlotCompletionSync,
+} from "../../utils/workSlotCompletionSync";
 import { ImageCaptureModal } from "../../../modal/imageCapture/ImageCaptureModal";
-import { useHouses } from "../../../../shared/hooks/useHouses";
-import { useFunctionalAreasByHouseId } from "../../../../shared/hooks/useHouses";
+import { useFunctionalAreasByHouseId, useHouseById } from "../../../../shared/hooks/useHouses";
 import {
   getAssetItemsByHouseId,
   getAssetItemById,
@@ -115,6 +120,15 @@ function getIssueStatusLabel(status: string | undefined, t: (k: string) => strin
   return getJobStatusLabel(status, t);
 }
 
+/** Nhãn hiển thị cho `InspectionFromApi.type` (CHECK_IN / CHECK_OUT). */
+function getInspectionTypeDisplay(type: string | null | undefined, t: (k: string) => string): string {
+  const key = normalizeScheduleStatusKey(type ?? undefined);
+  if (key === "CHECK_IN") return t("staff_work_slot_detail.inspection_type_CHECK_IN");
+  if (key === "CHECK_OUT") return t("staff_work_slot_detail.inspection_type_CHECK_OUT");
+  const raw = String(type ?? "").trim();
+  return raw || "—";
+}
+
 function getStatusColors(status: string | undefined): { bg: string; text: string } {
   const key = normalizeScheduleStatusKey(status) || "OTHER";
   return STATUS_COLORS[key] ?? STATUS_COLORS.OTHER;
@@ -155,7 +169,9 @@ const MAX_MAINTENANCE_ASSET_IMAGES = 5;
 
 export default function WorkSlotDetailScreen() {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const route = useRoute<WorkSlotDetailRouteProp>();
   const navigation = useNavigation<NavProp>();
   const { slot } = route.params;
@@ -164,6 +180,7 @@ export default function WorkSlotDetailScreen() {
 
   const [job, setJob] = useState<JobFromApi | null>(null);
   const [inspectionNote, setInspectionNote] = useState<string | null>(null);
+  const [inspectionType, setInspectionType] = useState<string | null>(null);
   const [ticket, setTicket] = useState<IssueTicketFromApi | null>(null);
   const [assetDisplayName, setAssetDisplayName] = useState<string>("");
   const [loading, setLoading] = useState(!!slot.ticketId);
@@ -192,13 +209,14 @@ export default function WorkSlotDetailScreen() {
   const [editorDeletingImageId, setEditorDeletingImageId] = useState<string | null>(null);
   const [imageCaptureVisible, setImageCaptureVisible] = useState(false);
 
-  // Danh sách houses từ BE (dùng để map houseId -> tên căn nhà hiển thị cho người dùng).
-  const { data: housesResp } = useHouses();
-  const houses: HouseFromApi[] = housesResp?.data ?? [];
   const currentHouseId = isIssueSlot ? ticket?.houseId : job?.houseId;
-  const currentHouseName = currentHouseId
-    ? houses.find((h) => h.id === currentHouseId)?.name ?? currentHouseId
-    : "";
+  const { data: houseByIdResp } = useHouseById(currentHouseId);
+  const currentHouseName = useMemo(() => {
+    if (!currentHouseId?.trim()) return "";
+    const ok = houseByIdResp?.success !== false;
+    const name = ok ? houseByIdResp?.data?.name?.trim() : "";
+    return name || currentHouseId;
+  }, [currentHouseId, houseByIdResp]);
   const { data: maintenanceAreasResp } = useFunctionalAreasByHouseId(currentHouseId ?? "");
   const maintenanceAreas = (maintenanceAreasResp?.data ?? []) as FunctionalAreaFromApi[];
 
@@ -206,6 +224,7 @@ export default function WorkSlotDetailScreen() {
     if (!slot.ticketId?.trim()) return;
     if (isIssueSlot) {
       setInspectionNote(null);
+      setInspectionType(null);
       getIssueTicketById(slot.ticketId)
         .then(async (res) => {
           if (!res?.success || !res?.data) return;
@@ -232,12 +251,15 @@ export default function WorkSlotDetailScreen() {
           setAssetDisplayName("");
           const n = res.data.note?.trim();
           setInspectionNote(n ? n : null);
+          const tp = res.data.type?.trim();
+          setInspectionType(tp ? tp : null);
         })
         .catch(() => {});
       return;
     }
 
     setInspectionNote(null);
+    setInspectionType(null);
     getJobById(slot.ticketId)
       .then((res) => {
         if (!res?.success || !res?.data) return;
@@ -246,6 +268,61 @@ export default function WorkSlotDetailScreen() {
         setAssetDisplayName("");
       })
       .catch(() => {});
+  };
+
+  const navigateCalendarAfterCompletion = useCallback(
+    (startTimeIso: string | null) => {
+      let ymd: string | null = startTimeIso ? isoLocalDateToYmd(startTimeIso) : null;
+      if (!ymd) {
+        const parts = slot.date.split("/");
+        if (parts.length === 2) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10);
+          const now = new Date();
+          if (Number.isFinite(day) && Number.isFinite(month)) {
+            ymd = `${now.getFullYear()}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+          }
+        }
+      }
+      (navigation as { navigate: (name: "Main", p: object) => void }).navigate("Main", {
+        screen: "Calendar",
+        params: ymd ? { focusDateYmd: ymd, focusWorkSlotId: slot.id } : { focusWorkSlotId: slot.id },
+      });
+    },
+    [navigation, slot.date, slot.id]
+  );
+
+  const handleCompleteIssueWorkSlot = async () => {
+    if (!ticket?.id || !slot.ticketId) return;
+    setUpdateLoading(true);
+    try {
+      await updateIssueTicketStatus(ticket.id, "DONE");
+      const { startTimeIso } = await waitForWorkSlotCompletionSync({
+        scheduleSlotId: slot.id,
+        jobId: ticket.id,
+        kind: "issue",
+      });
+      await queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
+      refetchItem();
+      CustomAlert.alert(
+        t("staff_work_slot_detail.completion_alert_title"),
+        "",
+        [
+          {
+            text: t("common.close"),
+            onPress: () => navigateCalendarAfterCompletion(startTimeIso),
+          },
+        ]
+      );
+    } catch (err) {
+      CustomAlert.alert(
+        t("staff_work_slot_detail.update_error"),
+        err instanceof Error ? err.message : "",
+        [{ text: t("common.close") }]
+      );
+    } finally {
+      setUpdateLoading(false);
+    }
   };
 
   const handleStartWork = async () => {
@@ -316,8 +393,29 @@ export default function WorkSlotDetailScreen() {
         setMaintenanceSubmitted(false);
         submittedMaintenanceJobIdsInSession.delete(job.id);
       }
-      CustomAlert.alert(t("staff_work_slot_detail.update_success"), "", [{ text: t("common.close") }]);
-      refetchItem();
+
+      if (finishedNow) {
+        const { startTimeIso } = await waitForWorkSlotCompletionSync({
+          scheduleSlotId: slot.id,
+          jobId: job.id,
+          kind: isInspectionSlot ? "inspection" : "maintenance",
+        });
+        await queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
+        refetchItem();
+        CustomAlert.alert(
+          t("staff_work_slot_detail.completion_alert_title"),
+          "",
+          [
+            {
+              text: t("common.close"),
+              onPress: () => navigateCalendarAfterCompletion(startTimeIso),
+            },
+          ]
+        );
+      } else {
+        CustomAlert.alert(t("staff_work_slot_detail.update_success"), "", [{ text: t("common.close") }]);
+        refetchItem();
+      }
     } catch (err) {
       CustomAlert.alert(t("staff_work_slot_detail.update_error"), err instanceof Error ? err.message : "", [{ text: t("common.close") }]);
     } finally {
@@ -406,7 +504,7 @@ export default function WorkSlotDetailScreen() {
         setEditorUpdateAt(
           existingDraft?.updateAt ??
             (asset.updateAt
-              ? formatViTicketCreatedAt(new Date(asset.updateAt))
+              ? formatDdMmYyyy(new Date(asset.updateAt))
               : t("staff_work_slot_detail.maintenance_update_at_empty"))
         );
       } catch {
@@ -510,6 +608,7 @@ export default function WorkSlotDetailScreen() {
           setTicket(issue);
           setJob(null);
           setInspectionNote(null);
+          setInspectionType(null);
           if (issue.assetId?.trim()) {
             const asset = await getAssetItemById(issue.assetId);
             if (!cancelled) setAssetDisplayName(asset?.displayName ?? issue.assetId);
@@ -528,6 +627,8 @@ export default function WorkSlotDetailScreen() {
           setAssetDisplayName("");
           const n = res.data.note?.trim();
           setInspectionNote(n ? n : null);
+          const tp = res.data.type?.trim();
+          setInspectionType(tp ? tp : null);
           const rememberedSubmitted =
             String(nextJob.status ?? "").toUpperCase() === "IN_PROGRESS" &&
             submittedMaintenanceJobIdsInSession.has(nextJob.id);
@@ -542,6 +643,7 @@ export default function WorkSlotDetailScreen() {
         setTicket(null);
         setAssetDisplayName("");
         setInspectionNote(null);
+        setInspectionType(null);
         const rememberedSubmitted =
           String(nextJob.status ?? "").toUpperCase() === "IN_PROGRESS" &&
           submittedMaintenanceJobIdsInSession.has(nextJob.id);
@@ -559,6 +661,7 @@ export default function WorkSlotDetailScreen() {
           setTicket(null);
           setJob(null);
           setInspectionNote(null);
+          setInspectionType(null);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -681,6 +784,22 @@ export default function WorkSlotDetailScreen() {
         count: filteredMaintenanceAssets.length,
       }),
     [filteredMaintenanceAssets.length, t]
+  );
+
+  /** Vùng cuộn trong modal bảo trì (dropdown + draft) — không đẩy nội dung ra ngoài viewport. */
+  const maintenanceModalBodyScrollMaxH = useMemo(
+    () =>
+      Math.max(
+        260,
+        Math.round(windowHeight * 0.88) - 188 - Math.min(insets.bottom, 32)
+      ),
+    [windowHeight, insets.bottom]
+  );
+
+  /** Giới hạn chiều cao danh sách trong DropdownBox để chip tầng vẫn nhìn thấy khi cuộn modal. */
+  const maintenanceDropdownResultsMaxH = useMemo(
+    () => Math.min(220, Math.max(168, Math.round(windowHeight * 0.26))),
+    [windowHeight]
   );
 
   const selectedMaintenanceAsset = useMemo(
@@ -981,7 +1100,7 @@ export default function WorkSlotDetailScreen() {
                   <InfoRow
                     icon={<Icons.calendar size={18} color={neutral.slate500} />}
                     label={t("staff_ticket_detail.created_at")}
-                    value={ticket?.createdAt ? formatViTicketCreatedAt(new Date(ticket.createdAt)) : ""}
+                    value={ticket?.createdAt ? formatDdMmYyyy(new Date(ticket.createdAt)) : ""}
                   />
 
                   <View style={{ marginTop: 6 }}>
@@ -1031,8 +1150,15 @@ export default function WorkSlotDetailScreen() {
                         ? t("staff_work_slot_detail.inspection_period_label")
                         : t("staff_work_slot_detail.period_start")
                     }
-                    value={job?.periodStartDate ?? ""}
+                    value={job?.periodStartDate ? formatYmdStringToDdMmYyyy(job.periodStartDate) : ""}
                   />
+                  {isInspectionSlot ? (
+                    <InfoRow
+                      icon={<Icons.tag size={18} color={neutral.slate500} />}
+                      label={t("staff_work_slot_detail.inspection_type_label")}
+                      value={getInspectionTypeDisplay(inspectionType, t)}
+                    />
+                  ) : null}
                   {isInspectionSlot && inspectionNote ? (
                     <InfoRow
                       icon={<Icons.workOutline size={18} color={neutral.slate500} />}
@@ -1069,37 +1195,52 @@ export default function WorkSlotDetailScreen() {
                     </TouchableOpacity>
                   ) : null}
                   {isIssueSlot && ticket?.status === "IN_PROGRESS" ? (
-                    <TouchableOpacity
-                      style={[staffWorkSlotStyles.actionBtn, staffWorkSlotStyles.actionBtnSuccess, { marginRight: 6 }]}
-                      onPress={() => {
-                        if (isIssueSlot && ticket?.id && ticket.houseId && ticket.assetId) {
-                          navigation.navigate("StaffIssueNote", {
-                            issueId: ticket.id,
-                            houseId: ticket.houseId,
-                            assetId: ticket.assetId,
-                          });
-                          return;
-                        }
-                        if (isIssueSlot) {
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "stretch" }}>
+                      <TouchableOpacity
+                        style={[
+                          staffWorkSlotStyles.actionBtn,
+                          staffWorkSlotStyles.actionBtnPrimary,
+                          { marginRight: 6, flexGrow: 1, minWidth: 140 },
+                        ]}
+                        onPress={() => {
+                          if (ticket?.id && ticket.houseId && ticket.assetId) {
+                            navigation.navigate("StaffIssueNote", {
+                              issueId: ticket.id,
+                              houseId: ticket.houseId,
+                              assetId: ticket.assetId,
+                            });
+                            return;
+                          }
                           CustomAlert.alert(
                             t("common.error"),
                             "Thiếu thông tin issue để ghi nhận sửa chữa.",
                             [{ text: t("common.close") }]
                           );
-                          return;
-                        }
-                        void handleStartWork();
-                      }}
-                      disabled={updateLoading}
-                    >
-                      {updateLoading ? (
-                        <ActivityIndicator size="small" color={neutral.surface} />
-                      ) : (
+                        }}
+                        disabled={updateLoading}
+                      >
                         <Text style={staffWorkSlotStyles.actionBtnText}>
-                          {isIssueSlot ? "Đang sửa chữa" : t("staff_work_slot_detail.btn_complete")}
+                          {t("staff_work_slot_detail.btn_issue_repair_flow")}
                         </Text>
-                      )}
-                    </TouchableOpacity>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          staffWorkSlotStyles.actionBtn,
+                          staffWorkSlotStyles.actionBtnSuccess,
+                          { flexGrow: 1, minWidth: 140 },
+                        ]}
+                        onPress={handleCompleteIssueWorkSlot}
+                        disabled={updateLoading}
+                      >
+                        {updateLoading ? (
+                          <ActivityIndicator size="small" color={neutral.surface} />
+                        ) : (
+                          <Text style={staffWorkSlotStyles.actionBtnText}>
+                            {t("staff_work_slot_detail.btn_complete")}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   ) : null}
 
                   {!isIssueSlot && job?.status === "SCHEDULED" ? (
@@ -1175,108 +1316,122 @@ export default function WorkSlotDetailScreen() {
                 <Text style={staffWorkSlotStyles.maintenanceCloseBtnText}>×</Text>
               </TouchableOpacity>
             </View>
-            <Text style={staffWorkSlotStyles.maintenanceModalSubtitle}>
-              {t("staff_work_slot_detail.maintenance_modal_subtitle", {
-                houseName: currentHouseName || "",
-              })}
-            </Text>
-
-            {maintenanceFloorOptions.length > 0 ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={staffWorkSlotStyles.floorSortScroll}
-                contentContainerStyle={staffWorkSlotStyles.floorSortContent}
-              >
-                <TouchableOpacity
-                  style={[
-                    staffWorkSlotStyles.floorChip,
-                    maintenanceSortFloor == null && staffWorkSlotStyles.floorChipSelected,
-                  ]}
-                  onPress={() => setMaintenanceSortFloor(null)}
-                  activeOpacity={0.85}
-                >
-                  <Text
-                    style={[
-                      staffWorkSlotStyles.floorChipText,
-                      maintenanceSortFloor == null && staffWorkSlotStyles.floorChipTextSelected,
-                    ]}
-                  >
-                    {t("staff_work_slot_detail.maintenance_floor_all")}
-                  </Text>
-                </TouchableOpacity>
-                {maintenanceFloorOptions.map((floor) => {
-                  const selected = maintenanceSortFloor === floor;
-                  return (
-                    <TouchableOpacity
-                      key={floor}
-                      style={[
-                        staffWorkSlotStyles.floorChip,
-                        selected && staffWorkSlotStyles.floorChipSelected,
-                      ]}
-                      onPress={() => setMaintenanceSortFloor(floor)}
-                      activeOpacity={0.85}
-                    >
-                      <Text
-                        style={[
-                          staffWorkSlotStyles.floorChipText,
-                          selected && staffWorkSlotStyles.floorChipTextSelected,
-                        ]}
-                      >
-                        {t("staff_work_slot_detail.maintenance_floor_label", { floor })}
-                      </Text>
-                    </TouchableOpacity>
-                  );
+            <ScrollView
+              style={[
+                staffWorkSlotStyles.maintenanceModalBodyScroll,
+                { maxHeight: maintenanceModalBodyScrollMaxH },
+              ]}
+              contentContainerStyle={{ paddingBottom: 8 }}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+            >
+              <Text style={staffWorkSlotStyles.maintenanceModalSubtitle}>
+                {t("staff_work_slot_detail.maintenance_modal_subtitle", {
+                  houseName: currentHouseName || "",
                 })}
-              </ScrollView>
-            ) : null}
+              </Text>
 
-            {maintenanceAssetsLoading ? (
-              <View style={{ paddingVertical: 16, alignItems: "center" }}>
-                <ActivityIndicator size="small" color={brandPrimary} />
-                <Text style={[staffWorkSlotStyles.maintenanceHintText, { marginTop: 8 }]}>
-                  {t("common.loading")}
-                </Text>
-              </View>
-            ) : maintenanceAssetSection ? (
-              <DropdownBox
-                sections={[maintenanceAssetSection]}
-                summary={maintenanceAssetSummary}
-                onSelect={handleMaintenanceAssetSelect}
-                itemLayout="list"
-                searchAutoFocus={false}
-              />
-            ) : (
-              <View style={staffWorkSlotStyles.maintenanceHintCard}>
-                <Text style={staffWorkSlotStyles.maintenanceHintText}>
-                  {t("staff_work_slot_detail.maintenance_assets_empty")}
-                </Text>
-              </View>
-            )}
-
-            <Text style={staffWorkSlotStyles.maintenanceDraftTitle}>
-              {t("staff_work_slot_detail.maintenance_draft_title", {
-                count: Object.keys(maintenanceDrafts).length,
-              })}
-            </Text>
-            <ScrollView style={staffWorkSlotStyles.maintenanceDraftList}>
-              {Object.values(maintenanceDrafts).length === 0 ? (
-                <Text style={staffWorkSlotStyles.maintenanceHintText}>
-                  {t("staff_work_slot_detail.maintenance_draft_empty")}
-                </Text>
-              ) : (
-                Object.values(maintenanceDrafts).map((draft) => (
-                  <View key={draft.assetId} style={staffWorkSlotStyles.maintenanceDraftRow}>
-                    <Text style={staffWorkSlotStyles.maintenanceDraftName}>{draft.displayName}</Text>
-                    <Text style={staffWorkSlotStyles.maintenanceDraftMeta}>
-                      {hasFloorAreas && draft.floorNo
-                        ? `${t("staff_work_slot_detail.maintenance_floor_label", { floor: draft.floorNo })} · `
-                        : ""}
-                      {t("staff_work_slot_detail.maintenance_condition_label")} {draft.conditionPercent}%
+              {maintenanceFloorOptions.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={staffWorkSlotStyles.floorSortScroll}
+                  contentContainerStyle={staffWorkSlotStyles.floorSortContent}
+                >
+                  <TouchableOpacity
+                    style={[
+                      staffWorkSlotStyles.floorChip,
+                      maintenanceSortFloor == null && staffWorkSlotStyles.floorChipSelected,
+                    ]}
+                    onPress={() => setMaintenanceSortFloor(null)}
+                    activeOpacity={0.85}
+                  >
+                    <Text
+                      style={[
+                        staffWorkSlotStyles.floorChipText,
+                        maintenanceSortFloor == null && staffWorkSlotStyles.floorChipTextSelected,
+                      ]}
+                    >
+                      {t("staff_work_slot_detail.maintenance_floor_all")}
                     </Text>
-                  </View>
-                ))
+                  </TouchableOpacity>
+                  {maintenanceFloorOptions.map((floor) => {
+                    const selected = maintenanceSortFloor === floor;
+                    return (
+                      <TouchableOpacity
+                        key={floor}
+                        style={[
+                          staffWorkSlotStyles.floorChip,
+                          selected && staffWorkSlotStyles.floorChipSelected,
+                        ]}
+                        onPress={() => setMaintenanceSortFloor(floor)}
+                        activeOpacity={0.85}
+                      >
+                        <Text
+                          style={[
+                            staffWorkSlotStyles.floorChipText,
+                            selected && staffWorkSlotStyles.floorChipTextSelected,
+                          ]}
+                        >
+                          {t("staff_work_slot_detail.maintenance_floor_label", { floor })}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              ) : null}
+
+              {maintenanceAssetsLoading ? (
+                <View style={{ paddingVertical: 16, alignItems: "center" }}>
+                  <ActivityIndicator size="small" color={brandPrimary} />
+                  <Text style={[staffWorkSlotStyles.maintenanceHintText, { marginTop: 8 }]}>
+                    {t("common.loading")}
+                  </Text>
+                </View>
+              ) : maintenanceAssetSection ? (
+                <DropdownBox
+                  sections={[maintenanceAssetSection]}
+                  summary={maintenanceAssetSummary}
+                  onSelect={handleMaintenanceAssetSelect}
+                  itemLayout="list"
+                  searchAutoFocus={false}
+                  resultsMaxHeight={maintenanceDropdownResultsMaxH}
+                  resultsHeightRatio={0.28}
+                  keyboardVerticalOffset={insets.top + 48}
+                />
+              ) : (
+                <View style={staffWorkSlotStyles.maintenanceHintCard}>
+                  <Text style={staffWorkSlotStyles.maintenanceHintText}>
+                    {t("staff_work_slot_detail.maintenance_assets_empty")}
+                  </Text>
+                </View>
               )}
+
+              <Text style={staffWorkSlotStyles.maintenanceDraftTitle}>
+                {t("staff_work_slot_detail.maintenance_draft_title", {
+                  count: Object.keys(maintenanceDrafts).length,
+                })}
+              </Text>
+              <View style={staffWorkSlotStyles.maintenanceDraftList}>
+                {Object.values(maintenanceDrafts).length === 0 ? (
+                  <Text style={staffWorkSlotStyles.maintenanceHintText}>
+                    {t("staff_work_slot_detail.maintenance_draft_empty")}
+                  </Text>
+                ) : (
+                  Object.values(maintenanceDrafts).map((draft) => (
+                    <View key={draft.assetId} style={staffWorkSlotStyles.maintenanceDraftRow}>
+                      <Text style={staffWorkSlotStyles.maintenanceDraftName}>{draft.displayName}</Text>
+                      <Text style={staffWorkSlotStyles.maintenanceDraftMeta}>
+                        {hasFloorAreas && draft.floorNo
+                          ? `${t("staff_work_slot_detail.maintenance_floor_label", { floor: draft.floorNo })} · `
+                          : ""}
+                        {t("staff_work_slot_detail.maintenance_condition_label")} {draft.conditionPercent}%
+                      </Text>
+                    </View>
+                  ))
+                )}
+              </View>
             </ScrollView>
 
             <View style={staffWorkSlotStyles.maintenanceActionsRow}>
@@ -1438,29 +1593,28 @@ export default function WorkSlotDetailScreen() {
                     ))}
                   </ScrollView>
                 )}
-                <View style={staffWorkSlotStyles.maintenanceActionsRow}>
-                  <TouchableOpacity
-                    style={[
-                      staffWorkSlotStyles.maintenanceSecondaryBtn,
-                      (maintenanceEditorLoading ||
-                        editorServerImages.length >= MAX_MAINTENANCE_ASSET_IMAGES) && {
-                        opacity: 0.5,
-                      },
-                    ]}
-                    onPress={handleOpenMaintenanceImageCapture}
-                    activeOpacity={0.85}
-                    disabled={
-                      maintenanceEditorLoading ||
-                      editorImageUploading ||
-                      editorDeletingImageId != null ||
-                      editorServerImages.length >= MAX_MAINTENANCE_ASSET_IMAGES
-                    }
-                  >
-                    <Text style={staffWorkSlotStyles.maintenanceSecondaryBtnText}>
-                      {t("staff_item_create.images_camera")}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  style={[
+                    staffWorkSlotStyles.editAssetCameraBtn,
+                    (maintenanceEditorLoading ||
+                      editorServerImages.length >= MAX_MAINTENANCE_ASSET_IMAGES) && {
+                      opacity: 0.5,
+                    },
+                  ]}
+                  onPress={handleOpenMaintenanceImageCapture}
+                  activeOpacity={0.85}
+                  disabled={
+                    maintenanceEditorLoading ||
+                    editorImageUploading ||
+                    editorDeletingImageId != null ||
+                    editorServerImages.length >= MAX_MAINTENANCE_ASSET_IMAGES
+                  }
+                >
+                  <Icons.camera size={22} color={brandPrimary} />
+                  <Text style={staffWorkSlotStyles.editAssetCameraBtnText}>
+                    {t("staff_item_create.images_camera")}
+                  </Text>
+                </TouchableOpacity>
 
                 <View style={staffWorkSlotStyles.maintenanceActionsRow}>
                   <TouchableOpacity

@@ -1,5 +1,5 @@
 import axios from "axios";
-import { BACKEND_API_BASE } from "../api/config";
+import { DATA_LOAD_TIMEOUT_MS, BACKEND_API_BASE } from "../api/config";
 import type { ApiResponse, UserProfileResponse } from "../types/api";
 
 export type GetUserProfileOptions = {
@@ -18,6 +18,7 @@ export async function getUserProfileWithAccessToken(
   const url = `${base}/users/me`;
   try {
     const response = await axios.get<ApiResponse<UserProfileResponse>>(url, {
+      timeout: DATA_LOAD_TIMEOUT_MS,
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",

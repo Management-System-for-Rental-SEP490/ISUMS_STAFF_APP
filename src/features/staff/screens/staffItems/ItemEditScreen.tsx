@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -55,9 +56,8 @@ import {
   type AssetItemImageFromApi,
   type AssetItemImageToUpload,
 } from "../../../../shared/services/assetItemApi";
-import { getHouseById } from "../../../../shared/services/houseApi";
 import { itemScreenStyles } from "./itemScreenStyles";
-import { brandPrimary } from "../../../../shared/theme/color";
+import { brandPrimary, neutral } from "../../../../shared/theme/color";
 import { ImageCaptureModal } from "../../../modal/imageCapture/ImageCaptureModal";
 import {
   DropdownBox,
@@ -161,6 +161,8 @@ export default function ItemEditScreen() {
   const [serialNumber, setSerialNumber] = useState(latestItem.serialNumber);
   const [nfcId, setNfcId] = useState(latestItem.nfcTag ?? "");
   const [qrId, setQrId] = useState(latestItem.qrTag ?? "");
+  /** Tab NFC / QR trong form — cùng kiểu segment như màn Camera. */
+  const [tagEditMode, setTagEditMode] = useState<"nfc" | "qr">("nfc");
   const [conditionPercent, setConditionPercent] = useState(String(latestItem.conditionPercent));
   const [note, setNote] = useState(latestItem.note ?? "");
   const [status, setStatus] = useState<string>(
@@ -179,6 +181,12 @@ export default function ItemEditScreen() {
   useEffect(() => {
     functionAreaUserTouchedRef.current = false;
   }, [item.id]);
+
+  useEffect(() => {
+    const n = (latestItem.nfcTag ?? "").trim();
+    const q = (latestItem.qrTag ?? "").trim();
+    setTagEditMode(!n && q ? "qr" : "nfc");
+  }, [latestItem.id, latestItem.nfcTag, latestItem.qrTag]);
 
   useEffect(() => {
     setHouseId(latestItem.houseId);
@@ -252,10 +260,16 @@ export default function ItemEditScreen() {
     return {
       id: "house",
       title: t("dropdown_box.section_house"),
-      items: houses.map((h: HouseFromApi) => ({
-        id: h.id,
-        label: [h.name, h.address].filter(Boolean).join(" · "),
-      })),
+      itemLayout: "card",
+      items: houses.map((h: HouseFromApi) => {
+        const addr = (h.address ?? "").trim();
+        return {
+          id: h.id,
+          label: h.name,
+          detail: [h.name, addr].filter(Boolean).join(" · "),
+          cardMeta: addr || undefined,
+        };
+      }),
       selectedId: houseId,
       showAllOption: false,
     };
@@ -265,7 +279,11 @@ export default function ItemEditScreen() {
     return {
       id: "status",
       title: t("dropdown_box.section_status"),
-      items: STATUS_OPTIONS.map((s) => ({ id: s, label: statusLabel(s) })),
+      itemLayout: "card",
+      items: STATUS_OPTIONS.map((s) => {
+        const label = statusLabel(s);
+        return { id: s, label, detail: label };
+      }),
       selectedId: status,
       showAllOption: false,
     };
@@ -307,6 +325,7 @@ export default function ItemEditScreen() {
       showAllOption: true,
       allLabel: t("staff_item_create.function_area_none"),
       allOptionAsCaption: true,
+      allOptionCaptionMutedWhenSelected: true,
     };
   }, [functionalAreas, functionAreaId, formatAreaDropdownLabel, t]);
 
@@ -457,61 +476,13 @@ export default function ItemEditScreen() {
       const areaMismatch =
         sentFaNorm !== "" && (backFaNorm === "" || backFaNorm !== sentFaNorm);
 
-      const navigateToHouseDetail = async (houseIdForNav: string) => {
-        const hid = String(houseIdForNav ?? "").trim();
-        if (!hid) {
-          navigation.goBack();
-          return;
-        }
-        try {
-          const res = await getHouseById(hid);
-          const house = res?.data;
-          if (!house || res?.success === false) {
-            navigation.goBack();
-            return;
-          }
-          const statusStr =
-            house.status !== undefined && house.status !== null
-              ? String(house.status)
-              : undefined;
-          const buildingParams = {
-            buildingId: house.id,
-            buildingName: house.name,
-            buildingAddress: house.address,
-            description: house.description,
-            ward: house.ward,
-            commune: house.commune,
-            city: house.city,
-            status: statusStr,
-            functionalAreas: house.functionalAreas ?? [],
-          };
-          const hasBuildingInStack = navigation
-            .getState()
-            .routes.some((r) => r.name === "BuildingDetail");
-          if (hasBuildingInStack) {
-            navigation.navigate("BuildingDetail", buildingParams);
-          } else {
-            navigation.replace("BuildingDetail", buildingParams);
-          }
-        } catch {
-          navigation.goBack();
-        }
-      };
-
       const finish = async () => {
         await queryClient.refetchQueries({ queryKey: ASSET_ITEM_KEYS.base });
         const refreshedItem = await getAssetItemById(item.id);
         if (refreshedItem) {
           setLatestItem(refreshedItem);
         }
-        if (fromMaintenanceUpdate) {
-          navigation.goBack();
-          return;
-        }
-        const houseIdForNav =
-          (refreshedItem?.houseId && String(refreshedItem.houseId).trim()) ||
-          payload.houseId.trim();
-        await navigateToHouseDetail(houseIdForNav);
+        navigation.goBack();
       };
 
       if (suspiciousBackend || areaMismatch) {
@@ -797,6 +768,8 @@ export default function ItemEditScreen() {
                 style={{ marginBottom: 4 }}
                 keyboardVerticalOffset={insets.top + 52}
                 onSearchInputFocus={scrollItemEditTop}
+                itemLayout="card"
+                searchAutoFocus={false}
               />
             ) : null}
 
@@ -805,13 +778,13 @@ export default function ItemEditScreen() {
               <DropdownBox
                 sections={[functionalAreaDropdownSection]}
                 summary={functionalAreaDropdownSummary}
+                summaryMuted={!functionAreaId}
                 onSelect={onItemEditDropdownSelect}
                 style={{ marginBottom: 4 }}
                 keyboardVerticalOffset={insets.top + 52}
                 onSearchInputFocus={scrollItemEditTop}
                 itemLayout="card"
                 searchAutoFocus={false}
-                keyboardAvoiding={false}
               />
             </View>
 
@@ -849,104 +822,149 @@ export default function ItemEditScreen() {
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
-              <Text style={itemScreenStyles.label}>{t("device_detail.nfc_tag_id")}</Text>
-              <TextInput
-                style={[
-                  itemScreenStyles.input,
-                  { backgroundColor: "#F9FAFB", color: "#6B7280" }
-                ]}
-                value={nfcId || ""}
-                placeholder={t("staff_item_create.nfc_id_placeholder")}
-                placeholderTextColor="#9CA3AF"
-                editable={false}
-              />
-              {/* NFC Actions - ngay dưới NFC tag ID */}
-              {!nfcId.trim() ? (
-                <TouchableOpacity
+              <View style={itemScreenStyles.tagSegmentTrack}>
+                <Pressable
                   style={[
-                    itemScreenStyles.detachNfcBtn,
-                    { backgroundColor: brandPrimary, borderColor: brandPrimary }
+                    itemScreenStyles.tagSegmentTab,
+                    tagEditMode === "nfc" ? itemScreenStyles.tagSegmentTabNfcActive : null,
                   ]}
-                  onPress={() => navigation.navigate("Camera", {
-                    assignForDevice: latestItem,
-                    mode: "assign",
-                    initialScanMode: "nfc",
-                  })}
-                  activeOpacity={0.8}
+                  onPress={() => setTagEditMode("nfc")}
+                  disabled={isPending}
                 >
-                  <Text style={[itemScreenStyles.detachNfcBtnText, { color: "#fff" }]}>
-                    {t("staff_home.add_menu_assign_nfc")}
+                  <Icons.nfc
+                    size={18}
+                    color={tagEditMode === "nfc" ? neutral.surface : neutral.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      itemScreenStyles.tagSegmentTabText,
+                      tagEditMode === "nfc" ? itemScreenStyles.tagSegmentTabTextActive : null,
+                    ]}
+                  >
+                    {t("staff_item_edit.tag_segment_nfc")}
                   </Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
+                </Pressable>
+                <Pressable
                   style={[
-                    itemScreenStyles.detachNfcBtn,
-                    detachNfcMutation.isPending && itemScreenStyles.detachNfcBtnDisabled,
+                    itemScreenStyles.tagSegmentTab,
+                    tagEditMode === "qr" ? itemScreenStyles.tagSegmentTabQrActive : null,
                   ]}
-                  onPress={handleDetachNfc}
-                  disabled={detachNfcMutation.isPending}
-                  activeOpacity={0.8}
+                  onPress={() => setTagEditMode("qr")}
+                  disabled={isPending}
                 >
-                  {detachNfcMutation.isPending ? (
-                    <ActivityIndicator size="small" color="#111827" />
-                  ) : (
-                    <Text style={itemScreenStyles.detachNfcBtnText}>
-                      {t("staff_item_edit.remove_nfc_btn")}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
+                  <Icons.scanLookup
+                    size={18}
+                    color={tagEditMode === "qr" ? neutral.surface : neutral.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      itemScreenStyles.tagSegmentTabText,
+                      tagEditMode === "qr" ? itemScreenStyles.tagSegmentTabTextActive : null,
+                    ]}
+                  >
+                    {t("staff_item_edit.tag_segment_qr")}
+                  </Text>
+                </Pressable>
+              </View>
 
-            <View style={itemScreenStyles.fieldSpacer}>
-              <Text style={itemScreenStyles.label}>{t("device_detail.qr_code_id")}</Text>
-              <TextInput
-                style={[
-                  itemScreenStyles.input,
-                  { backgroundColor: "#F9FAFB", color: "#6B7280" }
-                ]}
-                value={qrId || ""}
-                placeholder={t("staff_item_create.nfc_id_placeholder")}
-                placeholderTextColor="#9CA3AF"
-                editable={false}
-              />
-              {/* QR Actions - ngay dưới QR code ID */}
-              {!qrId.trim() ? (
-                <TouchableOpacity
-                  style={[
-                    itemScreenStyles.detachNfcBtn,
-                    { backgroundColor: brandPrimary, borderColor: brandPrimary }
-                  ]}
-                  onPress={() => navigation.navigate("Camera", {
-                    assignForDevice: latestItem,
-                    mode: "assign",
-                    initialScanMode: "qr",
-                  })}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[itemScreenStyles.detachNfcBtnText, { color: "#fff" }]}>
-                    {t("staff_home.add_menu_assign_qr")}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[
-                    itemScreenStyles.detachNfcBtn,
-                    detachNfcMutation.isPending && itemScreenStyles.detachNfcBtnDisabled,
-                  ]}
-                  onPress={handleDetachQr}
-                  disabled={detachNfcMutation.isPending}
-                  activeOpacity={0.8}
-                >
-                  {detachNfcMutation.isPending ? (
-                    <ActivityIndicator size="small" color="#111827" />
+              {tagEditMode === "nfc" ? (
+                <>
+                  <Text style={itemScreenStyles.label}>{t("device_detail.nfc_tag_id")}</Text>
+                  <TextInput
+                    style={[itemScreenStyles.input, itemScreenStyles.inputReadonlyDim]}
+                    value={nfcId || ""}
+                    placeholder={t("staff_item_create.nfc_id_placeholder")}
+                    placeholderTextColor={neutral.textMuted}
+                    editable={false}
+                  />
+                  {!nfcId.trim() ? (
+                    <TouchableOpacity
+                      style={[
+                        itemScreenStyles.detachNfcBtn,
+                        { backgroundColor: brandPrimary, borderColor: brandPrimary },
+                      ]}
+                      onPress={() =>
+                        navigation.navigate("Camera", {
+                          assignForDevice: latestItem,
+                          mode: "assign",
+                          initialScanMode: "nfc",
+                        })
+                      }
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[itemScreenStyles.detachNfcBtnText, { color: neutral.surface }]}>
+                        {t("staff_home.add_menu_assign_nfc")}
+                      </Text>
+                    </TouchableOpacity>
                   ) : (
-                    <Text style={itemScreenStyles.detachNfcBtnText}>
-                      {t("staff_item_edit.remove_qr_btn")}
-                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        itemScreenStyles.detachNfcBtn,
+                        detachNfcMutation.isPending && itemScreenStyles.detachNfcBtnDisabled,
+                      ]}
+                      onPress={handleDetachNfc}
+                      disabled={detachNfcMutation.isPending}
+                      activeOpacity={0.8}
+                    >
+                      {detachNfcMutation.isPending ? (
+                        <ActivityIndicator size="small" color={neutral.text} />
+                      ) : (
+                        <Text style={itemScreenStyles.detachNfcBtnText}>
+                          {t("staff_item_edit.remove_nfc_btn")}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
                   )}
-                </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={itemScreenStyles.label}>{t("device_detail.qr_code_id")}</Text>
+                  <TextInput
+                    style={[itemScreenStyles.input, itemScreenStyles.inputReadonlyDim]}
+                    value={qrId || ""}
+                    placeholder={t("staff_item_create.nfc_id_placeholder")}
+                    placeholderTextColor={neutral.textMuted}
+                    editable={false}
+                  />
+                  {!qrId.trim() ? (
+                    <TouchableOpacity
+                      style={[
+                        itemScreenStyles.detachNfcBtn,
+                        { backgroundColor: brandPrimary, borderColor: brandPrimary },
+                      ]}
+                      onPress={() =>
+                        navigation.navigate("Camera", {
+                          assignForDevice: latestItem,
+                          mode: "assign",
+                          initialScanMode: "qr",
+                        })
+                      }
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[itemScreenStyles.detachNfcBtnText, { color: neutral.surface }]}>
+                        {t("staff_home.add_menu_assign_qr")}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[
+                        itemScreenStyles.detachNfcBtn,
+                        detachNfcMutation.isPending && itemScreenStyles.detachNfcBtnDisabled,
+                      ]}
+                      onPress={handleDetachQr}
+                      disabled={detachNfcMutation.isPending}
+                      activeOpacity={0.8}
+                    >
+                      {detachNfcMutation.isPending ? (
+                        <ActivityIndicator size="small" color={neutral.text} />
+                      ) : (
+                        <Text style={itemScreenStyles.detachNfcBtnText}>
+                          {t("staff_item_edit.remove_qr_btn")}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
             </View>
 
@@ -973,6 +991,7 @@ export default function ItemEditScreen() {
                 style={{ marginBottom: 4 }}
                 keyboardVerticalOffset={insets.top + 52}
                 onSearchInputFocus={scrollItemEditEnd}
+                itemLayout="card"
               />
             </View>
 

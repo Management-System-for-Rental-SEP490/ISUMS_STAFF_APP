@@ -8,3 +8,4 @@ export * from "./useAssetItems";
 export * from "./useStaffLeave";
 export * from "./useHouses";
 export * from "./useIoT";
+export * from "./useRefreshControlGate";

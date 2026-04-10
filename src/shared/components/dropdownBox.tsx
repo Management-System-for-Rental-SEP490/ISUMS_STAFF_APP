@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
 import { useTranslation } from "react-i18next";
 import Icons from "../theme/icon";
 import { brandBlueMutedBorder, brandPrimary, brandTintBg, neutral } from "../theme/color";
+import { staffFormShape } from "../styles/staffFormShape";
 import { appTypography } from "../utils";
 
 export type DropdownBoxItem = {
@@ -53,10 +54,21 @@ export type DropdownBoxSection = {
   showAllOption?: boolean;
   allLabel?: string;
   /**
-   * Chỉ với `itemLayout: "card"`: hàng `allLabel` (vd. «Chưa gán khu vực») hiển thị **sau** danh sách,
-   * một dòng chú thích có thể chạm, thay vì thẻ lớn.
+   * Chỉ với `itemLayout: "card"`: hàng `allLabel` (vd. «Chưa có khu vực») hiển thị **sau** danh sách,
+   * một dòng chú thích có thể chạm, thay vì thẻ lớn. Chỉ hiện khi `selectedId === null` (đã chọn giá trị thì ẩn).
    */
   allOptionAsCaption?: boolean;
+  /**
+   * Với `allOptionAsCaption`: khi chọn hàng “chưa chọn” (`selectedId === null`), vẫn giữ chữ xám
+   * (không tô màu brand như mục đang chọn).
+   */
+  allOptionCaptionMutedWhenSelected?: boolean;
+  /**
+   * Vẫn render section khi không còn mục sau lọc (vd. danh sách thiết bị rỗng).
+   * Hiển thị `emptyHint` hoặc `dropdown_box.no_results`.
+   */
+  keepEmpty?: boolean;
+  emptyHint?: string;
 };
 
 export type DropdownBoxProps = {
@@ -85,19 +97,29 @@ export type DropdownBoxProps = {
    * Dùng để `scrollToOffset` / `scrollTo` trên FlatList/ScrollView cha — tránh bàn phím che.
    */
   onSearchInputFocus?: () => void;
+  /** Gọi khi ô tìm mất focus (để parent biết khi nào không cần cuộn theo bàn phím). */
+  onSearchBlur?: () => void;
+  /** Ref gắn vào ô tìm — parent có thể `measureInWindow` để cuộn giống màn ticket. */
+  searchInputRef?: RefObject<TextInput | null>;
   /** `list` | `card` | `chips` (mặc định). */
   itemLayout?: "chips" | "list" | "card";
   /** Viền/trục nhấn cho trigger + panel (vd. picker căn nhà Staff Home). */
   triggerAccent?: boolean;
+  /** Dòng `summary` trên nút mở dùng màu phụ (vd. placeholder “chưa có”). */
+  summaryMuted?: boolean;
   /** Tuỳ chỉnh placeholder ô tìm (mặc định `dropdown_box.search_placeholder`). */
   searchPlaceholder?: string;
   /**
-   * `false` = mở panel không gọi bàn phím; chỉ khi user chạm ô tìm mới focus (vd. danh sách căn nhà Staff Home).
-   * Mặc định `true`.
+   * `true` = mở panel là auto-focus ô tìm (bàn phím có thể hiện). Mặc định `false` — chỉ focus khi user chạm ô tìm.
    */
   searchAutoFocus?: boolean;
   /** Mở sẵn panel ngay khi component mount. Mặc định `false`. */
   defaultExpanded?: boolean;
+  /**
+   * Mỗi khi giá trị thay đổi (vd. tăng counter trong `useFocusEffect`), panel được mở.
+   * Hữu ích khi tab navigator giữ màn hình mounted — `defaultExpanded` chỉ áp dụng lúc mount lần đầu.
+   */
+  expandSignal?: number;
   /**
    * `false` = không bọc panel trong KeyboardAvoidingView (tránh giật layout khi mở dropdown không cần bàn phím).
    * Mặc định `true`.
@@ -111,6 +133,12 @@ export type DropdownBoxProps = {
   resultsMaxHeight?: number;
   /** Tỷ lệ theo chiều cao cửa sổ cho vùng cuộn (`min(max, windowH * ratio)`). Mặc định 0.52. */
   resultsHeightRatio?: number;
+  /** Khi panel mở/đóng. */
+  onExpandedChange?: (expanded: boolean) => void;
+  /**
+   * Các `section.id` không lọc theo ô tìm (vd. chip danh mục luôn hiện đủ, chỉ lọc section thiết bị).
+   */
+  sectionsExcludedFromSearch?: string[];
 };
 
 type SectionBlock = {
@@ -175,19 +203,25 @@ function sortFilteredItems(items: DropdownBoxItem[], q: string): DropdownBoxItem
 function buildSectionBlocks(
   sections: DropdownBoxSection[],
   query: string,
-  defaultAllLabel: string
+  defaultAllLabel: string,
+  sectionsExcludedFromSearch?: string[]
 ): SectionBlock[] {
   const q = norm(query);
   const blocks: SectionBlock[] = [];
   for (const sec of sections) {
+    const excluded = sectionsExcludedFromSearch?.includes(sec.id) ?? false;
     const allLabel = sec.allLabel ?? defaultAllLabel;
     const showAll = sec.showAllOption !== false;
-    const allVisible = showAll && (!q || norm(allLabel).includes(q));
-    const filteredItems = sortFilteredItems(
-      sec.items.filter((it) => itemMatches(it, q)),
-      q
-    );
-    if (!allVisible && filteredItems.length === 0) continue;
+    const allVisible = excluded
+      ? showAll
+      : showAll && (!q || norm(allLabel).includes(q));
+    const filteredItems = excluded
+      ? sortFilteredItems(sec.items, "")
+      : sortFilteredItems(
+          sec.items.filter((it) => itemMatches(it, q)),
+          q
+        );
+    if (!allVisible && filteredItems.length === 0 && !sec.keepEmpty) continue;
     blocks.push({ sec, allVisible, allLabel, filteredItems });
   }
   return blocks;
@@ -196,7 +230,8 @@ function buildSectionBlocks(
 /**
  * Gom nhiều bộ lọc (tầng, danh mục, …): nhấn mở ngay tại chỗ — thanh tìm kiếm + chip theo thứ tự BE.
  */
-const MULTI_TAP_DOUBLE_MS = 280;
+/** Hai lần chạm cùng mục trong cửa sổ này → bỏ chọn (multi-select list). */
+const MULTI_TAP_DOUBLE_MS = 380;
 
 export function DropdownBox({
   sections,
@@ -208,15 +243,21 @@ export function DropdownBox({
   onSearchChange,
   keyboardVerticalOffset = 0,
   onSearchInputFocus,
+  onSearchBlur,
+  searchInputRef,
   itemLayout = "chips",
   triggerAccent = false,
+  summaryMuted = false,
   searchPlaceholder,
-  searchAutoFocus = true,
+  searchAutoFocus = false,
   defaultExpanded = false,
+  expandSignal,
   keyboardAvoiding = true,
   stayExpandedOnSelectForSections,
   resultsMaxHeight = 420,
   resultsHeightRatio = 0.52,
+  onExpandedChange,
+  sectionsExcludedFromSearch,
 }: DropdownBoxProps) {
   const { t } = useTranslation();
   const { height: windowH } = useWindowDimensions();
@@ -227,6 +268,14 @@ export function DropdownBox({
   const prevExpandedRef = useRef(false);
   const multiTapRef = useRef<{ sectionId: string; itemId: string; time: number } | null>(null);
   const multiTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const expandSignalRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (expandSignal === undefined) return;
+    if (expandSignalRef.current === expandSignal) return;
+    expandSignalRef.current = expandSignal;
+    setExpanded(true);
+  }, [expandSignal]);
 
   useEffect(() => {
     if (expanded) {
@@ -234,6 +283,10 @@ export function DropdownBox({
       onSearchChange?.("");
     }
   }, [expanded]);
+
+  useEffect(() => {
+    onExpandedChange?.(expanded);
+  }, [expanded, onExpandedChange]);
 
   useEffect(() => {
     return () => {
@@ -263,14 +316,16 @@ export function DropdownBox({
 
   const defaultAllLabel = t("staff_home.all_devices_category_all");
   const sectionBlocks = useMemo(
-    () => buildSectionBlocks(sections, search, defaultAllLabel),
-    [sections, search, defaultAllLabel]
+    () => buildSectionBlocks(sections, search, defaultAllLabel, sectionsExcludedFromSearch),
+    [sections, search, defaultAllLabel, sectionsExcludedFromSearch]
   );
 
   const resultsViewportHeight = Math.min(
     resultsMaxHeight,
     Math.round(windowH * resultsHeightRatio)
   );
+  /** Cố định chiều cao vùng cuộn khi lọc (có/không kết quả) — tránh nhảy layout. */
+  const listScrollMaxHeight = resultsViewportHeight;
 
   const handleMultiListItemPress = useCallback((sectionId: string, itemId: string) => {
     const now = Date.now();
@@ -323,7 +378,9 @@ export function DropdownBox({
       onSelect(sectionId, itemId);
       const stay =
         stayExpandedOnSelectForSections?.includes(sectionId) === true;
-      if (!stay) setExpanded(false);
+      if (!stay) {
+        setExpanded(false);
+      }
       onAfterSelect?.(sectionId, itemId);
     },
     [onSelect, onAfterSelect, stayExpandedOnSelectForSections]
@@ -337,12 +394,17 @@ export function DropdownBox({
     <View style={style}>
       {!expanded ? (
         <Pressable
-          onPress={() => setExpanded(true)}
+          onPress={() => {
+            setExpanded(true);
+          }}
           style={[styles.trigger, triggerAccent && styles.triggerAccent]}
           accessibilityRole="button"
           accessibilityLabel={`${t("dropdown_box.open_a11y")}: ${summary}`}
         >
-          <Text style={styles.triggerText} numberOfLines={2}>
+          <Text
+            style={[styles.triggerText, summaryMuted && styles.triggerTextMuted]}
+            numberOfLines={2}
+          >
             {summary}
           </Text>
           <Icons.chevronDown size={22} color={neutral.textSecondary} />
@@ -354,6 +416,7 @@ export function DropdownBox({
               <View style={styles.searchRow}>
                 <Icons.search size={20} color={neutral.iconMuted} />
                 <TextInput
+                  ref={searchInputRef}
                   value={search}
                   onChangeText={(text) => {
                     setSearch(text);
@@ -369,6 +432,7 @@ export function DropdownBox({
                   clearButtonMode="while-editing"
                   onPressIn={notifyParentScrollForSearch}
                   onFocus={notifyParentScrollForSearch}
+                  onBlur={onSearchBlur}
                 />
                 <Pressable
                   onPress={collapse}
@@ -376,15 +440,15 @@ export function DropdownBox({
                   accessibilityRole="button"
                   accessibilityLabel={t("common.close")}
                 >
-                  <View style={styles.chevronUpWrap}>
-                    <Icons.chevronDown size={22} color={neutral.textSecondary} />
-                  </View>
+                  <Icons.expandLess size={24} color={neutral.textSecondary} />
                 </Pressable>
               </View>
 
               <ScrollView
-                style={[styles.chipsScroll, { height: resultsViewportHeight }]}
-                contentContainerStyle={sectionBlocks.length === 0 ? styles.listScrollContentEmpty : undefined}
+                style={[styles.chipsScroll, { maxHeight: listScrollMaxHeight }]}
+                contentContainerStyle={
+                  sectionBlocks.length === 0 ? styles.listScrollContentEmpty : styles.scrollContentNatural
+                }
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
                 nestedScrollEnabled
@@ -482,7 +546,11 @@ export function DropdownBox({
                                     {it.label}
                                   </Text>
                                   {it.detail ? (
-                                    <Text style={styles.listRowDetail} numberOfLines={2}>
+                                    <Text
+                                      style={styles.listRowDetail}
+                                      numberOfLines={2}
+                                      ellipsizeMode="tail"
+                                    >
                                       {it.detail}
                                     </Text>
                                   ) : null}
@@ -563,17 +631,27 @@ export function DropdownBox({
                               </Pressable>
                             );
                           })}
-                          {block.sec.allOptionAsCaption && block.allVisible ? (
+                          {block.filteredItems.length === 0 && block.sec.keepEmpty ? (
+                            <View style={styles.sectionEmptyHint}>
+                              <Text style={styles.emptyText}>
+                                {block.sec.emptyHint ?? t("dropdown_box.no_results")}
+                              </Text>
+                            </View>
+                          ) : null}
+                          {block.sec.allOptionAsCaption &&
+                          block.allVisible &&
+                          block.sec.selectedId === null ? (
                             <Pressable
                               onPress={() => handleSelect(block.sec.id, null)}
                               style={styles.allOptionCaptionPressable}
                               accessibilityRole="button"
-                              accessibilityState={{ selected: block.sec.selectedId === null }}
+                              accessibilityState={{ selected: true }}
                             >
                               <Text
                                 style={[
                                   styles.allOptionCaptionText,
-                                  block.sec.selectedId === null && styles.allOptionCaptionTextSelected,
+                                  !block.sec.allOptionCaptionMutedWhenSelected &&
+                                    styles.allOptionCaptionTextSelected,
                                 ]}
                                 numberOfLines={2}
                               >
@@ -641,7 +719,7 @@ export function DropdownBox({
           if (keyboardAvoiding) {
             return (
               <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                behavior="padding"
                 keyboardVerticalOffset={keyboardVerticalOffset}
                 style={styles.avoidingWrap}
               >
@@ -664,7 +742,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    borderRadius: 12,
+    borderRadius: staffFormShape.radiusControl,
     borderWidth: 1,
     borderColor: neutral.border,
     backgroundColor: neutral.surface,
@@ -673,6 +751,9 @@ const styles = StyleSheet.create({
     ...appTypography.labelRowValue,
     flex: 1,
     color: neutral.text,
+  },
+  triggerTextMuted: {
+    color: neutral.textSecondary,
   },
   triggerAccent: {
     borderWidth: 1,
@@ -683,6 +764,8 @@ const styles = StyleSheet.create({
   panelAccent: {
     borderWidth: 1,
     borderColor: brandBlueMutedBorder,
+    borderLeftWidth: 4,
+    borderLeftColor: brandPrimary,
   },
   avoidingWrap: {
     alignSelf: "stretch",
@@ -692,7 +775,7 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   panel: {
-    borderRadius: 12,
+    borderRadius: staffFormShape.radiusControl,
     borderWidth: 1,
     borderColor: neutral.border,
     backgroundColor: neutral.surface,
@@ -708,9 +791,6 @@ const styles = StyleSheet.create({
     borderBottomColor: neutral.border,
     backgroundColor: neutral.background,
   },
-  chevronUpWrap: {
-    transform: [{ rotate: "180deg" }],
-  },
   searchInput: {
     ...appTypography.body,
     flex: 1,
@@ -720,6 +800,10 @@ const styles = StyleSheet.create({
     minHeight: 22,
   },
   chipsScroll: {},
+  /** Nội dung chỉ cao đến mức cần; cùng `maxHeight` trên ScrollView → panel vừa khi ít mục. */
+  scrollContentNatural: {
+    flexGrow: 0,
+  },
   /** Căn “Không có kết quả” giữa vùng list cố định chiều cao. */
   listScrollContentEmpty: {
     flexGrow: 1,
@@ -774,6 +858,10 @@ const styles = StyleSheet.create({
     ...appTypography.secondary,
     color: neutral.textSecondary,
     textAlign: "center",
+  },
+  sectionEmptyHint: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
   listRow: {
     flexDirection: "row",
@@ -830,7 +918,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingVertical: 14,
     paddingHorizontal: 14,
-    borderRadius: 12,
+    borderRadius: staffFormShape.radiusControl,
     backgroundColor: neutral.surface,
     borderWidth: 1,
     borderColor: neutral.border,
@@ -841,8 +929,13 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   deviceCardSelected: {
-    backgroundColor: brandTintBg,
+    backgroundColor: "rgba(55, 181, 132, 0.12)",
     borderColor: brandPrimary,
+    borderWidth: 1,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
   },
   deviceCardCategory: {
     ...appTypography.captionStrong,

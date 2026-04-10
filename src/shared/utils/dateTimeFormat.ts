@@ -8,6 +8,18 @@ export function formatDdMmYyyy(d: Date): string {
   return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
 }
 
+/**
+ * Chuỗi bắt đầu bằng YYYY-MM-DD (vd. periodStartDate từ BE) → dd/mm/yyyy.
+ * Không parse qua `Date` để tránh lệch ngày theo múi giờ.
+ */
+export function formatYmdStringToDdMmYyyy(raw: string): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (!m) return s;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
 export function formatDateRangeDdMmYyyy(start: Date, end: Date): string {
   return `${formatDdMmYyyy(start)} - ${formatDdMmYyyy(end)}`;
 }

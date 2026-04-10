@@ -77,6 +77,10 @@ const Icons = {
   ticket: ({ size = 24, color = 'black' }: IconProps = {}) => (
     <FontAwesome5 name="ticket-alt" size={size} color={color} />
   ),
+  /** Danh sách thiết bị / tab Devices */
+  devices: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="devices-other" size={size} color={color} />
+  ),
   /** Icon dấu cộng (thêm danh mục / thêm thiết bị). */
   plus: ({ size = 24, color = 'black' }: IconProps = {}) => (
     <AntDesign name="plus" size={size} color={color} />
@@ -125,6 +129,26 @@ const Icons = {
   /** Work Slot Detail: sự kiện, ngày (event). */
   event: ({ size = 24, color = 'black' }: IconProps = {}) => (
     <MaterialIcons name="event" size={size} color={color} />
+  ),
+  /** Section header — thông tin (đồng bộ UI tenant ticket detail). */
+  infoOutline: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="info-outline" size={size} color={color} />
+  ),
+  /** Section header — mô tả / nội dung. */
+  subject: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="subject" size={size} color={color} />
+  ),
+  /** Section header — ảnh đính kèm. */
+  photoLibrary: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="photo-library" size={size} color={color} />
+  ),
+  /** Chụp ảnh / máy ảnh */
+  camera: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="photo-camera" size={size} color={color} />
+  ),
+  /** Thu gọn panel (ô tìm trong dropdown) */
+  expandLess: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="expand-less" size={size} color={color} />
   ),
 };
 

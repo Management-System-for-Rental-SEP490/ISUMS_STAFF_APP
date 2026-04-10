@@ -1,61 +1,84 @@
 import { StyleSheet } from "react-native";
-import { brandPrimary } from "../../../../shared/theme/color";
+import { BRAND_DANGER, brandPrimary, neutral } from "../../../../shared/theme/color";
 import { appTypography } from "../../../../shared/utils";
 
 /**
- * Styles cho màn hình Chi tiết Ticket của Staff.
- * Hiển thị thông tin ticket, trạng thái; nút "Nhận ticket" khi status = pending.
+ * Styles màn chi tiết ticket Staff — căn chỉnh card/đổ bóng với app người thuê (tenant ticket detail).
  */
 export const staffTicketDetailStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: neutral.canvasMuted,
   },
   scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
     paddingBottom: 100,
+    gap: 16,
   },
-  topBar: {
+
+  /** Thẻ section: header icon + nhãn uppercase (đồng bộ tenant). */
+  detailCard: {
+    backgroundColor: neutral.surface,
+    borderRadius: 20,
+    padding: 18,
+    shadowColor: neutral.slate900,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+    borderCurve: "continuous",
+  },
+  detailCardHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 12, // Khoảng cách giữa title và content
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    gap: 10,
+    marginBottom: 8,
   },
-  backBtn: {
-    padding: 8,
+  detailCardHeaderLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.9,
+    color: neutral.textMuted,
+    textTransform: "uppercase",
+    flex: 1,
   },
-  card: {
-    backgroundColor: "#fff",
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 }, // Độ lệch của bóng
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+
+  heroCard: {
+    backgroundColor: neutral.surface,
+    borderRadius: 20,
+    padding: 18,
+    shadowColor: neutral.slate900,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+    borderCurve: "continuous",
   },
-  cardLabel: {
-    ...appTypography.caption,
-    fontWeight: "600",
-    color: "#6B7280",
-    marginBottom: 4,
+  heroTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: neutral.text,
+    lineHeight: 26,
+    marginBottom: 12,
   },
-  cardValue: {
-    ...appTypography.listTitle,
-    fontWeight: "500",
-    color: "#1F2937",
+  badgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
   },
-  row: {
-    marginBottom: 14,
+  typePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: neutral.sectionTintMint,
   },
-  rowLast: {
-    marginBottom: 0,
+  typePillText: {
+    ...appTypography.secondary,
+    fontWeight: "700",
+    color: brandPrimary,
   },
   statusBadge: {
     alignSelf: "flex-start",
@@ -67,55 +90,113 @@ export const staffTicketDetailStyles = StyleSheet.create({
     ...appTypography.secondary,
     fontWeight: "600",
   },
-  priorityBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+  heroDateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
+  heroDateText: {
+    fontSize: 13,
+    color: neutral.textMuted,
+  },
+
+  detailFieldRow: {
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth * 2,
+    borderBottomColor: neutral.borderMuted,
+  },
+  detailFieldRowLast: {
+    borderBottomWidth: 0,
+    paddingBottom: 4,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: neutral.textMuted,
+    marginBottom: 4,
+  },
+  fieldValue: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: neutral.text,
+    lineHeight: 22,
+  },
+  fieldValueMuted: {
+    fontSize: 14,
+    fontWeight: "400",
+    color: neutral.textSecondary,
+    fontStyle: "italic",
+  },
+  descriptionBody: {
+    fontSize: 15,
+    lineHeight: 24,
+    color: neutral.text,
+    paddingTop: 4,
+    paddingBottom: 4,
+  },
+  assetLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
   acceptBtn: {
-    marginHorizontal: 16,
-    marginTop: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
+    marginHorizontal: 0,
+    marginTop: 8,
+    paddingVertical: 16,
+    borderRadius: 16,
     backgroundColor: brandPrimary,
     alignItems: "center",
+    justifyContent: "center",
+    shadowColor: brandPrimary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 4,
+    elevation: 5,
   },
   acceptBtnText: {
-    ...appTypography.sectionHeading,
-    fontWeight: "600",
-    color: "#fff",
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "800",
+    color: neutral.surface,
   },
+
   placeholderModalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    backgroundColor: neutral.modalBackdrop,
     justifyContent: "center",
     paddingHorizontal: 20,
   },
   placeholderModalCard: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    padding: 16,
+    position: "relative",
+    overflow: "hidden",
+    backgroundColor: neutral.surface,
+    borderRadius: 20,
+    padding: 18,
     gap: 12,
     maxHeight: "80%",
+    shadowColor: neutral.slate900,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 8,
+    borderCurve: "continuous",
   },
   placeholderModalTitle: {
     ...appTypography.sectionHeading,
     fontWeight: "700",
-    color: "#1F2937",
+    color: neutral.heading,
   },
   placeholderModalBody: {
     ...appTypography.body,
     fontWeight: "400",
-    color: "#64748b",
+    color: neutral.slate500,
   },
   placeholderModalCloseBtn: {
     backgroundColor: brandPrimary,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     minWidth: 110,
     alignItems: "center",
   },
@@ -124,8 +205,8 @@ export const staffTicketDetailStyles = StyleSheet.create({
   },
   placeholderModalCloseText: {
     ...appTypography.secondary,
-    fontWeight: "600",
-    color: "#fff",
+    fontWeight: "700",
+    color: neutral.surface,
   },
   placeholderModalActions: {
     flexDirection: "row",
@@ -135,18 +216,31 @@ export const staffTicketDetailStyles = StyleSheet.create({
     marginTop: 4,
   },
   placeholderModalGhostBtn: {
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#CBD5E1",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderColor: neutral.slate300,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     minWidth: 88,
     alignItems: "center",
   },
   placeholderModalGhostText: {
     ...appTypography.secondary,
     fontWeight: "600",
-    color: "#475569",
+    color: neutral.slate600,
+  },
+  slotConfirmLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    zIndex: 10,
+  },
+  slotConfirmLoadingText: {
+    ...appTypography.secondary,
+    fontWeight: "600",
+    color: neutral.slate600,
   },
   slotLoadingWrap: {
     paddingVertical: 16,
@@ -156,15 +250,15 @@ export const staffTicketDetailStyles = StyleSheet.create({
   },
   slotLoadingText: {
     ...appTypography.secondary,
-    color: "#64748b",
+    color: neutral.slate500,
   },
   slotErrorText: {
     ...appTypography.secondary,
-    color: "#b91c1c",
+    color: BRAND_DANGER,
   },
   slotEmptyText: {
     ...appTypography.secondary,
-    color: "#64748b",
+    color: neutral.slate500,
   },
   slotSection: {
     gap: 8,
@@ -172,7 +266,7 @@ export const staffTicketDetailStyles = StyleSheet.create({
   slotSectionTitle: {
     ...appTypography.secondary,
     fontWeight: "700",
-    color: "#334155",
+    color: neutral.slate700,
   },
   dateListContent: {
     gap: 8,
@@ -180,29 +274,31 @@ export const staffTicketDetailStyles = StyleSheet.create({
   },
   dateChip: {
     borderWidth: 1,
-    borderColor: "#CBD5E1",
+    borderColor: neutral.slate300,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: "#fff",
+    backgroundColor: neutral.surface,
   },
   dateChipSelected: {
     borderColor: brandPrimary,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: neutral.sectionTintWarm,
   },
   dateChipText: {
     ...appTypography.caption,
     fontWeight: "600",
-    color: "#475569",
+    color: neutral.slate600,
   },
   dateChipTextSelected: {
-    color: "#1E3A8A",
+    color: brandPrimary,
+    fontWeight: "700",
   },
   slotList: {
     maxHeight: 240,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 10,
+    borderColor: neutral.slate200,
+    borderRadius: 12,
+    borderCurve: "continuous",
   },
   slotListContent: {
     padding: 8,
@@ -210,31 +306,32 @@ export const staffTicketDetailStyles = StyleSheet.create({
   },
   slotRow: {
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 8,
+    borderColor: neutral.slate200,
+    borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 9,
+    borderCurve: "continuous",
   },
   slotRowSelected: {
     borderColor: brandPrimary,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: neutral.sectionTintWarm,
   },
   slotRowText: {
     ...appTypography.secondary,
-    color: "#334155",
+    color: neutral.slate700,
   },
   slotRowTextSelected: {
-    color: "#1E3A8A",
-    fontWeight: "600",
+    color: brandPrimary,
+    fontWeight: "700",
   },
 
   imageSectionTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
-    color: "#64748b",
-    marginBottom: 8,
+    color: neutral.textMuted,
+    marginBottom: 10,
     textTransform: "uppercase",
-    letterSpacing: 0.4,
+    letterSpacing: 0.6,
   },
   imageLoadingRow: {
     flexDirection: "row",
@@ -243,15 +340,14 @@ export const staffTicketDetailStyles = StyleSheet.create({
     marginBottom: 8,
   },
   imageEmptyText: {
-    fontSize: 14,
-    color: "#64748b",
+    ...appTypography.body,
+    color: neutral.textSecondary,
     fontStyle: "italic",
   },
-  ticketImagesScroll: {
-    maxHeight: 170,
-  },
-  ticketImagesStrip: {
+  /** Không dùng ScrollView ngang lồng trong ScrollView dọc (tránh giật gesture / nested scroll). */
+  ticketImagesWrap: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
     paddingVertical: 6,
     paddingHorizontal: 2,
@@ -260,10 +356,11 @@ export const staffTicketDetailStyles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#F8FAFC",
+    borderColor: neutral.borderMuted,
+    backgroundColor: neutral.canvasMuted,
     width: 150,
     aspectRatio: 1,
+    borderCurve: "continuous",
   },
   ticketImage: {
     width: "100%",
@@ -281,8 +378,9 @@ export const staffTicketDetailStyles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#ffffff",
+    borderColor: neutral.slate200,
+    backgroundColor: neutral.surface,
+    borderCurve: "continuous",
   },
   imageModalClose: {
     position: "absolute",
@@ -297,7 +395,7 @@ export const staffTicketDetailStyles = StyleSheet.create({
     backgroundColor: "rgba(15, 23, 42, 0.75)",
   },
   imageModalCloseText: {
-    color: "#ffffff",
+    color: neutral.surface,
     fontSize: 18,
     fontWeight: "800",
     lineHeight: 20,
