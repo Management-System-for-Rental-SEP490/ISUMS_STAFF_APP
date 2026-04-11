@@ -63,9 +63,8 @@
 | Bước | Hành động | Kết quả |
 |------|-----------|---------|
 | 1 | Mở từ TicketList | Hiện thông tin ticket |
-| 2 | Nhấn "Nhận Ticket" (nếu pending) | Gán ticket cho staff (hiện mock) |
-| 3 | Nhấn "Đặt lịch" | Mở BookScheduleModal |
-| 4 | Chọn ngày + slot → Xác nhận | Đóng modal (hiện mock) |
+| 2 | Nhấn "Đăng ký khung giờ" (khi ticket cần chốt ca) | Mở `ChooseScheduleSlotModal` — `screens/staffTicket/ChooseScheduleSlotModal.tsx` |
+| 3 | Chọn ngày + khung giờ → Xác nhận | Gọi API xác nhận slot, đóng modal khi thành công |
 
 **Data:** **Mock** `MOCK_STAFF_TICKETS`, `MOCK_TICKET_ASSIGNMENTS`  
 *Khi có API từ BE: gọi API nhận ticket, đặt lịch; xóa logic mock*
@@ -77,7 +76,7 @@
 | Bước | Hành động | Kết quả |
 |------|-----------|---------|
 | 1 | Vào tab Calendar | Hiện lịch tuần (slot 8h–18h) |
-| 2 | Nhấn slot trống | Mở ChooseScheduleSlotModal |
+| 2 | Nhấn slot trống | Đăng ký slot (modal: `screens/staffTicket/ChooseScheduleSlotModal.tsx`; hiện import từ TicketDetailScreen, Calendar có thể dùng chung) |
 | 3 | Chọn slot tuần sau → Đăng ký | Cập nhật (hiện mock) |
 | 4 | Nhấn slot đã có task | Xem chi tiết ticket |
 
@@ -191,7 +190,7 @@ src/
 │   │   ├── staffHouse/
 │   │   ├── staffItems/
 │   │   ├── staffCategory/
-│   │   ├── staffTicket/
+│   │   ├── staffTicket/        # TicketDetailScreen, ChooseScheduleSlotModal, staffTicketDetailStyles
 │   │   ├── staffCalendar/
 │   │   └── staffnotification/
 │   ├── modal/assignNFC/

@@ -21,7 +21,7 @@ import { staffNotificationStyles } from "./staffNotificationStyles";
 import { brandPrimary } from "../../../../shared/theme/color";
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
 import { formatTimeAgoI18n, getTotalPages, slicePage } from "../../../../shared/utils";
-import { useRefreshControlGate } from "../../../../shared/hooks";
+import { useRefreshControlGate, refreshControlAndroidGateProps } from "../../../../shared/hooks";
 import type { StaffNotificationItem } from "../../../../shared/types/api";
 
 export default function StaffNotificationScreen() {
@@ -111,7 +111,6 @@ export default function StaffNotificationScreen() {
   }, []);
 
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
-  const showPullRefresh = scrollAtTop || refreshing;
 
   const renderItem: ListRenderItem<StaffNotificationItem> = ({ item }) => {
     const title = t(item.titleKey, item.params as Record<string, string>);
@@ -205,14 +204,13 @@ export default function StaffNotificationScreen() {
         onScroll={onScrollForRefreshGate}
         scrollEventThrottle={16}
         refreshControl={
-          showPullRefresh ? (
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={brandPrimary}
-              colors={[brandPrimary]}
-            />
-          ) : undefined
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={brandPrimary}
+            colors={[brandPrimary]}
+            {...refreshControlAndroidGateProps(scrollAtTop, refreshing)}
+          />
         }
       />
     </View>

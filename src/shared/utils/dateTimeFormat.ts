@@ -9,6 +9,23 @@ export function formatDdMmYyyy(d: Date): string {
 }
 
 /**
+ * Giờ phút 12h + ngày dd/mm/yyyy — buổi sáng chỉ `hh:mm` (không hậu tố), chiều/tối thêm `p`
+ * (ví dụ `10:24 11/04/2026`, `03:24p 11/04/2026`). Múi giờ local của `Date` đã parse.
+ */
+export function formatHmAmPmDdMmYyyy(d: Date): string {
+  const pad2 = (n: number) => n.toString().padStart(2, "0");
+  const h24 = d.getHours();
+  const min = d.getMinutes();
+  const isPm = h24 >= 12;
+  let h12 = h24 % 12;
+  if (h12 === 0) h12 = 12;
+  const suffix = isPm ? "p" : "";
+  const time = `${pad2(h12)}:${pad2(min)}${suffix}`;
+  const date = `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+  return `${time} ${date}`;
+}
+
+/**
  * Chuỗi bắt đầu bằng YYYY-MM-DD (vd. periodStartDate từ BE) → dd/mm/yyyy.
  * Không parse qua `Date` để tránh lệch ngày theo múi giờ.
  */

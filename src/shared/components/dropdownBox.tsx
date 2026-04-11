@@ -1,4 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import {
   View,
   Text,
@@ -29,6 +37,8 @@ export type DropdownBoxItem = {
   cardCategory?: string;
   cardMeta?: string;
   cardFooter?: string;
+  /** Khi set: render thay cho `cardFooter` (vẫn nên giữ `cardFooter` là chuỗi để lọc tìm kiếm). */
+  cardFooterNode?: ReactNode;
 };
 
 export type DropdownBoxSection = {
@@ -623,7 +633,9 @@ export function DropdownBox({
                                     {it.detail}
                                   </Text>
                                 ) : null}
-                                {it.cardFooter ? (
+                                {it.cardFooterNode != null ? (
+                                  <View style={styles.deviceCardFooterNodeWrap}>{it.cardFooterNode}</View>
+                                ) : it.cardFooter ? (
                                   <Text style={styles.deviceCardFooter} numberOfLines={2}>
                                     {it.cardFooter}
                                   </Text>
@@ -958,6 +970,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: neutral.textSecondary,
     marginBottom: 2,
+  },
+  deviceCardFooterNodeWrap: {
+    marginTop: 4,
   },
   deviceCardFooter: {
     ...appTypography.secondary,

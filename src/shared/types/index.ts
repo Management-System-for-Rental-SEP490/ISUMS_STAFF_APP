@@ -100,6 +100,16 @@ export type RootStackParamList = AuthStackParamList & {
     houseId: string;
     assetId: string;
   };
+  /** Xác nhận kiểm định (sau batch); gọi PUT DONE với ghi chú, ảnh, khấu trừ (CHECK_OUT). */
+  InspectionConfirm: {
+    inspectionId: string;
+    inspectionType: "CHECK_IN" | "CHECK_OUT";
+    photoUrls: string[];
+    scheduleSlotId: string;
+    /** Ngày slot (dd/mm) để nhảy lịch sau hoàn tất. */
+    slotDate: string;
+    houseName?: string;
+  };
   /** Màn form tạo danh mục thiết bị (Staff). Không tham số. */
   Category: undefined;
   /** Màn danh sách danh mục thiết bị (Staff). Không tham số. */

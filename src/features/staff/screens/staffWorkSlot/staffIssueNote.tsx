@@ -53,6 +53,7 @@ import {
 } from "../../../../shared/theme/color";
 import { staffFormShape } from "../../../../shared/styles/staffFormShape";
 import Icons from "../../../../shared/theme/icon";
+import { submittedIssueRepairTicketIdsInSession } from "./issueRepairSession";
 
 type IssueNoteRouteProp = RouteProp<RootStackParamList, "StaffIssueNote">;
 type IssueNoteNavProp = NativeStackNavigationProp<RootStackParamList, "StaffIssueNote">;
@@ -277,6 +278,7 @@ export default function StaffIssueNoteScreen() {
           );
         }
 
+        submittedIssueRepairTicketIdsInSession.add(issueId);
         const total = quoteRes.data?.totalPrice;
         CustomAlert.alert(
           t("common.success"),
@@ -288,6 +290,7 @@ export default function StaffIssueNoteScreen() {
         return;
       }
 
+      submittedIssueRepairTicketIdsInSession.add(issueId);
       CustomAlert.alert(
         t("common.success"),
         res.message || t("staff_issue_note.update_success"),

@@ -3,6 +3,7 @@
  * GET /api/assets/items, POST, PUT, DELETE /api/assets/items/:id.
  */
 import axiosClient from "../api/axiosClient";
+import { logInspectionDebug, logInspectionError } from "../utils/inspectionDebugLog";
 import { ASSETS_API_BASE, BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
 import i18n from "../i18n";
 import { useAuthStore } from "../../store/useAuthStore";
@@ -439,11 +440,23 @@ export const updateAssetItem = async (
 export const updateAssetItemsMaintenanceBatch = async (
   payload: AssetMaintenanceBatchUpdateRequest
 ): Promise<AssetMaintenanceBatchUpdateApiResponse> => {
-  const response = await axiosClient.put<AssetMaintenanceBatchUpdateApiResponse>(
-    `${BACKEND_API_BASE}/assets/items/maintenance/batch`,
-    payload
-  );
-  return response.data;
+  const url = `${BACKEND_API_BASE}/assets/items/maintenance/batch`;
+  //const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/maintenance/batch`;
+  try {
+    logInspectionDebug("[AssetBatch]", "updateAssetItemsMaintenanceBatch", {
+      jobId: payload.jobId,
+      updateCount: payload.updates?.length ?? 0,
+    });
+    const response = await axiosClient.put<AssetMaintenanceBatchUpdateApiResponse>(url, payload);
+    logInspectionDebug("[AssetBatch]", "batch ok", {
+      status: response.status,
+      success: response.data?.success,
+    });
+    return response.data;
+  } catch (e: unknown) {
+    logInspectionError("[AssetBatch]", "batch failed", e);
+    throw e;
+  }
 };
 
 /**

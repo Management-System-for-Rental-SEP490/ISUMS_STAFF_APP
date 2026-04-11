@@ -183,10 +183,14 @@ const Header = ({
                   activeOpacity={0.75}
                   accessibilityRole="button"
                   accessibilityLabel={actionAccessibilityLabel}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  hitSlop={
+                    actionIcon === "notification"
+                      ? { top: 4, bottom: 4, left: 4, right: 4 }
+                      : { top: 10, bottom: 10, left: 10, right: 10 }
+                  }
                 >
                   {actionIcon === "notification" ? (
-                    <Icons.notification size={22} color={neutral.surface} />
+                    <Icons.notification size={24} color={neutral.surface} />
                   ) : (
                     <Icons.plus size={21} color={neutral.surface} />
                   )}
@@ -207,43 +211,51 @@ const Header = ({
                 <Icons.chevronBack size={22} color={neutral.surface} />
               </Pressable>
             ) : null}
-            <Pressable
-              style={headerStyles.staffTabWelcomeTextCol}
-              onPress={() => navigateToStaffHome(navigation as NavigationProp<ParamListBase>)}
-              accessibilityRole="button"
-              accessibilityLabel={`${greetingLine}. ${t("common.a11y_brand_go_home")}`}
-              android_ripple={{ color: "rgba(255,255,255,0.18)" }}
-              hitSlop={{ top: 4, bottom: 4, right: 4 }}
-            >
-              <Text
-                style={[
-                  headerStyles.staffTabWelcomeGreeting,
-                  isSmallScreen && headerStyles.staffTabWelcomeGreetingCompact,
-                ]}
-              >
-                {greetingLine}
-              </Text>
-            </Pressable>
-            {showHeaderAction ? (
-              <TouchableOpacity
-                style={
-                  actionIcon === "notification"
-                    ? headerStyles.staffTabWelcomeIconPlain
-                    : headerStyles.staffTabWelcomeActionBtn
-                }
-                onPress={onActionPress}
-                activeOpacity={0.75}
+            <View style={headerStyles.staffTabWelcomeBody}>
+              <Pressable
+                style={headerStyles.staffTabWelcomeTextCol}
+                onPress={() => navigateToStaffHome(navigation as NavigationProp<ParamListBase>)}
                 accessibilityRole="button"
-                accessibilityLabel={actionAccessibilityLabel}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityLabel={`${greetingLine}. ${t("common.a11y_brand_go_home")}`}
+                android_ripple={{ color: "rgba(255,255,255,0.18)" }}
+                hitSlop={{ top: 4, bottom: 4, right: 4 }}
               >
-                {actionIcon === "notification" ? (
-                  <Icons.notification size={22} color={neutral.surface} />
-                ) : (
-                  <Icons.plus size={21} color={neutral.surface} />
-                )}
-              </TouchableOpacity>
-            ) : null}
+                <Text
+                  style={[
+                    headerStyles.staffTabWelcomeGreeting,
+                    isSmallScreen && headerStyles.staffTabWelcomeGreetingCompact,
+                  ]}
+                  numberOfLines={4}
+                >
+                  {greetingLine}
+                </Text>
+              </Pressable>
+              {showHeaderAction ? (
+                <TouchableOpacity
+                  style={[
+                    actionIcon === "notification"
+                      ? headerStyles.staffTabWelcomeIconPlain
+                      : headerStyles.staffTabWelcomeActionBtn,
+                    headerStyles.staffTabWelcomeActionAbsolute,
+                  ]}
+                  onPress={onActionPress}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel={actionAccessibilityLabel}
+                  hitSlop={
+                    actionIcon === "notification"
+                      ? { top: 4, bottom: 4, left: 4, right: 4 }
+                      : { top: 10, bottom: 10, left: 10, right: 10 }
+                  }
+                >
+                  {actionIcon === "notification" ? (
+                    <Icons.notification size={24} color={neutral.surface} />
+                  ) : (
+                    <Icons.plus size={21} color={neutral.surface} />
+                  )}
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
         ) : (
           <View style={headerStyles.headerRowWrap}>
@@ -335,10 +347,14 @@ const Header = ({
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel={actionAccessibilityLabel}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                hitSlop={
+                  actionIcon === "notification"
+                    ? { top: 4, bottom: 4, left: 4, right: 4 }
+                    : { top: 10, bottom: 10, left: 10, right: 10 }
+                }
               >
                 {actionIcon === "notification" ? (
-                  <Icons.notification size={22} color={neutral.surface} />
+                  <Icons.notification size={24} color={neutral.surface} />
                 ) : (
                   <Icons.plus size={22} color={neutral.surface} />
                 )}

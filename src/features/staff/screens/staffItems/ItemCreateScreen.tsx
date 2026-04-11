@@ -53,8 +53,8 @@ type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemCreate">;
 
 const MAX_ASSET_ATTACHMENT_IMAGES = 5;
 
-/** Trạng thái mặc định khi tạo thiết bị (form không cho chọn). */
-const NEW_ASSET_DEFAULT_STATUS = "IN_USE" as const;
+/** Trạng thái mặc định khi tạo thiết bị — chờ quản lý duyệt trước khi hiển thị ở app người dùng. */
+const NEW_ASSET_DEFAULT_STATUS = "WAITING_MANAGER_CONFIRM" as const;
 
 export default function ItemCreateScreen() {
   const { t } = useTranslation();
@@ -220,7 +220,6 @@ export default function ItemCreateScreen() {
 
   const createMutation = useCreateAssetItem();
   const isPending = createMutation.isPending;
-  const isSuccess = createMutation.isSuccess;
   const error = createMutation.error;
 
   const addPickedImages = (assets: ImagePicker.ImagePickerAsset[]) => {
@@ -306,7 +305,9 @@ export default function ItemCreateScreen() {
         await uploadAssetItemImages(createdId, selectedImages);
       }
 
-      navigation.goBack();
+      Alert.alert(t("common.success"), t("staff_item_create.success_pending_approval"), [
+        { text: t("common.close"), onPress: () => navigation.goBack() },
+      ]);
     } catch (e) {
       const msg = e instanceof Error && e.message ? e.message : t("staff_item_create.error_message");
       setUploadError(msg);
@@ -544,9 +545,6 @@ export default function ItemCreateScreen() {
               )}
             </TouchableOpacity>
 
-            {isSuccess && (
-              <Text style={itemScreenStyles.successText}>{t("staff_item_create.success_message")}</Text>
-            )}
             {error && (
               <Text style={itemScreenStyles.errorText}>{t("staff_item_create.error_message")}</Text>
             )}
@@ -560,7 +558,7 @@ export default function ItemCreateScreen() {
       <ImageCaptureModal
         visible={imageCaptureVisible}
         onClose={() => setImageCaptureVisible(false)}
-        onPicked={(assets) => {
+        onPicked={(assets, _source) => {
           setUploadError(null);
           addPickedImages(assets);
         }}

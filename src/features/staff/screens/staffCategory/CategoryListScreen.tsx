@@ -17,7 +17,11 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
-import { useAssetCategories, useRefreshControlGate } from "../../../../shared/hooks";
+import {
+  useAssetCategories,
+  useRefreshControlGate,
+  refreshControlAndroidGateProps,
+} from "../../../../shared/hooks";
 import { itemScreenStyles } from "../staffItems/itemScreenStyles";
 import type { AssetCategoryFromApi } from "../../../../shared/types/api";
 import { brandPrimary } from "../../../../shared/theme/color";
@@ -44,7 +48,6 @@ export default function CategoryListScreen() {
   const { data, isLoading, isError, refetch, isRefetching } = useAssetCategories();
   const categories: AssetCategoryFromApi[] = data?.data ?? [];
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
-  const showPullRefresh = scrollAtTop || isRefetching;
 
   const sortedCategories = useMemo(
     () =>
@@ -151,14 +154,13 @@ export default function CategoryListScreen() {
           onScroll={onScrollForRefreshGate}
           scrollEventThrottle={16}
           refreshControl={
-            showPullRefresh ? (
-              <RefreshControl
-                refreshing={isRefetching}
-                onRefresh={() => refetch()}
-                tintColor={brandPrimary}
-                colors={[brandPrimary]}
-              />
-            ) : undefined
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={() => refetch()}
+              tintColor={brandPrimary}
+              colors={[brandPrimary]}
+              {...refreshControlAndroidGateProps(scrollAtTop, isRefetching)}
+            />
           }
         >
           <Text style={itemScreenStyles.errorMessage}>{t("staff_category_list.error")}</Text>
@@ -187,14 +189,13 @@ export default function CategoryListScreen() {
         onScroll={onScrollForRefreshGate}
         scrollEventThrottle={16}
         refreshControl={
-          showPullRefresh ? (
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={() => refetch()}
-              tintColor={brandPrimary}
-              colors={[brandPrimary]}
-            />
-          ) : undefined
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => refetch()}
+            tintColor={brandPrimary}
+            colors={[brandPrimary]}
+            {...refreshControlAndroidGateProps(scrollAtTop, isRefetching)}
+          />
         }
       >
         <View style={itemScreenStyles.filterWrap}>

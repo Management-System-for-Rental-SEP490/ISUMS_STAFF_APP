@@ -1,5 +1,6 @@
 import { StyleSheet } from "react-native";
 import {
+  BRAND_AMBER,
   BRAND_DANGER,
   brandDangerBorder,
   brandPrimary,
@@ -42,6 +43,22 @@ export const itemScreenStyles = StyleSheet.create({
   /** Padding thêm khi có bàn phím (form create/edit) */
   scrollContentWithKeyboard: {
     paddingBottom: 160,
+  },
+  /** Banner khi thiết bị chờ quản lý duyệt — chỉ xem, không chỉnh sửa. */
+  pendingReadOnlyBanner: {
+    backgroundColor: "rgba(217, 135, 62, 0.14)",
+    borderWidth: 1,
+    borderColor: BRAND_AMBER,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  pendingReadOnlyBannerText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#9A3412",
+    lineHeight: 20,
   },
   formCard: {
     backgroundColor: neutral.surface,
@@ -563,6 +580,45 @@ export const itemScreenStyles = StyleSheet.create({
   },
   descriptionStatusOther: {
     backgroundColor: "#F3F4F6",
+  },
+  /** Trạng thái chờ quản lý duyệt — nền cam nhạt + viền accent để dễ nhận diện. */
+  descriptionStatusPendingManager: {
+    backgroundColor: "rgba(217, 135, 62, 0.18)",
+    borderWidth: 1,
+    borderColor: BRAND_AMBER,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  descriptionStatusPendingManagerText: {
+    color: "#9A3412",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  /** Dòng footer danh sách thiết bị (trước chip trạng thái). */
+  itemListFooterMuted: {
+    fontSize: 13,
+    color: neutral.textMuted,
+  },
+  itemListStatusPendingPill: {
+    backgroundColor: "rgba(217, 135, 62, 0.18)",
+    borderWidth: 1,
+    borderColor: BRAND_AMBER,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  itemListStatusPendingPillText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#9A3412",
+  },
+  itemListFooterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
   },
   descriptionEditBtn: {
     marginTop: 24,

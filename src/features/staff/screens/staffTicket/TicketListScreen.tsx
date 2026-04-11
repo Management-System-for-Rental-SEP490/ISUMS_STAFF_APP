@@ -16,7 +16,7 @@ import { formatStaffTicketListCreatedAt, getTotalPages, slicePage } from "../../
 import { useAssetItems } from "../../../../shared/hooks/useAssetItems";
 import { useHouses } from "../../../../shared/hooks/useHouses";
 import { useStaffIssueTickets } from "../../../../shared/hooks/useUserProfile";
-import { useRefreshControlGate } from "../../../../shared/hooks";
+import { useRefreshControlGate, refreshControlAndroidGateProps } from "../../../../shared/hooks";
 import Icons from "../../../../shared/theme/icon";
 
 type TicketListNavProp = CompositeNavigationProp<
@@ -97,7 +97,6 @@ export default function TicketListScreen() {
   }, [refetch]);
 
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
-  const showPullRefresh = scrollAtTop || isRefetching;
 
   const openTicketDetail = (ticketId: string) => {
     const root = navigation.getParent?.();
@@ -227,14 +226,13 @@ export default function TicketListScreen() {
         onScroll={onScrollForRefreshGate}
         scrollEventThrottle={16}
         refreshControl={
-          showPullRefresh ? (
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={onRefresh}
-              tintColor={brandPrimary}
-              colors={[brandPrimary]}
-            />
-          ) : undefined
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={onRefresh}
+            tintColor={brandPrimary}
+            colors={[brandPrimary]}
+            {...refreshControlAndroidGateProps(scrollAtTop, isRefetching)}
+          />
         }
       />
     </View>

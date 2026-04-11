@@ -15,6 +15,7 @@ import {
   useIotDevicesByHouseId,
   useDeprovisionIotControllerByHouseId,
   useRefreshControlGate,
+  refreshControlAndroidGateProps,
 } from "../../../../shared/hooks";
 import { useTranslation } from "react-i18next";
 import { staffIotStyles as s } from "./staffIotStyles";
@@ -248,7 +249,6 @@ export default function StaffIotListScreen() {
 
   const listRefreshing = areasRefetching || iotRefetching;
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
-  const showPullRefresh = scrollAtTop || listRefreshing;
   const onPullRefresh = useCallback(() => {
     return Promise.all([refetchAreas(), refetchIot()]);
   }, [refetchAreas, refetchIot]);
@@ -335,14 +335,13 @@ export default function StaffIotListScreen() {
         onScroll={onScrollForRefreshGate}
         scrollEventThrottle={16}
         refreshControl={
-          showPullRefresh ? (
-            <RefreshControl
-              refreshing={listRefreshing}
-              onRefresh={onPullRefresh}
-              tintColor={brandPrimary}
-              colors={[brandPrimary]}
-            />
-          ) : undefined
+          <RefreshControl
+            refreshing={listRefreshing}
+            onRefresh={onPullRefresh}
+            tintColor={brandPrimary}
+            colors={[brandPrimary]}
+            {...refreshControlAndroidGateProps(scrollAtTop, listRefreshing)}
+          />
         }
       >
         <View style={s.houseCard}>

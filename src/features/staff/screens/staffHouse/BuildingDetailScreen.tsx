@@ -229,7 +229,6 @@ export default function BuildingDetailScreen() {
 
   const listRefreshing = itemsRefetching || categoriesRefetching;
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
-  const showPullRefresh = scrollAtTop || listRefreshing;
   const onPullRefresh = () => Promise.all([refetchItems(), refetchCategories()]);
 
   const groupItemsByCategory = useCallback(
@@ -440,14 +439,15 @@ export default function BuildingDetailScreen() {
         onScroll={onScrollForRefreshGate}
         scrollEventThrottle={16}
         refreshControl={
-          showPullRefresh ? (
-            <RefreshControl
-              refreshing={listRefreshing}
-              onRefresh={onPullRefresh}
-              tintColor={brandPrimary}
-              colors={[brandPrimary]}
-            />
-          ) : undefined
+          <RefreshControl
+            refreshing={listRefreshing}
+            onRefresh={onPullRefresh}
+            tintColor={brandPrimary}
+            colors={[brandPrimary]}
+            {...(Platform.OS === "android"
+              ? { enabled: scrollAtTop || listRefreshing }
+              : {})}
+          />
         }
       >
         <View style={staffBuildingDetailStyles.headerCard}>

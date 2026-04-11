@@ -94,37 +94,51 @@ const headerStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  /** Hành động header (logo row): icon phẳng, không viền. */
+  /** Hành động header (logo row): icon phẳng — vùng bấm gọn, không elevation. */
   actionButtonPlain: {
     position: "absolute",
     right: 0,
     top: "50%",
-    marginTop: -16,
-    minWidth: 32,
-    minHeight: 32,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+    marginTop: -14,
+    minWidth: 28,
+    minHeight: 28,
+    paddingHorizontal: 2,
+    paddingVertical: 2,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    elevation: 0,
   },
-  /** Lời chào + nút +: neo đầu dòng với lời chào dài nhiều dòng; chữ theo token typography. */
+  /** Lời chào + nút phải: hàng có thể có nút back; khối chữ + chuông neo góc dưới phải. */
   staffTabWelcomeRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "flex-start",
     width: "100%",
     gap: 10,
     paddingTop: 0,
     marginBottom: 0,
   },
-  /** Cột chữ: flex + minWidth 0 để xuống dòng đúng trong row. */
-  staffTabWelcomeTextCol: {
+  /** Vùng chữ + nút tuyệt đối (chuông không chiếm flex → tên dùng hết ngang). */
+  staffTabWelcomeBody: {
     flex: 1,
     minWidth: 0,
-    alignSelf: "stretch",
-    justifyContent: "flex-end",
-    paddingRight: 2,
+    position: "relative",
+  },
+  /** Cột chữ: full width; chữ có thể chồng lên vùng icon (nút nằm layer trên). */
+  staffTabWelcomeTextCol: {
+    width: "100%",
+    minWidth: 0,
     paddingBottom: 0,
     paddingTop: 0,
+  },
+  /** Nút thông báo / +: góc dưới phải khối lời chào (chuông: không elevation). */
+  staffTabWelcomeActionAbsolute: {
+    position: "absolute",
+    right: 0,
+    bottom: 6,
+    zIndex: 2,
+    elevation: 0,
   },
   staffTabWelcomeGreeting: {
     ...appTypography.sectionHeading,
@@ -132,6 +146,7 @@ const headerStyles = StyleSheet.create({
     textAlign: "left",
     letterSpacing: -0.2,
     marginBottom: 0,
+    width: "100%",
   },
   staffTabWelcomeGreetingCompact: {
     ...appTypography.listTitle,
@@ -139,6 +154,7 @@ const headerStyles = StyleSheet.create({
     color: headerOnBrand.fg,
     textAlign: "left",
     letterSpacing: -0.15,
+    width: "100%",
   },
   staffTabWelcomeActionBtn: {
     flexShrink: 0,
@@ -146,6 +162,7 @@ const headerStyles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     marginTop: 0,
+    marginBottom: 0,
     backgroundColor: headerOnBrand.btnGlass,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(255,255,255,0.42)",
@@ -157,13 +174,20 @@ const headerStyles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-  /** Chuông thông báo: chỉ icon, không khung kính. */
+  /** Chuông thông báo: chỉ icon — vùng bấm gọn hơn, sát icon. */
   staffTabWelcomeIconPlain: {
     flexShrink: 0,
     marginTop: 0,
-    padding: 4,
+    marginBottom: 0,
+    minWidth: 32,
+    minHeight: 32,
+    padding: 2,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    borderColor: "transparent",
+    elevation: 0,
   },
   staffTabWelcomeBackBtn: {
     flexShrink: 0,
@@ -185,8 +209,8 @@ const headerStyles = StyleSheet.create({
     width: "100%",
   },
   staffTabPageBadgeSide: {
-    width: 48,
-    minHeight: 48,
+    width: 44,
+    minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
   },

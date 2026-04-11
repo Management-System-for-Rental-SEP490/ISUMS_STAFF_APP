@@ -13,13 +13,18 @@ import Icons from "../../../shared/theme/icon";
 type Props = {
   visible: boolean;
   onClose: () => void;
-  onPicked: (assets: ImagePicker.ImagePickerAsset[]) => void;
+  onPicked: (assets: ImagePicker.ImagePickerAsset[], source: "camera" | "library") => void;
   /** Nhãn nút mở thư viện trong màn hình camera. */
   libraryLabel?: string;
   /** Thông báo khi không có quyền truy cập thư viện ảnh. */
   libraryPermissionErrorMessage?: string;
   /** Chất lượng ảnh chụp/thư viện: 0..1 (thấp hơn => nhẹ hơn). */
   captureQuality?: number;
+  /**
+   * Khi truyền: số ảnh chụp còn được phép trong phiên (0 = khóa nút chụp).
+   * Chọn từ thư viện không dùng giới hạn này.
+   */
+  cameraShotsRemaining?: number;
 };
 
 export function ImageCaptureModal({
@@ -29,6 +34,7 @@ export function ImageCaptureModal({
   libraryLabel,
   libraryPermissionErrorMessage,
   captureQuality = 0.45,
+  cameraShotsRemaining,
 }: Props) {
   /** Lưu file chụp vào album/thư viện máy (không chặn luồng đính kèm nếu lỗi quyền). */
   const saveCaptureToDeviceGallery = async (localUri: string) => {
@@ -74,6 +80,10 @@ export function ImageCaptureModal({
   );
 
   const handleTakePhoto = async () => {
+    if (cameraShotsRemaining !== undefined && cameraShotsRemaining <= 0) {
+      Alert.alert(t("common.camera_no_more_shots"), undefined, [{ text: t("common.close") }]);
+      return;
+    }
     try {
       setCapturing(true);
       const photo = await cameraRef.current?.takePictureAsync({
@@ -84,7 +94,7 @@ export function ImageCaptureModal({
         void saveCaptureToDeviceGallery(photo.uri);
         // Chụp xong vẫn giữ modal mở để bạn thấy ảnh mới nhất,
         // và có thể tiếp tục chụp hoặc chuyển sang thư viện.
-        onPicked([{ uri: photo.uri } as ImagePicker.ImagePickerAsset]);
+        onPicked([{ uri: photo.uri } as ImagePicker.ImagePickerAsset], "camera");
       }
     } catch (e) {
       Alert.alert(t("common.error"), e instanceof Error ? e.message : String(e), [
@@ -115,7 +125,7 @@ export function ImageCaptureModal({
 
     if (result.canceled) return;
     if (result.assets?.length) {
-      onPicked(result.assets);
+      onPicked(result.assets, "library");
     }
   };
 
@@ -176,6 +186,8 @@ export function ImageCaptureModal({
                     borderWidth: 4,
                     borderColor: neutral.surface,
                     backgroundColor: capturing ? brandPrimary : "rgba(255,255,255,0.10)",
+                    opacity:
+                      cameraShotsRemaining !== undefined && cameraShotsRemaining <= 0 ? 0.45 : 1,
                   }}
                 >
                   {capturing ? (

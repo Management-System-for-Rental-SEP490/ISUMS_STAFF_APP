@@ -161,13 +161,14 @@ export const staffTicketDetailStyles = StyleSheet.create({
     color: neutral.surface,
   },
 
-  placeholderModalBackdrop: {
+  /** Modal chọn lịch / khung giờ (ChooseScheduleSlotModal). */
+  chooseScheduleModalBackdrop: {
     flex: 1,
     backgroundColor: neutral.modalBackdrop,
     justifyContent: "center",
     paddingHorizontal: 20,
   },
-  placeholderModalCard: {
+  chooseScheduleModalCard: {
     position: "relative",
     overflow: "hidden",
     backgroundColor: neutral.surface,
@@ -182,40 +183,19 @@ export const staffTicketDetailStyles = StyleSheet.create({
     elevation: 8,
     borderCurve: "continuous",
   },
-  placeholderModalTitle: {
+  chooseScheduleModalTitle: {
     ...appTypography.sectionHeading,
     fontWeight: "700",
     color: neutral.heading,
   },
-  placeholderModalBody: {
-    ...appTypography.body,
-    fontWeight: "400",
-    color: neutral.slate500,
-  },
-  placeholderModalCloseBtn: {
-    backgroundColor: brandPrimary,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    minWidth: 110,
-    alignItems: "center",
-  },
-  placeholderModalCloseBtnDisabled: {
-    opacity: 0.6,
-  },
-  placeholderModalCloseText: {
-    ...appTypography.secondary,
-    fontWeight: "700",
-    color: neutral.surface,
-  },
-  placeholderModalActions: {
+  chooseScheduleModalActions: {
     flexDirection: "row",
     justifyContent: "flex-end",
     alignItems: "center",
     gap: 8,
     marginTop: 4,
   },
-  placeholderModalGhostBtn: {
+  chooseScheduleModalCancelBtn: {
     borderRadius: 12,
     borderWidth: 1,
     borderColor: neutral.slate300,
@@ -224,10 +204,26 @@ export const staffTicketDetailStyles = StyleSheet.create({
     minWidth: 88,
     alignItems: "center",
   },
-  placeholderModalGhostText: {
+  chooseScheduleModalCancelText: {
     ...appTypography.secondary,
     fontWeight: "600",
     color: neutral.slate600,
+  },
+  chooseScheduleModalConfirmBtn: {
+    backgroundColor: brandPrimary,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minWidth: 110,
+    alignItems: "center",
+  },
+  chooseScheduleModalConfirmBtnDisabled: {
+    opacity: 0.6,
+  },
+  chooseScheduleModalConfirmText: {
+    ...appTypography.secondary,
+    fontWeight: "700",
+    color: neutral.surface,
   },
   slotConfirmLoadingOverlay: {
     ...StyleSheet.absoluteFillObject,

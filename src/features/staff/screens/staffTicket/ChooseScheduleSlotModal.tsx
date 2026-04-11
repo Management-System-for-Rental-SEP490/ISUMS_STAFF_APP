@@ -1,5 +1,5 @@
 /**
- * Modal chọn khung giờ đăng ký xử lý ticket (layout giống bản trước: chip ngày + danh sách giờ).
+ * Modal chọn khung giờ đăng ký xử lý ticket (chip ngày + danh sách giờ).
  * Dữ liệu: GET .../work_slots/slots/me; chỉ slot status AVAILABLE (listAvailableGeneratedSlotChoices).
  */
 import React, { useEffect, useMemo, useState } from "react";
@@ -13,13 +13,13 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useGeneratedWorkSlotsQuery } from "../../../hooks/useStaffScheduleData";
+import { useGeneratedWorkSlotsQuery } from "../../hooks/useStaffScheduleData";
 import {
   listAvailableGeneratedSlotChoices,
   type AvailableGeneratedSlotChoice,
-} from "../../../../../shared/utils";
-import { brandPrimary } from "../../../../../shared/theme/color";
-import { staffTicketDetailStyles } from "../../staffTicket/staffTicketDetailStyles";
+} from "../../../../shared/utils";
+import { brandPrimary } from "../../../../shared/theme/color";
+import { staffTicketDetailStyles } from "./staffTicketDetailStyles";
 
 function parseSlotStartDate(choice: AvailableGeneratedSlotChoice): Date {
   const raw = choice.startTime?.trim();
@@ -144,14 +144,14 @@ export default function ChooseScheduleSlotModal({
         if (!isSubmitting) onClose();
       }}
     >
-      <View style={staffTicketDetailStyles.placeholderModalBackdrop}>
+      <View style={staffTicketDetailStyles.chooseScheduleModalBackdrop}>
         <View
           style={[
-            staffTicketDetailStyles.placeholderModalCard,
+            staffTicketDetailStyles.chooseScheduleModalCard,
             { paddingBottom: Math.max(insets.bottom, 18) },
           ]}
         >
-          <Text style={staffTicketDetailStyles.placeholderModalTitle}>
+          <Text style={staffTicketDetailStyles.chooseScheduleModalTitle}>
             {t("staff_ticket_detail.choose_slot_modal_title")}
           </Text>
 
@@ -244,30 +244,30 @@ export default function ChooseScheduleSlotModal({
             </>
           )}
 
-          <View style={staffTicketDetailStyles.placeholderModalActions}>
+          <View style={staffTicketDetailStyles.chooseScheduleModalActions}>
             <Pressable
-              style={staffTicketDetailStyles.placeholderModalGhostBtn}
+              style={staffTicketDetailStyles.chooseScheduleModalCancelBtn}
               onPress={onClose}
               disabled={isSubmitting}
             >
-              <Text style={staffTicketDetailStyles.placeholderModalGhostText}>
+              <Text style={staffTicketDetailStyles.chooseScheduleModalCancelText}>
                 {t("common.close")}
               </Text>
             </Pressable>
             <Pressable
               style={[
-                staffTicketDetailStyles.placeholderModalCloseBtn,
+                staffTicketDetailStyles.chooseScheduleModalConfirmBtn,
                 (!selectedSlot ||
                   selectableSlots.length === 0 ||
                   isSubmitting) &&
-                  staffTicketDetailStyles.placeholderModalCloseBtnDisabled,
+                  staffTicketDetailStyles.chooseScheduleModalConfirmBtnDisabled,
               ]}
               onPress={handleConfirm}
               disabled={
                 !selectedSlot || selectableSlots.length === 0 || isSubmitting
               }
             >
-              <Text style={staffTicketDetailStyles.placeholderModalCloseText}>
+              <Text style={staffTicketDetailStyles.chooseScheduleModalConfirmText}>
                 {t("staff_ticket_detail.confirm_slot")}
               </Text>
             </Pressable>

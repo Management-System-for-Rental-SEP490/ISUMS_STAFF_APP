@@ -19,7 +19,13 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MainTabParamList, RootStackParamList } from "../../../../shared/types";
-import { useAssetCategories, useAssetItems, useHouses, useRefreshControlGate } from "../../../../shared/hooks";
+import {
+  useAssetCategories,
+  useAssetItems,
+  useHouses,
+  useRefreshControlGate,
+  refreshControlAndroidGateProps,
+} from "../../../../shared/hooks";
 import { getHouses } from "../../../../shared/services/houseApi";
 import { useAuthStore } from "../../../../store/useAuthStore";
 import { itemScreenStyles } from "./itemScreenStyles";
@@ -164,6 +170,9 @@ export default function ItemListScreen() {
   const getStatusLabel = useCallback(
     (status: string) => {
       const normalizedStatus = normalizeAssetItemStatusFromApi(status);
+      if (normalizedStatus === "WAITING_MANAGER_CONFIRM") {
+        return t("staff_item_list.status_waiting_manager_confirm");
+      }
       if (normalizedStatus === "IN_USE") return t("staff_item_list.status_in_use");
       if (normalizedStatus === "ACTIVE") return t("staff_item_list.status_active");
       if (normalizedStatus === "DISPOSED") return t("staff_item_list.status_disposed");
@@ -186,13 +195,26 @@ export default function ItemListScreen() {
       const houseName = getHouseName(item.houseId);
       const inRegion = staffHouseIdSet.has(item.houseId);
       const metaTail = inRegion ? "" : ` · ${t("staff_item_list.outside_region_badge")}`;
+      const normalizedStatus = normalizeAssetItemStatusFromApi(item.status);
+      const isPendingManager = normalizedStatus === "WAITING_MANAGER_CONFIRM";
+      const condLabel = t("staff_item_list.condition", { percent: item.conditionPercent });
+      const statusLabel = getStatusLabel(item.status);
+      const footerLine = `${condLabel} · ${statusLabel}`;
       return {
         id: item.id,
         label: item.displayName ?? item.serialNumber ?? item.id,
         detail: `${categoryName} · ${houseName} · ${item.serialNumber ?? "—"}${metaTail}`,
         cardCategory: categoryName,
         cardMeta: `${item.serialNumber ?? "—"} · ${houseName}${metaTail}`,
-        cardFooter: `${t("staff_item_list.condition", { percent: item.conditionPercent })} · ${getStatusLabel(item.status)}`,
+        cardFooter: footerLine,
+        cardFooterNode: isPendingManager ? (
+          <View style={itemScreenStyles.itemListFooterRow}>
+            <Text style={itemScreenStyles.itemListFooterMuted}>{condLabel} · </Text>
+            <View style={itemScreenStyles.itemListStatusPendingPill}>
+              <Text style={itemScreenStyles.itemListStatusPendingPillText}>{statusLabel}</Text>
+            </View>
+          </View>
+        ) : undefined,
       };
     });
     const deviceSection: DropdownBoxSection = {
@@ -247,7 +269,6 @@ export default function ItemListScreen() {
   const listRefreshing =
     housesRefetching || categoriesRefetching || itemsRefetching || allHousesRefetching;
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
-  const showPullRefresh = scrollAtTop || listRefreshing;
   const onPullRefresh = useCallback(() => {
     return Promise.all([refetchHouses(), refetchCategories(), refetch(), refetchAllHouses()]);
   }, [refetchHouses, refetchCategories, refetch, refetchAllHouses]);
@@ -294,14 +315,13 @@ export default function ItemListScreen() {
           onScroll={onScrollForRefreshGate}
           scrollEventThrottle={16}
           refreshControl={
-            showPullRefresh ? (
-              <RefreshControl
-                refreshing={listRefreshing}
-                onRefresh={onPullRefresh}
-                tintColor={brandPrimary}
-                colors={[brandPrimary]}
-              />
-            ) : undefined
+            <RefreshControl
+              refreshing={listRefreshing}
+              onRefresh={onPullRefresh}
+              tintColor={brandPrimary}
+              colors={[brandPrimary]}
+              {...refreshControlAndroidGateProps(scrollAtTop, listRefreshing)}
+            />
           }
         >
           <Text style={itemScreenStyles.errorMessage}>{t("staff_item_list.error")}</Text>
@@ -331,14 +351,13 @@ export default function ItemListScreen() {
         onScroll={onScrollForRefreshGate}
         scrollEventThrottle={16}
         refreshControl={
-          showPullRefresh ? (
-            <RefreshControl
-              refreshing={listRefreshing}
-              onRefresh={onPullRefresh}
-              tintColor={brandPrimary}
-              colors={[brandPrimary]}
-            />
-          ) : undefined
+          <RefreshControl
+            refreshing={listRefreshing}
+            onRefresh={onPullRefresh}
+            tintColor={brandPrimary}
+            colors={[brandPrimary]}
+            {...refreshControlAndroidGateProps(scrollAtTop, listRefreshing)}
+          />
         }
       >
         <View style={itemScreenStyles.filterWrap}>

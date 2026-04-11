@@ -58,10 +58,12 @@ const DAY_LABELS: Record<number, string> = {
   7: "CN",
 };
 
-/** marginHorizontal 16×2 + paddingHorizontal 16×2 của khối quick actions */
-const UTILITY_SECTION_H_INSET = 64;
-const UTILITY_GRID_BREAKPOINT = 390;
-const QUICK_ACTION_ICON = 16;
+/** Khoảng cách giữa 3 nút thao tác nhanh — luôn 1 hàng 3 cột; ô co giãn theo chiều ngang màn hình. */
+const QUICK_ACTION_GRID_GAP = 10;
+const QUICK_ACTION_ICON_MIN = 13;
+const QUICK_ACTION_ICON_MAX = 18;
+const QUICK_ACTION_LABEL_MIN = 8;
+const QUICK_ACTION_LABEL_MAX = 10;
 /**
  * Khi mở ô tìm nhà: mép trên ô gõ nằm ~7/10–8/10 chiều cao màn hình (dùng điểm giữa 75%).
  * `flatListTopScreenY` ≈ mép trên vùng cuộn FlatList so với mép trên màn hình (safe area + header).
@@ -84,6 +86,21 @@ export default function StaffHomeScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const quickActionIconSize = useMemo(() => {
+    const s = Math.round(11 + windowWidth * 0.015);
+    return Math.max(QUICK_ACTION_ICON_MIN, Math.min(QUICK_ACTION_ICON_MAX, s));
+  }, [windowWidth]);
+  const quickActionLabelFontSize = useMemo(() => {
+    const s = Math.round(8 + windowWidth * 0.004);
+    return Math.max(QUICK_ACTION_LABEL_MIN, Math.min(QUICK_ACTION_LABEL_MAX, s));
+  }, [windowWidth]);
+  const quickActionLabelStyle = useMemo(
+    () => ({
+      fontSize: quickActionLabelFontSize,
+      lineHeight: Math.round(quickActionLabelFontSize * 1.35),
+    }),
+    [quickActionLabelFontSize]
+  );
 
   /** Bảng tóm tắt lịch: giới hạn chiều cao, cuộn bên trong để không chiếm cả màn. */
   const scheduleSummaryScrollMaxHeight = useMemo(
@@ -294,18 +311,6 @@ export default function StaffHomeScreen() {
     if (!u) return;
     Linking.openURL(u).catch(() => {});
   }, []);
-
-  /** Cùng logic tenant Home: 3 cột màn hẹp / 4 cột màn rộng — ô nhỏ hơn, không bị dư một nút quá rộng. */
-  const { quickActionGridGap, quickActionItemWidth } = useMemo(() => {
-    const cols = windowWidth < UTILITY_GRID_BREAKPOINT ? 3 : 4;
-    const gap = cols === 3 ? 12 : 10;
-    const inner = Math.max(0, windowWidth - UTILITY_SECTION_H_INSET);
-    const raw = Math.floor((inner - gap * (cols - 1)) / cols);
-    return {
-      quickActionGridGap: gap,
-      quickActionItemWidth: Math.max(cols === 3 ? 72 : 64, raw),
-    };
-  }, [windowWidth]);
 
   // Danh sách thiết bị: lấy từ TẤT CẢ các nhà (mỗi nhà một request rồi gộp) để hiển thị hết, không bị giới hạn một nhà.
   const houseIds = useMemo(() => buildings.map((b) => b.id), [buildings]);
@@ -563,59 +568,67 @@ export default function StaffHomeScreen() {
 
       <View style={staffHomeStyles.quickActionsSection}>
         <Text style={staffHomeStyles.quickActionsTitle}>{t("staff_home.quick_actions_title")}</Text>
-        <View style={[staffHomeStyles.quickActionsGrid, { gap: quickActionGridGap }]}>
-          <Pressable
-            style={({ pressed }) => [
-              staffHomeStyles.quickActionItem,
-              { width: quickActionItemWidth, backgroundColor: "#DBEAFE" },
-              pressed && Platform.OS === "ios" ? { opacity: 0.92 } : null,
-            ]}
-            onPress={openCreateCategory}
-            android_ripple={{ color: "rgba(0,0,0,0.06)" }}
-            accessibilityRole="button"
-            accessibilityLabel={t("staff_home.add_menu_create_category")}
-          >
-            <View style={staffHomeStyles.quickActionIconSlot}>
-              <Icons.folder color={brandPrimary} size={QUICK_ACTION_ICON} />
-            </View>
-            <Text style={staffHomeStyles.quickActionLabel}>
-              {t("staff_home.add_menu_create_category")}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              staffHomeStyles.quickActionItem,
-              { width: quickActionItemWidth, backgroundColor: "#D1FAE5" },
-              pressed && Platform.OS === "ios" ? { opacity: 0.92 } : null,
-            ]}
-            onPress={openCreateDevice}
-            android_ripple={{ color: "rgba(0,0,0,0.06)" }}
-            accessibilityRole="button"
-            accessibilityLabel={t("staff_home.add_menu_create_device")}
-          >
-            <View style={staffHomeStyles.quickActionIconSlot}>
-              <Icons.electric color="#047857" size={QUICK_ACTION_ICON} />
-            </View>
-            <Text style={staffHomeStyles.quickActionLabel}>
-              {t("staff_home.add_menu_create_device")}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              staffHomeStyles.quickActionItem,
-              { width: quickActionItemWidth, backgroundColor: "#EDE9FE" },
-              pressed && Platform.OS === "ios" ? { opacity: 0.92 } : null,
-            ]}
-            onPress={openAssignTag}
-            android_ripple={{ color: "rgba(0,0,0,0.06)" }}
-            accessibilityRole="button"
-            accessibilityLabel={t("staff_home.add_menu_assign_tag")}
-          >
-            <View style={staffHomeStyles.quickActionIconSlot}>
-              <Icons.tag color="#4F46E5" size={QUICK_ACTION_ICON} />
-            </View>
-            <Text style={staffHomeStyles.quickActionLabel}>{t("staff_home.add_menu_assign_tag")}</Text>
-          </Pressable>
+        <View style={[staffHomeStyles.quickActionsGrid, { gap: QUICK_ACTION_GRID_GAP }]}>
+          <View style={staffHomeStyles.quickActionCellSlot}>
+            <Pressable
+              style={({ pressed }) => [
+                staffHomeStyles.quickActionItem,
+                { backgroundColor: "#DBEAFE" },
+                pressed && Platform.OS === "ios" ? { opacity: 0.92 } : null,
+              ]}
+              onPress={openCreateCategory}
+              android_ripple={{ color: "rgba(0,0,0,0.06)" }}
+              accessibilityRole="button"
+              accessibilityLabel={t("staff_home.add_menu_create_category")}
+            >
+              <View style={staffHomeStyles.quickActionIconSlot}>
+                <Icons.folder color={brandPrimary} size={quickActionIconSize} />
+              </View>
+              <Text style={[staffHomeStyles.quickActionLabel, quickActionLabelStyle]}>
+                {t("staff_home.add_menu_create_category")}
+              </Text>
+            </Pressable>
+          </View>
+          <View style={staffHomeStyles.quickActionCellSlot}>
+            <Pressable
+              style={({ pressed }) => [
+                staffHomeStyles.quickActionItem,
+                { backgroundColor: "#D1FAE5" },
+                pressed && Platform.OS === "ios" ? { opacity: 0.92 } : null,
+              ]}
+              onPress={openCreateDevice}
+              android_ripple={{ color: "rgba(0,0,0,0.06)" }}
+              accessibilityRole="button"
+              accessibilityLabel={t("staff_home.add_menu_create_device")}
+            >
+              <View style={staffHomeStyles.quickActionIconSlot}>
+                <Icons.electric color="#047857" size={quickActionIconSize} />
+              </View>
+              <Text style={[staffHomeStyles.quickActionLabel, quickActionLabelStyle]}>
+                {t("staff_home.add_menu_create_device")}
+              </Text>
+            </Pressable>
+          </View>
+          <View style={staffHomeStyles.quickActionCellSlot}>
+            <Pressable
+              style={({ pressed }) => [
+                staffHomeStyles.quickActionItem,
+                { backgroundColor: "#EDE9FE" },
+                pressed && Platform.OS === "ios" ? { opacity: 0.92 } : null,
+              ]}
+              onPress={openAssignTag}
+              android_ripple={{ color: "rgba(0,0,0,0.06)" }}
+              accessibilityRole="button"
+              accessibilityLabel={t("staff_home.add_menu_assign_tag")}
+            >
+              <View style={staffHomeStyles.quickActionIconSlot}>
+                <Icons.tag color="#4F46E5" size={quickActionIconSize} />
+              </View>
+              <Text style={[staffHomeStyles.quickActionLabel, quickActionLabelStyle]}>
+                {t("staff_home.add_menu_assign_tag")}
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </View>
 

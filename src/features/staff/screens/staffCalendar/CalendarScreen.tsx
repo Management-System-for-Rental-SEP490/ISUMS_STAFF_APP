@@ -10,6 +10,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Platform,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import {
@@ -112,7 +113,6 @@ export default function CalendarScreen() {
   const [dayOffActionVisible, setDayOffActionVisible] = useState(false);
   const [timetableRefreshing, setTimetableRefreshing] = useState(false);
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
-  const showPullRefresh = scrollAtTop || timetableRefreshing;
   const [weekOffset, setWeekOffset] = useState(0);
   /** null = hiển thị full tuần, string = chỉ hiển thị ngày đó */
   const [selectedDateYMD, setSelectedDateYMD] = useState<string | null>(null);
@@ -319,14 +319,15 @@ export default function CalendarScreen() {
         onScroll={onScrollForRefreshGate}
         scrollEventThrottle={16}
         refreshControl={
-          showPullRefresh ? (
-            <RefreshControl
-              refreshing={timetableRefreshing}
-              onRefresh={onTimetableRefresh}
-              tintColor={brandPrimary}
-              colors={[brandPrimary]}
-            />
-          ) : undefined
+          <RefreshControl
+            refreshing={timetableRefreshing}
+            onRefresh={onTimetableRefresh}
+            tintColor={brandPrimary}
+            colors={[brandPrimary]}
+            {...(Platform.OS === "android"
+              ? { enabled: scrollAtTop || timetableRefreshing }
+              : {})}
+          />
         }
       >
         <View style={staffCalendarStyles.timetableFrame}>
@@ -407,6 +408,14 @@ export default function CalendarScreen() {
       <DayOffActionModal
         visible={dayOffActionVisible}
         onClose={() => setDayOffActionVisible(false)}
+        onViewLeaveRequests={() => {
+          setDayOffActionVisible(false);
+          navigation.getParent<NavigationProp<RootStackParamList>>()?.navigate("LeaveRequestList");
+        }}
+        onSendLeaveRequest={() => {
+          setDayOffActionVisible(false);
+          navigation.getParent<NavigationProp<RootStackParamList>>()?.navigate("RequestDayOff");
+        }}
       />
     </View>
   );

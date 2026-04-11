@@ -54,7 +54,7 @@ import {
   getStaffIdForSchedule,
 } from "../../../../shared/services/scheduleApi";
 import { getIssueTicketImages } from "../../../../shared/services/issuesApi";
-import ChooseScheduleSlotModal from "../staffCalendar/modals/ChooseScheduleSlotModal";
+import ChooseScheduleSlotModal from "./ChooseScheduleSlotModal";
 
 type TicketDetailRouteProp = RouteProp<RootStackParamList, "TicketDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "TicketDetail">;
@@ -462,7 +462,7 @@ export default function TicketDetailScreen() {
         </TouchableOpacity>
       </Modal>
 
-      <ChooseScheduleSlotModal
+      <ChooseScheduleSlotModal 
         visible={slotModalVisible}
         onClose={() => {
           if (!confirmSlotMutation.isPending) handleCloseModal();

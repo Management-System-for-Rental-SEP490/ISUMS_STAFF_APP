@@ -15,6 +15,8 @@ export const getUserProfile = async (
 ): Promise<UserProfileResponse | null> => {
   //const base = (options?.apiBase ?? BACKEND_API_BASE).replace(/\/$/, "");
   const url = `${BACKEND_API_BASE}/users/me`;
+  //const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/users/me`;
+
   try {
     const response = await axiosClient.get<ApiResponse<UserProfileResponse>>(url);
 
