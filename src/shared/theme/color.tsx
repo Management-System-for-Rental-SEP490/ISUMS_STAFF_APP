@@ -123,6 +123,18 @@ export const statusBadgeBg = {
 export const iotOfflineLabelColor = "#991B1B";
 
 /**
+ * Header gradient: chữ trên nền brand (đồng bộ app người thuê).
+ */
+export const headerOnBrand = {
+  eyebrow: "rgba(255,255,255,0.76)",
+  fg: neutral.surface,
+  subtle: "rgba(255,255,255,0.88)",
+  activityIndicator: "rgba(255,255,255,0.85)",
+  btnGlass: "rgba(255, 255, 255, 0.22)",
+  ripple: "rgba(255,255,255,0.2)",
+} as const;
+
+/**
  * Lịch staff — màu ô ca làm việc (viền trái + chữ loại việc = accent; nền ô = tint).
  * Dùng chung Calendar + Home; đổi palette tại đây.
  */

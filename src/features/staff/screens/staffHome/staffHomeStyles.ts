@@ -1,5 +1,23 @@
 import { StyleSheet } from "react-native";
 import { brandPrimary, brandSecondary, brandTintBg, neutral } from "../../../../shared/theme/color";
+import { appTypography } from "../../../../shared/utils";
+
+const brandPrimaryDark = "#2A9A6E";
+
+/** Khoảng cách dọc giữa các card chính (tóm tắt lịch / nhà / thao tác nhanh) — cùng một nhịp */
+const HOME_MAIN_CARD_GAP = 16;
+
+const SOFT_CARD = {
+  backgroundColor: neutral.surface,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: "rgba(0,0,0,0.04)",
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.06,
+  shadowRadius: 16,
+  elevation: 4,
+} as const;
 
 /**
  * Styles cho màn hình Home của Staff.
@@ -13,36 +31,166 @@ export const staffHomeStyles = StyleSheet.create({
   listContent: {
     paddingBottom: 100,
   },
+  /** Tiêu đề section (nhà thuộc thẩm quyền, …) — đồng bộ appTypography.sectionHeading */
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1F2937",
-    marginLeft: 16,
-    marginRight: 16,
-    marginBottom: 10,
-    marginTop: 16,
+    ...appTypography.sectionHeading,
+    color: neutral.heading,
+    marginBottom: 12,
   },
-  /** Hàng tiêu đề "Việc hôm nay…" + nút + — khoảng cách xuống bảng giống tiêu đề → DropdownBox nhà */
-  scheduleSummaryHeadingRow: {
+  /** Khung bọc tiêu đề + DropdownBox nhà (giống khối utility tenant) */
+  housePickerShell: {
+    marginHorizontal: 16,
+    marginBottom: HOME_MAIN_CARD_GAP,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 14,
+    ...SOFT_CARD,
+  },
+  /** Khối “Thao tác nhanh” — cùng kiểu SOFT_CARD */
+  quickActionsSection: {
+    marginHorizontal: 16,
+    marginTop: 0,
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 16,
+    ...SOFT_CARD,
+  },
+  quickActionsTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: neutral.black,
+    marginBottom: 12,
+    letterSpacing: -0.35,
+  },
+  quickActionsGrid: {
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    justifyContent: "flex-start",
+    alignItems: "stretch",
+  },
+  /** Một ô cột (1/3 hàng); nút lấp đầy ô — cùng layout khi hàng thiếu nút. */
+  quickActionCellSlot: {
+    flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
+  },
+  quickActionItem: {
+    flex: 1,
+    width: "100%",
+    alignSelf: "stretch",
+    minHeight: 58,
+    borderRadius: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickActionIconSlot: {
+    marginBottom: 2,
+    minHeight: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickActionLabel: {
+    color: neutral.textBody,
+    textAlign: "center",
+    fontWeight: "600",
+  },
+  homeSiteFooter: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    backgroundColor: neutral.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+    alignItems: "center",
+  },
+  homeSiteFooterVersionRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginHorizontal: 16,
-    marginTop: 4,
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: 8,
     marginBottom: 10,
+    alignSelf: "stretch",
   },
-  scheduleSummaryHeadingText: {
-    fontSize: 16,
+  homeSiteFooterPill: {
+    backgroundColor: brandTintBg,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  homeSiteFooterPillText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: brandPrimaryDark,
+    letterSpacing: 0.5,
+  },
+  homeSiteFooterDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: neutral.slate300,
+  },
+  homeSiteFooterBuild: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: neutral.textSecondary,
+  },
+  homeSiteFooterSupport: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: neutral.textSecondary,
+    textAlign: "center",
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  homeSiteFooterLinksRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+    gap: 4,
+  },
+  homeSiteFooterLink: {
+    fontSize: 12,
     fontWeight: "700",
-    color: "#1F2937",
-    marginRight: 10,
-    flex: 1,
+    color: brandSecondary,
+  },
+  homeSiteFooterLinkMuted: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: neutral.slate400,
+  },
+  homeSiteFooterCopy: {
+    fontSize: 10,
+    color: neutral.slate400,
+    textAlign: "center",
+  },
+  /** Tiêu đề trong card tóm tắt lịch (cùng khối với bảng) */
+  scheduleCardTitleRow: {
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: neutral.slate200,
+    backgroundColor: "#fff",
+  },
+  scheduleCardTitleText: {
+    ...appTypography.sectionHeading,
+    color: neutral.heading,
   },
   /** Card chứa bảng tóm tắt lịch (chỉ những slot có việc) */
   scheduleCard: {
     backgroundColor: "#fff",
     marginHorizontal: 16,
-    marginTop: 0,
+    marginTop: 16,
+    marginBottom: HOME_MAIN_CARD_GAP,
     padding: 0,
     borderRadius: 12,
     overflow: "hidden",
@@ -88,6 +236,14 @@ export const staffHomeStyles = StyleSheet.create({
     fontWeight: "700",
     color: neutral.heading,
     paddingLeft: 8,
+  },
+  /** Vùng cuộn nội dung bảng tóm tắt (maxHeight gán từ màn hình trong TSX). */
+  scheduleSummaryScroll: {
+    flexGrow: 0,
+  },
+  scheduleSummaryScrollContent: {
+    paddingBottom: 6,
+    flexGrow: 0,
   },
   scheduleRow: {
     flexDirection: "row",

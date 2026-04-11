@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -55,9 +56,8 @@ import {
   type AssetItemImageFromApi,
   type AssetItemImageToUpload,
 } from "../../../../shared/services/assetItemApi";
-import { getHouseById } from "../../../../shared/services/houseApi";
 import { itemScreenStyles } from "./itemScreenStyles";
-import { brandPrimary } from "../../../../shared/theme/color";
+import { brandPrimary, neutral } from "../../../../shared/theme/color";
 import { ImageCaptureModal } from "../../../modal/imageCapture/ImageCaptureModal";
 import {
   DropdownBox,
@@ -76,8 +76,14 @@ import { mergeFunctionalAreasForHouse, sortFunctionalAreasForDisplay } from "../
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemEdit">;
 type ItemEditRouteProp = RouteProp<RootStackParamList, "ItemEdit">;
 
-/** AssetStatus (BE): IN_USE, ACTIVE, BROKEN, DISPOSED — không AVAILABLE / DELETED. */
-const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED"] as const;
+/** AssetStatus (BE): có thể gồm WAITING_MANAGER_CONFIRM (chờ quản lý duyệt) + IN_USE, ACTIVE, BROKEN, DISPOSED. */
+const STATUS_OPTIONS = [
+  "WAITING_MANAGER_CONFIRM",
+  "IN_USE",
+  "ACTIVE",
+  "BROKEN",
+  "DISPOSED",
+] as const;
 
 const MAX_ASSET_ATTACHMENT_IMAGES = 5;
 
@@ -161,10 +167,12 @@ export default function ItemEditScreen() {
   const [serialNumber, setSerialNumber] = useState(latestItem.serialNumber);
   const [nfcId, setNfcId] = useState(latestItem.nfcTag ?? "");
   const [qrId, setQrId] = useState(latestItem.qrTag ?? "");
+  /** Tab NFC / QR trong form — cùng kiểu segment như màn Camera. */
+  const [tagEditMode, setTagEditMode] = useState<"nfc" | "qr">("nfc");
   const [conditionPercent, setConditionPercent] = useState(String(latestItem.conditionPercent));
   const [note, setNote] = useState(latestItem.note ?? "");
   const [status, setStatus] = useState<string>(
-    normalizeAssetItemStatusFromApi(latestItem.status) || STATUS_OPTIONS[0]
+    normalizeAssetItemStatusFromApi(latestItem.status) || "IN_USE"
   );
   const [functionAreaId, setFunctionAreaId] = useState<string | null>(
     latestItem.functionAreaId ?? null
@@ -181,6 +189,12 @@ export default function ItemEditScreen() {
   }, [item.id]);
 
   useEffect(() => {
+    const n = (latestItem.nfcTag ?? "").trim();
+    const q = (latestItem.qrTag ?? "").trim();
+    setTagEditMode(!n && q ? "qr" : "nfc");
+  }, [latestItem.id, latestItem.nfcTag, latestItem.qrTag]);
+
+  useEffect(() => {
     setHouseId(latestItem.houseId);
     setCategoryId(latestItem.categoryId);
     setDisplayName(latestItem.displayName);
@@ -189,7 +203,7 @@ export default function ItemEditScreen() {
     setQrId(latestItem.qrTag ?? "");
     setConditionPercent(String(latestItem.conditionPercent));
     setNote(latestItem.note ?? "");
-    setStatus(normalizeAssetItemStatusFromApi(latestItem.status) || STATUS_OPTIONS[0]);
+    setStatus(normalizeAssetItemStatusFromApi(latestItem.status) || "IN_USE");
     if (!functionAreaUserTouchedRef.current) {
       setFunctionAreaId(latestItem.functionAreaId ?? null);
     }
@@ -200,9 +214,15 @@ export default function ItemEditScreen() {
     const percent = parseInt(conditionPercent, 10);
     if (!Number.isNaN(percent)) {
       if (percent === 100) {
-        // percent=100: nếu đang ở IN_USE/ACTIVE thì giữ nguyên,
+        // percent=100: nếu đang ở IN_USE/ACTIVE (hoặc chờ quản lý) thì giữ nguyên,
         // còn lại normalize về IN_USE để tránh trạng thái không khớp.
-        if (status !== "IN_USE" && status !== "ACTIVE") setStatus("IN_USE");
+        if (
+          status !== "IN_USE" &&
+          status !== "ACTIVE" &&
+          status !== "WAITING_MANAGER_CONFIRM"
+        ) {
+          setStatus("IN_USE");
+        }
       } else if (percent < 100) {
         // percent<100: không tự động ép status, tránh ghi đè status mới từ BE.
       }
@@ -238,6 +258,9 @@ export default function ItemEditScreen() {
 
   const statusLabel = useCallback(
     (s: string) => {
+      if (s === "WAITING_MANAGER_CONFIRM") {
+        return t("staff_item_create.status_waiting_manager_confirm");
+      }
       if (s === "IN_USE") return t("staff_item_create.status_in_use");
       if (s === "ACTIVE") return t("staff_item_create.status_active");
       if (s === "BROKEN") return t("staff_item_create.status_broken");
@@ -252,10 +275,16 @@ export default function ItemEditScreen() {
     return {
       id: "house",
       title: t("dropdown_box.section_house"),
-      items: houses.map((h: HouseFromApi) => ({
-        id: h.id,
-        label: [h.name, h.address].filter(Boolean).join(" · "),
-      })),
+      itemLayout: "card",
+      items: houses.map((h: HouseFromApi) => {
+        const addr = (h.address ?? "").trim();
+        return {
+          id: h.id,
+          label: h.name,
+          detail: [h.name, addr].filter(Boolean).join(" · "),
+          cardMeta: addr || undefined,
+        };
+      }),
       selectedId: houseId,
       showAllOption: false,
     };
@@ -265,7 +294,11 @@ export default function ItemEditScreen() {
     return {
       id: "status",
       title: t("dropdown_box.section_status"),
-      items: STATUS_OPTIONS.map((s) => ({ id: s, label: statusLabel(s) })),
+      itemLayout: "card",
+      items: STATUS_OPTIONS.map((s) => {
+        const label = statusLabel(s);
+        return { id: s, label, detail: label };
+      }),
       selectedId: status,
       showAllOption: false,
     };
@@ -307,6 +340,7 @@ export default function ItemEditScreen() {
       showAllOption: true,
       allLabel: t("staff_item_create.function_area_none"),
       allOptionAsCaption: true,
+      allOptionCaptionMutedWhenSelected: true,
     };
   }, [functionalAreas, functionAreaId, formatAreaDropdownLabel, t]);
 
@@ -357,7 +391,14 @@ export default function ItemEditScreen() {
   const isSuccess = updateMutation.isSuccess;
   const error = updateMutation.error;
 
+  /** Chờ quản lý duyệt: chỉ xem, không cập nhật (theo trạng thái từ server). */
+  const formLocked = useMemo(
+    () => normalizeAssetItemStatusFromApi(latestItem.status) === "WAITING_MANAGER_CONFIRM",
+    [latestItem.status]
+  );
+
   const handleSubmit = async () => {
+    if (formLocked) return;
     if (!houseId.trim() || !categoryId.trim() || !displayName.trim() || !serialNumber.trim()) {
       updateMutation.reset();
       return;
@@ -457,61 +498,13 @@ export default function ItemEditScreen() {
       const areaMismatch =
         sentFaNorm !== "" && (backFaNorm === "" || backFaNorm !== sentFaNorm);
 
-      const navigateToHouseDetail = async (houseIdForNav: string) => {
-        const hid = String(houseIdForNav ?? "").trim();
-        if (!hid) {
-          navigation.goBack();
-          return;
-        }
-        try {
-          const res = await getHouseById(hid);
-          const house = res?.data;
-          if (!house || res?.success === false) {
-            navigation.goBack();
-            return;
-          }
-          const statusStr =
-            house.status !== undefined && house.status !== null
-              ? String(house.status)
-              : undefined;
-          const buildingParams = {
-            buildingId: house.id,
-            buildingName: house.name,
-            buildingAddress: house.address,
-            description: house.description,
-            ward: house.ward,
-            commune: house.commune,
-            city: house.city,
-            status: statusStr,
-            functionalAreas: house.functionalAreas ?? [],
-          };
-          const hasBuildingInStack = navigation
-            .getState()
-            .routes.some((r) => r.name === "BuildingDetail");
-          if (hasBuildingInStack) {
-            navigation.navigate("BuildingDetail", buildingParams);
-          } else {
-            navigation.replace("BuildingDetail", buildingParams);
-          }
-        } catch {
-          navigation.goBack();
-        }
-      };
-
       const finish = async () => {
         await queryClient.refetchQueries({ queryKey: ASSET_ITEM_KEYS.base });
         const refreshedItem = await getAssetItemById(item.id);
         if (refreshedItem) {
           setLatestItem(refreshedItem);
         }
-        if (fromMaintenanceUpdate) {
-          navigation.goBack();
-          return;
-        }
-        const houseIdForNav =
-          (refreshedItem?.houseId && String(refreshedItem.houseId).trim()) ||
-          payload.houseId.trim();
-        await navigateToHouseDetail(houseIdForNav);
+        navigation.goBack();
       };
 
       if (suspiciousBackend || areaMismatch) {
@@ -533,6 +526,7 @@ export default function ItemEditScreen() {
   };
 
   const handleDeletePress = () => {
+    if (formLocked) return;
     Alert.alert(
       t("staff_item_edit.delete_confirm_title"),
       t("staff_item_edit.delete_confirm_message"),
@@ -574,6 +568,7 @@ export default function ItemEditScreen() {
   };
 
   const canSubmit =
+    !formLocked &&
     houseId.trim().length > 0 &&
     categoryId.trim().length > 0 &&
     displayName.trim().length > 0 &&
@@ -581,10 +576,11 @@ export default function ItemEditScreen() {
     conditionPercent.length > 0 &&
     !Number.isNaN(parseInt(conditionPercent, 10));
 
-  // Chỉ cho phép "xóa" khi thiết bị chưa ở trạng thái DISPOSED.
-  const canDelete = status !== "DISPOSED";
+  // Chỉ cho phép "xóa" khi thiết bị chưa ở trạng thái DISPOSED và không chờ duyệt.
+  const canDelete = !formLocked && status !== "DISPOSED";
 
   const handleDetachNfc = () => {
+    if (formLocked) return;
     const trimmed = nfcId.trim();
     if (!trimmed) return;
     Alert.alert(
@@ -624,6 +620,7 @@ export default function ItemEditScreen() {
   };
 
   const handleDetachQr = () => {
+    if (formLocked) return;
     const trimmed = qrId.trim();
     if (!trimmed) return;
     Alert.alert(
@@ -687,6 +684,7 @@ export default function ItemEditScreen() {
   }, [latestItem?.id]);
 
   const handleTakePhoto = async () => {
+    if (formLocked) return;
     if (pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES) {
       Alert.alert(
         t("common.images_limit_title"),
@@ -700,6 +698,7 @@ export default function ItemEditScreen() {
 
   const handleDeleteServerImage = async (imageId: string) => {
     if (!latestItem?.id) return;
+    if (formLocked) return;
     if (uploadingImages || deletingImageId != null) return;
 
     setUploadError(null);
@@ -777,6 +776,13 @@ export default function ItemEditScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={itemScreenStyles.formCard}>
+            {formLocked ? (
+              <View style={itemScreenStyles.pendingReadOnlyBanner}>
+                <Text style={itemScreenStyles.pendingReadOnlyBannerText}>
+                  {t("staff_item_edit.readonly_pending_manager")}
+                </Text>
+              </View>
+            ) : null}
             {fromMaintenanceUpdate ? (
               <TouchableOpacity
                 style={[itemScreenStyles.imageButton, { marginBottom: 12 }]}
@@ -790,29 +796,41 @@ export default function ItemEditScreen() {
             ) : null}
             <Text style={itemScreenStyles.label}>{t("staff_item_create.house_label")}</Text>
             {houseDropdownSection ? (
-              <DropdownBox
-                sections={[houseDropdownSection]}
-                summary={houseDropdownSummary}
-                onSelect={onItemEditDropdownSelect}
-                style={{ marginBottom: 4 }}
-                keyboardVerticalOffset={insets.top + 52}
-                onSearchInputFocus={scrollItemEditTop}
-              />
+              <View
+                style={formLocked ? { opacity: 0.72 } : undefined}
+                pointerEvents={formLocked ? "none" : "auto"}
+              >
+                <DropdownBox
+                  sections={[houseDropdownSection]}
+                  summary={houseDropdownSummary}
+                  onSelect={onItemEditDropdownSelect}
+                  style={{ marginBottom: 4 }}
+                  keyboardVerticalOffset={insets.top + 52}
+                  onSearchInputFocus={scrollItemEditTop}
+                  itemLayout="card"
+                  searchAutoFocus={false}
+                />
+              </View>
             ) : null}
 
             <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.function_area_label")}</Text>
-              <DropdownBox
-                sections={[functionalAreaDropdownSection]}
-                summary={functionalAreaDropdownSummary}
-                onSelect={onItemEditDropdownSelect}
-                style={{ marginBottom: 4 }}
-                keyboardVerticalOffset={insets.top + 52}
-                onSearchInputFocus={scrollItemEditTop}
-                itemLayout="card"
-                searchAutoFocus={false}
-                keyboardAvoiding={false}
-              />
+              <View
+                style={formLocked ? { opacity: 0.72 } : undefined}
+                pointerEvents={formLocked ? "none" : "auto"}
+              >
+                <DropdownBox
+                  sections={[functionalAreaDropdownSection]}
+                  summary={functionalAreaDropdownSummary}
+                  summaryMuted={!functionAreaId}
+                  onSelect={onItemEditDropdownSelect}
+                  style={{ marginBottom: 4 }}
+                  keyboardVerticalOffset={insets.top + 52}
+                  onSearchInputFocus={scrollItemEditTop}
+                  itemLayout="card"
+                  searchAutoFocus={false}
+                />
+              </View>
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
@@ -827,164 +845,229 @@ export default function ItemEditScreen() {
             <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.display_name_label")}</Text>
               <TextInput
-                style={itemScreenStyles.input}
+                style={[itemScreenStyles.input, formLocked && itemScreenStyles.inputReadonlyDim]}
                 value={displayName}
                 onChangeText={setDisplayName}
                 placeholder={t("staff_item_create.display_name_placeholder")}
                 placeholderTextColor="#9CA3AF"
-                editable={!isPending}
+                editable={!isPending && !formLocked}
               />
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.serial_number_label")}</Text>
               <TextInput
-                style={itemScreenStyles.input}
+                style={[itemScreenStyles.input, formLocked && itemScreenStyles.inputReadonlyDim]}
                 value={serialNumber}
                 onChangeText={setSerialNumber}
                 placeholder={t("staff_item_create.serial_number_placeholder")}
                 placeholderTextColor="#9CA3AF"
-                editable={!isPending}
+                editable={!isPending && !formLocked}
               />
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
-              <Text style={itemScreenStyles.label}>{t("device_detail.nfc_tag_id")}</Text>
-              <TextInput
+              <View
                 style={[
-                  itemScreenStyles.input,
-                  { backgroundColor: "#F9FAFB", color: "#6B7280" }
+                  itemScreenStyles.tagSegmentTrack,
+                  formLocked ? { opacity: 0.72 } : null,
                 ]}
-                value={nfcId || ""}
-                placeholder={t("staff_item_create.nfc_id_placeholder")}
-                placeholderTextColor="#9CA3AF"
-                editable={false}
-              />
-              {/* NFC Actions - ngay dưới NFC tag ID */}
-              {!nfcId.trim() ? (
-                <TouchableOpacity
+                pointerEvents={formLocked ? "none" : "auto"}
+              >
+                <Pressable
                   style={[
-                    itemScreenStyles.detachNfcBtn,
-                    { backgroundColor: brandPrimary, borderColor: brandPrimary }
+                    itemScreenStyles.tagSegmentTab,
+                    tagEditMode === "nfc" ? itemScreenStyles.tagSegmentTabNfcActive : null,
                   ]}
-                  onPress={() => navigation.navigate("Camera", {
-                    assignForDevice: latestItem,
-                    mode: "assign",
-                    initialScanMode: "nfc",
-                  })}
-                  activeOpacity={0.8}
+                  onPress={() => setTagEditMode("nfc")}
+                  disabled={isPending || formLocked}
                 >
-                  <Text style={[itemScreenStyles.detachNfcBtnText, { color: "#fff" }]}>
-                    {t("staff_home.add_menu_assign_nfc")}
+                  <Icons.nfc
+                    size={18}
+                    color={tagEditMode === "nfc" ? neutral.surface : neutral.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      itemScreenStyles.tagSegmentTabText,
+                      tagEditMode === "nfc" ? itemScreenStyles.tagSegmentTabTextActive : null,
+                    ]}
+                  >
+                    {t("staff_item_edit.tag_segment_nfc")}
                   </Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
+                </Pressable>
+                <Pressable
                   style={[
-                    itemScreenStyles.detachNfcBtn,
-                    detachNfcMutation.isPending && itemScreenStyles.detachNfcBtnDisabled,
+                    itemScreenStyles.tagSegmentTab,
+                    tagEditMode === "qr" ? itemScreenStyles.tagSegmentTabQrActive : null,
                   ]}
-                  onPress={handleDetachNfc}
-                  disabled={detachNfcMutation.isPending}
-                  activeOpacity={0.8}
+                  onPress={() => setTagEditMode("qr")}
+                  disabled={isPending || formLocked}
                 >
-                  {detachNfcMutation.isPending ? (
-                    <ActivityIndicator size="small" color="#111827" />
-                  ) : (
-                    <Text style={itemScreenStyles.detachNfcBtnText}>
-                      {t("staff_item_edit.remove_nfc_btn")}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
+                  <Icons.scanLookup
+                    size={18}
+                    color={tagEditMode === "qr" ? neutral.surface : neutral.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      itemScreenStyles.tagSegmentTabText,
+                      tagEditMode === "qr" ? itemScreenStyles.tagSegmentTabTextActive : null,
+                    ]}
+                  >
+                    {t("staff_item_edit.tag_segment_qr")}
+                  </Text>
+                </Pressable>
+              </View>
 
-            <View style={itemScreenStyles.fieldSpacer}>
-              <Text style={itemScreenStyles.label}>{t("device_detail.qr_code_id")}</Text>
-              <TextInput
-                style={[
-                  itemScreenStyles.input,
-                  { backgroundColor: "#F9FAFB", color: "#6B7280" }
-                ]}
-                value={qrId || ""}
-                placeholder={t("staff_item_create.nfc_id_placeholder")}
-                placeholderTextColor="#9CA3AF"
-                editable={false}
-              />
-              {/* QR Actions - ngay dưới QR code ID */}
-              {!qrId.trim() ? (
-                <TouchableOpacity
-                  style={[
-                    itemScreenStyles.detachNfcBtn,
-                    { backgroundColor: brandPrimary, borderColor: brandPrimary }
-                  ]}
-                  onPress={() => navigation.navigate("Camera", {
-                    assignForDevice: latestItem,
-                    mode: "assign",
-                    initialScanMode: "qr",
-                  })}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[itemScreenStyles.detachNfcBtnText, { color: "#fff" }]}>
-                    {t("staff_home.add_menu_assign_qr")}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[
-                    itemScreenStyles.detachNfcBtn,
-                    detachNfcMutation.isPending && itemScreenStyles.detachNfcBtnDisabled,
-                  ]}
-                  onPress={handleDetachQr}
-                  disabled={detachNfcMutation.isPending}
-                  activeOpacity={0.8}
-                >
-                  {detachNfcMutation.isPending ? (
-                    <ActivityIndicator size="small" color="#111827" />
+              {tagEditMode === "nfc" ? (
+                <>
+                  <Text style={itemScreenStyles.label}>{t("device_detail.nfc_tag_id")}</Text>
+                  <TextInput
+                    style={[itemScreenStyles.input, itemScreenStyles.inputReadonlyDim]}
+                    value={nfcId || ""}
+                    placeholder={t("staff_item_create.nfc_id_placeholder")}
+                    placeholderTextColor={neutral.textMuted}
+                    editable={false}
+                  />
+                  {!nfcId.trim() ? (
+                    !formLocked ? (
+                      <TouchableOpacity
+                        style={[
+                          itemScreenStyles.detachNfcBtn,
+                          { backgroundColor: brandPrimary, borderColor: brandPrimary },
+                        ]}
+                        onPress={() =>
+                          navigation.navigate("Camera", {
+                            assignForDevice: latestItem,
+                            mode: "assign",
+                            initialScanMode: "nfc",
+                          })
+                        }
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[itemScreenStyles.detachNfcBtnText, { color: neutral.surface }]}>
+                          {t("staff_home.add_menu_assign_nfc")}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null
                   ) : (
-                    <Text style={itemScreenStyles.detachNfcBtnText}>
-                      {t("staff_item_edit.remove_qr_btn")}
-                    </Text>
+                    !formLocked ? (
+                      <TouchableOpacity
+                        style={[
+                          itemScreenStyles.detachNfcBtn,
+                          detachNfcMutation.isPending && itemScreenStyles.detachNfcBtnDisabled,
+                        ]}
+                        onPress={handleDetachNfc}
+                        disabled={detachNfcMutation.isPending}
+                        activeOpacity={0.8}
+                      >
+                        {detachNfcMutation.isPending ? (
+                          <ActivityIndicator size="small" color={neutral.text} />
+                        ) : (
+                          <Text style={itemScreenStyles.detachNfcBtnText}>
+                            {t("staff_item_edit.remove_nfc_btn")}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    ) : null
                   )}
-                </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={itemScreenStyles.label}>{t("device_detail.qr_code_id")}</Text>
+                  <TextInput
+                    style={[itemScreenStyles.input, itemScreenStyles.inputReadonlyDim]}
+                    value={qrId || ""}
+                    placeholder={t("staff_item_create.nfc_id_placeholder")}
+                    placeholderTextColor={neutral.textMuted}
+                    editable={false}
+                  />
+                  {!qrId.trim() ? (
+                    !formLocked ? (
+                      <TouchableOpacity
+                        style={[
+                          itemScreenStyles.detachNfcBtn,
+                          { backgroundColor: brandPrimary, borderColor: brandPrimary },
+                        ]}
+                        onPress={() =>
+                          navigation.navigate("Camera", {
+                            assignForDevice: latestItem,
+                            mode: "assign",
+                            initialScanMode: "qr",
+                          })
+                        }
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[itemScreenStyles.detachNfcBtnText, { color: neutral.surface }]}>
+                          {t("staff_home.add_menu_assign_qr")}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null
+                  ) : (
+                    !formLocked ? (
+                      <TouchableOpacity
+                        style={[
+                          itemScreenStyles.detachNfcBtn,
+                          detachNfcMutation.isPending && itemScreenStyles.detachNfcBtnDisabled,
+                        ]}
+                        onPress={handleDetachQr}
+                        disabled={detachNfcMutation.isPending}
+                        activeOpacity={0.8}
+                      >
+                        {detachNfcMutation.isPending ? (
+                          <ActivityIndicator size="small" color={neutral.text} />
+                        ) : (
+                          <Text style={itemScreenStyles.detachNfcBtnText}>
+                            {t("staff_item_edit.remove_qr_btn")}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    ) : null
+                  )}
+                </>
               )}
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.condition_label")}</Text>
               <TextInput
-                style={itemScreenStyles.input}
+                style={[itemScreenStyles.input, formLocked && itemScreenStyles.inputReadonlyDim]}
                 value={conditionPercent}
                 onChangeText={setConditionPercent}
                 placeholder="0-100"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="number-pad"
                 maxLength={3}
-                editable={!isPending}
+                editable={!isPending && !formLocked}
               />
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.status_label")}</Text>
-              <DropdownBox
-                sections={[statusDropdownSection]}
-                summary={statusDropdownSummary}
-                onSelect={onItemEditDropdownSelect}
-                style={{ marginBottom: 4 }}
-                keyboardVerticalOffset={insets.top + 52}
-                onSearchInputFocus={scrollItemEditEnd}
-              />
+              <View
+                style={formLocked ? { opacity: 0.72 } : undefined}
+                pointerEvents={formLocked ? "none" : "auto"}
+              >
+                <DropdownBox
+                  sections={[statusDropdownSection]}
+                  summary={statusDropdownSummary}
+                  onSelect={onItemEditDropdownSelect}
+                  style={{ marginBottom: 4 }}
+                  keyboardVerticalOffset={insets.top + 52}
+                  onSearchInputFocus={scrollItemEditEnd}
+                  itemLayout="card"
+                />
+              </View>
             </View>
 
             <View style={itemScreenStyles.fieldSpacer}>
               <Text style={itemScreenStyles.label}>{t("staff_item_description.note_label")}</Text>
               <TextInput
-                style={itemScreenStyles.input}
+                style={[itemScreenStyles.input, formLocked && itemScreenStyles.inputReadonlyDim]}
                 value={note}
                 onChangeText={setNote}
                 placeholder={t("staff_item_description.note_placeholder")}
                 placeholderTextColor="#9CA3AF"
-                editable={!isPending}
+                editable={!isPending && !formLocked}
                 multiline
               />
             </View>
@@ -1001,23 +1084,25 @@ export default function ItemEditScreen() {
             <View style={itemScreenStyles.imagesSection}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.images_label")}</Text>
 
-              <View style={itemScreenStyles.imageButtonsRow}>
-                <TouchableOpacity
-                  style={[
-                    itemScreenStyles.imageButton,
-                    pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES && { opacity: 0.5 },
-                  ]}
-                  onPress={handleTakePhoto}
-                  activeOpacity={0.9}
-                  disabled={
-                    isPending ||
-                    uploadingImages ||
-                    pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES
-                  }
-                >
-                  <Text style={itemScreenStyles.imageButtonText}>{t("staff_item_create.images_camera")}</Text>
-                </TouchableOpacity>
-              </View>
+              {!formLocked ? (
+                <View style={itemScreenStyles.imageButtonsRow}>
+                  <TouchableOpacity
+                    style={[
+                      itemScreenStyles.imageButton,
+                      pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES && { opacity: 0.5 },
+                    ]}
+                    onPress={handleTakePhoto}
+                    activeOpacity={0.9}
+                    disabled={
+                      isPending ||
+                      uploadingImages ||
+                      pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES
+                    }
+                  >
+                    <Text style={itemScreenStyles.imageButtonText}>{t("staff_item_create.images_camera")}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
 
               {!!uploadError ? <Text style={itemScreenStyles.errorText}>{uploadError}</Text> : null}
 
@@ -1047,7 +1132,7 @@ export default function ItemEditScreen() {
                             />
                           </View>
                         </TouchableOpacity>
-                        {card.kind === "pending" ? (
+                        {card.kind === "pending" && !formLocked ? (
                           <TouchableOpacity
                             style={itemScreenStyles.removeImageBtn}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -1063,7 +1148,7 @@ export default function ItemEditScreen() {
                           >
                             <Text style={itemScreenStyles.removeImageBtnText}>×</Text>
                           </TouchableOpacity>
-                        ) : (
+                        ) : card.kind === "server" && !formLocked ? (
                           <TouchableOpacity
                             style={itemScreenStyles.removeImageBtn}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -1092,7 +1177,7 @@ export default function ItemEditScreen() {
                               <Text style={itemScreenStyles.removeImageBtnText}>×</Text>
                             )}
                           </TouchableOpacity>
-                        )}
+                        ) : null}
                       </View>
                     ))}
                   </ScrollView>
@@ -1107,41 +1192,43 @@ export default function ItemEditScreen() {
               
             </View>
 
-            <View style={[itemScreenStyles.actionBtnRow]}>
-              <TouchableOpacity
-                style={[
-                  itemScreenStyles.submitBtn,
-                  itemScreenStyles.actionBtnHalf,
-                  (!canSubmit || isPending || uploadingImages) && itemScreenStyles.submitBtnDisabled,
-                ]}
-                onPress={handleSubmit}
-                disabled={!canSubmit || isPending || uploadingImages}
-                activeOpacity={0.8}
-              >
-                {isPending ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={itemScreenStyles.submitBtnText}>{t("staff_item_edit.submit")}</Text>
-                )}
-              </TouchableOpacity>
+            {!formLocked ? (
+              <View style={[itemScreenStyles.actionBtnRow]}>
+                <TouchableOpacity
+                  style={[
+                    itemScreenStyles.submitBtn,
+                    itemScreenStyles.actionBtnHalf,
+                    (!canSubmit || isPending || uploadingImages) && itemScreenStyles.submitBtnDisabled,
+                  ]}
+                  onPress={handleSubmit}
+                  disabled={!canSubmit || isPending || uploadingImages}
+                  activeOpacity={0.8}
+                >
+                  {isPending ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={itemScreenStyles.submitBtnText}>{t("staff_item_edit.submit")}</Text>
+                  )}
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[
-                  itemScreenStyles.deleteBtn,
-                  itemScreenStyles.actionBtnHalf,
-                  (!canDelete || isPending || uploadingImages) && itemScreenStyles.deleteBtnDisabled,
-                ]}
-                onPress={handleDeletePress}
-                disabled={!canDelete || isPending || uploadingImages}
-                activeOpacity={0.8}
-              >
-                {isPending && !canSubmit ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={itemScreenStyles.deleteBtnText}>{t("staff_item_edit.delete_btn")}</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity
+                  style={[
+                    itemScreenStyles.deleteBtn,
+                    itemScreenStyles.actionBtnHalf,
+                    (!canDelete || isPending || uploadingImages) && itemScreenStyles.deleteBtnDisabled,
+                  ]}
+                  onPress={handleDeletePress}
+                  disabled={!canDelete || isPending || uploadingImages}
+                  activeOpacity={0.8}
+                >
+                  {isPending && !canSubmit ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={itemScreenStyles.deleteBtnText}>{t("staff_item_edit.delete_btn")}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
             {isSuccess && (
               <Text style={itemScreenStyles.successText}>{t("staff_item_edit.success_message")}</Text>
@@ -1190,7 +1277,7 @@ export default function ItemEditScreen() {
       <ImageCaptureModal
         visible={imageCaptureVisible}
         onClose={() => setImageCaptureVisible(false)}
-        onPicked={(assets) => {
+        onPicked={(assets, _source) => {
           setUploadError(null);
           const picked = addPickedImages(assets);
           setPendingImagePreviews((prev) => {

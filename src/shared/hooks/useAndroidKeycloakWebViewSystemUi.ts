@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import * as NavigationBar from "expo-navigation-bar";
 import type { NavigationBarButtonStyle, NavigationBarPosition } from "expo-navigation-bar";
+import { isEdgeToEdge } from "react-native-is-edge-to-edge";
 
 type SavedChrome = {
   position: NavigationBarPosition;
@@ -18,6 +19,21 @@ export function useAndroidKeycloakWebViewSystemUi(active: boolean) {
 
   useEffect(() => {
     if (Platform.OS !== "android" || !active) return;
+
+    if (isEdgeToEdge()) {
+      try {
+        NavigationBar.setStyle("dark");
+      } catch {
+        /* ignore */
+      }
+      return () => {
+        try {
+          NavigationBar.setStyle("auto");
+        } catch {
+          /* ignore */
+        }
+      };
+    }
 
     let cancelled = false;
 
@@ -37,7 +53,7 @@ export function useAndroidKeycloakWebViewSystemUi(active: boolean) {
         try {
           NavigationBar.setStyle("dark");
         } catch {
-          /* edge-to-edge / thiết bị không hỗ trợ setStyle */
+          /* thiết bị không hỗ trợ setStyle */
         }
       } catch {
         /* Expo Go hoặc API không khả dụng */

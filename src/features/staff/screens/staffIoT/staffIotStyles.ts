@@ -86,12 +86,9 @@ export const staffIotStyles = StyleSheet.create({
   chipText: { ...appTypography.chip, fontWeight: "700", color: neutral.textSecondary },
   chipTextActive: { color: neutral.surface },
 
-  // Header row cho section "Thiết bị": chip + nút "+"
   sectionHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
     marginBottom: 12,
     paddingHorizontal: 16,
   },
@@ -101,16 +98,6 @@ export const staffIotStyles = StyleSheet.create({
     gap: 10,
     flex: 1,
   },
-  addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: brandPrimary,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-
   areaCard: {
     backgroundColor: neutral.surface,
     marginHorizontal: 16,

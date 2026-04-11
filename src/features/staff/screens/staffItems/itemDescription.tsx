@@ -62,13 +62,18 @@ export default function ItemDescriptionScreen() {
   // Item ban đầu từ params
   const initialItem = route.params.item as AssetItemFromApi;
   const hideEdit = route.params.hideEdit === true;
-  
+
   // State lưu item mới nhất (được cập nhật khi focus lại màn hình)
   const [item, setItem] = useState<AssetItemFromApi>(initialItem);
   const [loading, setLoading] = useState(false);
   const [imagesLoading, setImagesLoading] = useState(false);
   const [itemImages, setItemImages] = useState<AssetItemImageFromApi[]>([]);
   const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
+
+  const isPendingManagerApproval = useMemo(
+    () => normalizeAssetItemStatusFromApi(item.status) === "WAITING_MANAGER_CONFIRM",
+    [item.status]
+  );
 
   const { data: housesData } = useHouses();
   const houses = housesData?.data ?? [];
@@ -188,6 +193,9 @@ export default function ItemDescriptionScreen() {
 
   const getStatusStyle = () => {
     const normalizedStatus = normalizeAssetItemStatusFromApi(item.status);
+    if (normalizedStatus === "WAITING_MANAGER_CONFIRM") {
+      return itemScreenStyles.descriptionStatusPendingManager;
+    }
     if (normalizedStatus === "IN_USE" || normalizedStatus === "ACTIVE") {
       return itemScreenStyles.descriptionStatusInUse;
     }
@@ -199,6 +207,9 @@ export default function ItemDescriptionScreen() {
 
   const getStatusLabel = () => {
     const normalizedStatus = normalizeAssetItemStatusFromApi(item.status);
+    if (normalizedStatus === "WAITING_MANAGER_CONFIRM") {
+      return t("staff_item_create.status_waiting_manager_confirm");
+    }
     if (normalizedStatus === "IN_USE") return t("staff_item_create.status_in_use");
     if (normalizedStatus === "ACTIVE") return t("staff_item_create.status_active");
     if (normalizedStatus === "DISPOSED") return t("staff_item_create.status_disposed");
@@ -368,6 +379,8 @@ export default function ItemDescriptionScreen() {
                   style={[
                     itemScreenStyles.descriptionValue,
                     { textAlign: "center", flex: undefined },
+                    normalizeAssetItemStatusFromApi(item.status) === "WAITING_MANAGER_CONFIRM" &&
+                      itemScreenStyles.descriptionStatusPendingManagerText,
                   ]}
                 >
                   {getStatusLabel()}
@@ -375,7 +388,7 @@ export default function ItemDescriptionScreen() {
               </View>
             </View>
 
-            {!hideEdit ? (
+            {!hideEdit && !isPendingManagerApproval ? (
               <TouchableOpacity
                 style={itemScreenStyles.descriptionEditBtn}
                 onPress={() =>

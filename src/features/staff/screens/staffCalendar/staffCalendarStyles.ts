@@ -42,7 +42,8 @@ export const staffCalendarStyles = StyleSheet.create({
   },
   timetableScrollContent: {
     paddingHorizontal: 16,
-    paddingBottom: 120,
+    /** Tab + khoảng trống để dòng cuối không bị nút FAB (góc phải) che. */
+    paddingBottom: 168,
   },
   sectionTitle: {
     fontSize: 20,
@@ -343,14 +344,34 @@ export const staffCalendarStyles = StyleSheet.create({
     alignItems: "center" as const,
     flex: 1,
   },
+  /** lineHeight cố định để dấu chấm công việc thẳng hàng giữa các ô */
   daysHeaderDay: {
     fontSize: 11,
+    lineHeight: 20,
     color: "#64748b",
     marginBottom: 4,
+    textAlign: "center" as const,
   },
+  /** Ô đang chọn (lọc 1 ngày) — đậm, to tương đương nhấn mạnh hôm nay */
   daysHeaderDayToday: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: "800" as const,
     color: "#6366f1",
-    fontWeight: "700" as const,
+  },
+  /** Hôm nay trên lịch tuần: nổi bật hơn các ngày khác */
+  daysHeaderDayIsToday: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: "800" as const,
+    color: "#4f46e5",
+    marginBottom: 4,
+  },
+  /** Cố định chiều cao để dấu chấm công việc thẳng hàng giữa các ô */
+  daysHeaderNumRow: {
+    height: 36,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
   },
   daysHeaderNumWrap: {
     width: 32,
@@ -361,12 +382,29 @@ export const staffCalendarStyles = StyleSheet.create({
     alignItems: "center" as const,
   },
   daysHeaderNumWrapToday: { backgroundColor: "#6366f1" },
+  /** Vòng ngày hôm nay (chưa chọn lọc): hơi to + nền nhạt */
+  daysHeaderNumWrapIsToday: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(79, 70, 229, 0.12)",
+  },
   daysHeaderNum: {
     fontSize: 14,
     fontWeight: "600" as const,
     color: "#334155",
   },
-  daysHeaderNumToday: { color: "#fff" },
+  daysHeaderNumToday: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800" as const,
+  },
+  /** Số ngày hôm nay khi không ở chế độ chọn */
+  daysHeaderNumIsToday: {
+    fontSize: 16,
+    fontWeight: "800" as const,
+    color: "#312e81",
+  },
   daysHeaderDot: {
     width: 6,
     height: 6,
@@ -405,7 +443,13 @@ export const staffCalendarStyles = StyleSheet.create({
     fontWeight: "600" as const,
     color: "#475569",
   },
-  timetableDateToday: { color: "#6366f1" },
+  /** Hàng tương ứng ngày hôm nay — khớp nhấn mạnh với strip tuần */
+  timetableDateToday: {
+    fontSize: 15,
+    fontWeight: "800" as const,
+    color: "#4f46e5",
+    letterSpacing: -0.2,
+  },
   /** Thanh xám thu nhỏ khi không có slot */
   timetableEmptySlot: {
     flex: 1,
@@ -453,10 +497,10 @@ export const staffCalendarStyles = StyleSheet.create({
   },
   /** Cột ngày (trái) - CalendarScreen dùng */
   timetableDateColumn: {
-    width: 80,
+    width: 86,
     paddingVertical: 12,
-    paddingLeft: 16,
-    paddingRight: 12,
+    paddingLeft: 14,
+    paddingRight: 10,
     justifyContent: "center" as const,
     borderRightWidth: 1,
     borderRightColor: "#e2e8f0",

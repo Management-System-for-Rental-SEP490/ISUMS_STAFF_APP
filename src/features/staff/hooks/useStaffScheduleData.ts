@@ -5,9 +5,14 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getCurrentScheduleTemplate,
-  getGeneratedWorkSlots,
+  getMyWorkSlots,
   getStaffIdForSchedule,
 } from "../../../shared/services/scheduleApi";
+import {
+  addDaysToYmd,
+  getWorkWeekMonToSatYmd,
+  mergeGeneratedWorkSlotsDays,
+} from "../../../shared/utils";
 import { STAFF_LEAVE_KEYS } from "../../../shared/hooks/useStaffLeave";
 import { fetchEnrichedWorkSlotsForStaff } from "../data/workSlotEnrichment";
 import type {
@@ -54,7 +59,7 @@ export function useEnrichedWorkSlotsQuery() {
 }
 
 /**
- * Slot sinh từ BE theo khoảng ngày (AVAILABLE, …). Dùng màn/modal đăng ký khung giờ xử lý issue.
+ * Slot từ BE (GET .../work_slots/slots/me) theo khoảng ngày. Dùng màn/modal đăng ký khung giờ xử lý issue.
  */
 export function useGeneratedWorkSlotsQuery(
   startYmd: string,
@@ -65,9 +70,36 @@ export function useGeneratedWorkSlotsQuery(
   return useQuery({
     queryKey: SCHEDULE_DATA_KEYS.generatedSlots(startYmd, endYmd),
     queryFn: async (): Promise<GeneratedWorkSlotsDayFromApi[]> => {
-      const res = await getGeneratedWorkSlots(startYmd, endYmd);
-      if (res.success && Array.isArray(res.data)) return res.data;
-      return [];
+      /**
+       * Gọi từng tuần T2–T7 rồi gộp — nhiều BE giới hạn độ dài startDate–endDate (1 request 2 tuần dễ lỗi).
+       * Neo theo `startYmd` (thường = T2 tuần này từ màn ticket) để khớp queryKey.
+       */
+      const week1 = getWorkWeekMonToSatYmd(new Date(`${startYmd}T12:00:00`));
+      const nextMondayYmd = addDaysToYmd(week1.endYmd, 2);
+      const week2 = getWorkWeekMonToSatYmd(new Date(`${nextMondayYmd}T12:00:00`));
+
+      const settled = await Promise.allSettled([
+        getMyWorkSlots(week1.startYmd, week1.endYmd),
+        getMyWorkSlots(week2.startYmd, week2.endYmd),
+      ]);
+
+      const chunks: GeneratedWorkSlotsDayFromApi[][] = [];
+      const failures: unknown[] = [];
+
+      for (const s of settled) {
+        if (s.status === "fulfilled") {
+          const res = s.value;
+          if (res.success && Array.isArray(res.data)) chunks.push(res.data);
+        } else {
+          failures.push(s.reason);
+        }
+      }
+
+      if (chunks.length === 0 && failures.length > 0) {
+        throw failures[0];
+      }
+
+      return mergeGeneratedWorkSlotsDays(chunks);
     },
     enabled: enabled && Boolean(startYmd && endYmd),
     ...scheduleQueryDefaults,

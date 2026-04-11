@@ -5,11 +5,11 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
+  Switch,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  Switch,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -38,12 +38,22 @@ import {
   stackScreenTitleRowStyle,
   stackScreenTitleSideSlotStyle,
 } from "../../../../shared/components/StackScreenTitleBadge";
+import { useKeyboardBottomInset } from "../../../../shared/hooks/useKeyboardBottomInset";
 import {
   DropdownBox,
   type DropdownBoxSection,
 } from "../../../../shared/components/dropdownBox";
-import { brandPrimary, neutral } from "../../../../shared/theme/color";
+import {
+  brandPrimary,
+  brandTintBg,
+  brandDangerBorder,
+  brandDangerBg,
+  BRAND_DANGER,
+  neutral,
+} from "../../../../shared/theme/color";
+import { staffFormShape } from "../../../../shared/styles/staffFormShape";
 import Icons from "../../../../shared/theme/icon";
+import { submittedIssueRepairTicketIdsInSession } from "./issueRepairSession";
 
 type IssueNoteRouteProp = RouteProp<RootStackParamList, "StaffIssueNote">;
 type IssueNoteNavProp = NativeStackNavigationProp<RootStackParamList, "StaffIssueNote">;
@@ -51,6 +61,7 @@ type IssueNoteNavProp = NativeStackNavigationProp<RootStackParamList, "StaffIssu
 export default function StaffIssueNoteScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const keyboardInset = useKeyboardBottomInset();
   const navigation = useNavigation<IssueNoteNavProp>();
   const route = useRoute<IssueNoteRouteProp>();
   const { issueId, houseId, assetId } = route.params;
@@ -243,7 +254,7 @@ export default function StaffIssueNoteScreen() {
         return;
       }
 
-      // isTenantFault=false: vẫn cho nhập cost/price để manager theo dõi nội bộ.
+      // isTenantFault=false: vẫn cho nhập cost/price để manager theo dõi.
       // Chỉ gọi API quote khi:
       // - là lỗi tenant (bắt buộc có item), hoặc
       // - không phải lỗi tenant nhưng staff có nhập item.
@@ -267,6 +278,7 @@ export default function StaffIssueNoteScreen() {
           );
         }
 
+        submittedIssueRepairTicketIdsInSession.add(issueId);
         const total = quoteRes.data?.totalPrice;
         CustomAlert.alert(
           t("common.success"),
@@ -278,6 +290,7 @@ export default function StaffIssueNoteScreen() {
         return;
       }
 
+      submittedIssueRepairTicketIdsInSession.add(issueId);
       CustomAlert.alert(
         t("common.success"),
         res.message || t("staff_issue_note.update_success"),
@@ -318,18 +331,22 @@ export default function StaffIssueNoteScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 56 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={insets.top + 56}
       >
         <ScrollView
           contentContainerStyle={[
             styles.content,
-            { paddingBottom: Math.max(32, insets.bottom + 16) },
+            {
+              paddingBottom:
+                Math.max(32, insets.bottom + 16) +
+                (Platform.OS === "android" ? keyboardInset : 0),
+            },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.card}>
+          <View style={styles.sectionCard}>
             <Text style={styles.deviceLabel}>{t("staff_issue_note.device_label")}</Text>
             <View style={styles.deviceRow}>
               <Icons.assignment size={18} color={neutral.slate500} />
@@ -364,22 +381,20 @@ export default function StaffIssueNoteScreen() {
               textAlignVertical="top"
               editable={!submitting}
             />
+          </View>
 
-            <View style={styles.rowBetween}>
-              <Text style={[styles.label, { marginBottom: 0 }]}>{t("staff_issue_note.is_tenant_fault_label")}</Text>
+          <View style={styles.sectionCard}>
+            <View style={styles.tenantFaultRow}>
+              <Text style={styles.tenantFaultLabel}>{t("staff_issue_note.is_tenant_fault_label")}</Text>
               <Switch
                 value={isTenantFault}
                 onValueChange={setIsTenantFault}
                 disabled={submitting}
-                trackColor={{ false: neutral.slate200, true: brandPrimary }}
-                thumbColor={neutral.surface}
+                trackColor={{ false: neutral.slate300, true: brandTintBg }}
+                thumbColor={Platform.OS === "android" ? (isTenantFault ? brandPrimary : neutral.slate400) : undefined}
+                ios_backgroundColor={neutral.slate300}
               />
             </View>
-            <Text style={styles.hintText}>
-              {isTenantFault
-                ? t("staff_issue_note.cost_price_hint")
-                : t("staff_issue_note.cost_price_hint_internal")}
-            </Text>
 
             <Text style={styles.sectionTitle}>
               {isTenantFault
@@ -395,9 +410,6 @@ export default function StaffIssueNoteScreen() {
               <Text style={styles.hintText}>{t("staff_issue_note.banner_empty")}</Text>
             ) : (
               <View pointerEvents={submitting ? "none" : "auto"}>
-                <Text style={[styles.hintText, { marginBottom: 10 }]}>
-                  {t("staff_issue_note.banner_multi_hint")}
-                </Text>
                 <DropdownBox
                   sections={bannerSections}
                   summary={bannerSummary}
@@ -428,30 +440,31 @@ export default function StaffIssueNoteScreen() {
                   editable={!submitting}
                 />
 
-                <View style={styles.customTwoCols}>
-                  <TextInput
-                    style={[styles.input, styles.customHalfInput]}
-                    value={it.cost}
-                    onChangeText={(v) => updateCustomItem(it.id, "cost", v)}
-                    placeholder={t("staff_issue_note.cost_placeholder")}
-                    placeholderTextColor={neutral.slate400}
-                    keyboardType="number-pad"
-                    editable={!submitting}
-                  />
-                  <TextInput
-                    style={[styles.input, styles.customHalfInput]}
-                    value={it.price}
-                    onChangeText={(v) => updateCustomItem(it.id, "price", v)}
-                    placeholder={
-                      isTenantFault
-                        ? t("staff_issue_note.price_placeholder")
-                        : t("staff_issue_note.price_placeholder_internal")
-                    }
-                    placeholderTextColor={neutral.slate400}
-                    keyboardType="number-pad"
-                    editable={!submitting}
-                  />
-                </View>
+                <Text style={styles.inlineFieldLabel}>{t("staff_issue_note.cost_field_label")}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={it.cost}
+                  onChangeText={(v) => updateCustomItem(it.id, "cost", v)}
+                  placeholder={t("staff_issue_note.amount_placeholder")}
+                  placeholderTextColor={neutral.slate400}
+                  keyboardType="number-pad"
+                  editable={!submitting}
+                />
+
+                <Text style={styles.inlineFieldLabel}>
+                  {isTenantFault
+                    ? t("staff_issue_note.price_field_label")
+                    : t("staff_issue_note.price_field_label_internal")}
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={it.price}
+                  onChangeText={(v) => updateCustomItem(it.id, "price", v)}
+                  placeholder={t("staff_issue_note.amount_placeholder")}
+                  placeholderTextColor={neutral.slate400}
+                  keyboardType="number-pad"
+                  editable={!submitting}
+                />
 
                 <TouchableOpacity
                   style={styles.removeItemBtn}
@@ -497,21 +510,37 @@ export default function StaffIssueNoteScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: neutral.canvasMuted,
   },
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    gap: 16,
   },
-  card: {
+  sectionCard: {
     backgroundColor: neutral.surface,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: "#64748b",
+    borderRadius: staffFormShape.radiusSurface,
+    padding: 18,
+    shadowColor: neutral.slate900,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+    borderCurve: "continuous",
+  },
+  tenantFaultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    gap: 12,
+  },
+  tenantFaultLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: neutral.text,
+    paddingRight: 8,
   },
   label: {
     fontSize: 13,
@@ -530,12 +559,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginBottom: 14,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    backgroundColor: "#F8FAFC",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: staffFormShape.radiusControl,
+    backgroundColor: neutral.backgroundSubtle,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: neutral.inputBorder,
+    borderCurve: "continuous",
   },
   deviceValue: {
     flex: 1,
@@ -551,24 +581,30 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderColor: neutral.inputBorder,
+    borderRadius: staffFormShape.radiusControl,
+    backgroundColor: neutral.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 15,
     color: neutral.text,
+    borderCurve: "continuous",
   },
   noteInput: {
     minHeight: 120,
   },
   submitBtn: {
-    marginTop: 16,
-    borderRadius: 12,
+    marginTop: 4,
+    borderRadius: staffFormShape.radiusControl,
     backgroundColor: brandPrimary,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 13,
+    paddingVertical: 16,
+    shadowColor: brandPrimary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 4,
+    elevation: 5,
   },
   submitBtnDisabled: {
     opacity: 0.7,
@@ -576,15 +612,7 @@ const styles = StyleSheet.create({
   submitBtnText: {
     color: neutral.surface,
     fontSize: 15,
-    fontWeight: "600",
-  },
-
-  rowBetween: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 14,
-    marginBottom: 6,
+    fontWeight: "800",
   },
   hintText: {
     fontSize: 12,
@@ -596,9 +624,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.6,
-    color: neutral.textMuted,
+    color: neutral.slate500,
     textTransform: "uppercase",
     marginBottom: 8,
+  },
+
+  inlineFieldLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: neutral.slate600,
+    marginTop: 10,
+    marginBottom: 6,
   },
 
   loadingRow: {
@@ -611,48 +647,41 @@ const styles = StyleSheet.create({
   customItemCard: {
     borderWidth: 1,
     borderColor: neutral.inputBorder,
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: neutral.surface,
-    marginBottom: 10,
-  },
-  customTwoCols: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 8,
-  },
-  customHalfInput: {
-    flex: 1,
+    borderRadius: staffFormShape.radiusControl,
+    padding: 14,
+    backgroundColor: neutral.backgroundElevated,
+    marginBottom: 12,
+    borderCurve: "continuous",
   },
   removeItemBtn: {
-    marginTop: 10,
-    paddingVertical: 10,
+    marginTop: 12,
+    paddingVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: neutral.canvasMuted,
+    borderRadius: staffFormShape.radiusControl,
+    backgroundColor: brandDangerBg,
     borderWidth: 1,
-    borderColor: neutral.inputBorder,
+    borderColor: brandDangerBorder,
     alignItems: "center",
   },
   removeItemBtnText: {
-    color: neutral.textSecondary,
+    color: BRAND_DANGER,
     fontWeight: "700",
-    fontSize: 13,
+    fontSize: 14,
   },
 
   addItemBtn: {
-    marginTop: 6,
-    borderRadius: 12,
-    backgroundColor: neutral.canvasMuted,
-    borderWidth: 1,
-    borderColor: neutral.inputBorder,
-    paddingVertical: 12,
+    marginTop: 8,
+    borderRadius: staffFormShape.radiusControl,
+    backgroundColor: brandTintBg,
+    borderWidth: 1.5,
+    borderColor: brandPrimary,
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
   },
   addItemBtnText: {
-    color: neutral.textSecondary,
+    color: brandPrimary,
     fontWeight: "800",
-    fontSize: 14,
+    fontSize: 15,
   },
 });

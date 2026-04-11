@@ -14,6 +14,7 @@ export {
 } from "./truncateDisplayText";
 export {
   DROPDOWN_SEARCH_TOP_INSET_PX,
+  isFieldObscuredByKeyboard,
   parentScrollOffsetForDropdownField,
 } from "./dropdownSearchScroll";
 export {
@@ -31,6 +32,8 @@ export { mapLabelForFunctionalArea } from "./functionalAreaMapLabel";
 export {
   formatDateRangeDdMmYyyy,
   formatDdMmYyyy,
+  formatHmAmPmDdMmYyyy,
+  formatYmdStringToDdMmYyyy,
   formatIsoDueDateVi,
   formatLocaleIsoDateTime,
   formatMonthYearSlashed,
@@ -39,10 +42,14 @@ export {
   formatTimeRangeFromMinutes,
   formatViTicketCreatedAt,
 } from "./dateTimeFormat";
+export { APP_DEFAULT_CURRENCY_CODE, formatVndDisplay } from "./currencyFormat";
 export {
   buildProposedSlotFramesForDatesYmd,
   buildScheduleTemplateMinuteRanges,
   enumerateDatesYmdInclusive,
+  addDaysToYmd,
+  getWorkWeekMonToSatYmd,
+  getThisAndNextWorkWeekMonToSatYmd,
   isYmdWorkingDay,
   parseScheduleTimeToMinutes,
   parseScheduleWorkingDaysToSet,
@@ -52,5 +59,6 @@ export {
 } from "./scheduleTemplateSlots";
 export {
   listAvailableGeneratedSlotChoices,
+  mergeGeneratedWorkSlotsDays,
   type AvailableGeneratedSlotChoice,
 } from "./generatedWorkSlots";

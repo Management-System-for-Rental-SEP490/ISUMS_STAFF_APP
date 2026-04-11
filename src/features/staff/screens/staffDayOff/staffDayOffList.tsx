@@ -17,7 +17,12 @@ import Header from "../../../../shared/components/header";
 import { CustomAlert } from "../../../../shared/components/alert";
 import { getStaffIdForSchedule } from "../../../../shared/services/scheduleApi";
 import type { LeaveRequestFromApi } from "../../../../shared/types/api";
-import { useLeaveRequests, useUpdateLeaveRequestStatus } from "../../../../shared/hooks";
+import {
+  useLeaveRequests,
+  useUpdateLeaveRequestStatus,
+  useRefreshControlGate,
+  refreshControlAndroidGateProps,
+} from "../../../../shared/hooks";
 import { staffDayOffStyles } from "./staffDayOffStyles";
 import { brandPrimary } from "../../../../shared/theme/color";
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
@@ -81,6 +86,8 @@ export default function StaffDayOffListScreen() {
     setRefreshing(true);
     fetchData();
   };
+
+  const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
 
   const leaveTotalPages = getTotalPages(items.length);
   const pagedItems = useMemo(
@@ -186,11 +193,14 @@ export default function StaffDayOffListScreen() {
             style={{ paddingBottom: Math.max(8, insets.bottom) }}
           />
         )}
+        onScroll={onScrollForRefreshGate}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
             colors={[brandPrimary]}
+            {...refreshControlAndroidGateProps(scrollAtTop, refreshing)}
           />
         }
         ListEmptyComponent={

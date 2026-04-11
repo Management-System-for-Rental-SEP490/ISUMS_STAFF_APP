@@ -53,8 +53,8 @@ type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemCreate">;
 
 const MAX_ASSET_ATTACHMENT_IMAGES = 5;
 
-/** AssetStatus (BE): IN_USE, ACTIVE, BROKEN, DISPOSED — không AVAILABLE / DELETED. */
-const STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED"] as const;
+/** Trạng thái mặc định khi tạo thiết bị — chờ quản lý duyệt trước khi hiển thị ở app người dùng. */
+const NEW_ASSET_DEFAULT_STATUS = "WAITING_MANAGER_CONFIRM" as const;
 
 export default function ItemCreateScreen() {
   const { t } = useTranslation();
@@ -68,7 +68,6 @@ export default function ItemCreateScreen() {
   const [nfcId, setNfcId] = useState("");
   const [qrId, setQrId] = useState("");
   const [conditionPercent, setConditionPercent] = useState("");
-  const [status, setStatus] = useState<string>(STATUS_OPTIONS[0]);
   const [functionAreaId, setFunctionAreaId] = useState<string | null>(null);
   const [selectedImages, setSelectedImages] = useState<AssetItemImageToUpload[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -110,17 +109,6 @@ export default function ItemCreateScreen() {
       requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 140, animated: true }));
     });
   }, []);
-  const statusLabel = useCallback(
-    (s: string) => {
-      if (s === "IN_USE") return t("staff_item_create.status_in_use");
-      if (s === "ACTIVE") return t("staff_item_create.status_active");
-      if (s === "BROKEN") return t("staff_item_create.status_broken");
-      if (s === "DISPOSED") return t("staff_item_create.status_disposed");
-      return s || "—";
-    },
-    [t]
-  );
-
   const houseDropdownSection = useMemo((): DropdownBoxSection | null => {
     if (sortedHouses.length === 0) return null;
     return {
@@ -162,22 +150,6 @@ export default function ItemCreateScreen() {
     };
   }, [sortedCategories, categoryId, t]);
 
-  const statusDropdownSection = useMemo((): DropdownBoxSection => {
-    return {
-      id: "status",
-      title: t("dropdown_box.section_status"),
-      itemLayout: "card",
-      items: STATUS_OPTIONS.map((s) => ({
-        id: s,
-        label: statusLabel(s),
-        detail: `${s} ${statusLabel(s)}`,
-        cardMeta: s,
-      })),
-      selectedId: status,
-      showAllOption: false,
-    };
-  }, [status, statusLabel, t]);
-
   const houseDropdownSummary = useMemo(() => {
     const h = sortedHouses.find((x: HouseFromApi) => x.id === houseId);
     return `${t("dropdown_box.house_short")}: ${h?.name ?? t("staff_item_create.house_label")}`;
@@ -187,11 +159,6 @@ export default function ItemCreateScreen() {
     const c = sortedCategories.find((x: AssetCategoryFromApi) => x.id === categoryId);
     return `${t("dropdown_box.category_short")}: ${c?.name ?? t("staff_item_create.category_label")}`;
   }, [sortedCategories, categoryId, t]);
-
-  const statusDropdownSummary = useMemo(
-    () => `${t("dropdown_box.status_short")}: ${statusLabel(status)}`,
-    [status, statusLabel, t]
-  );
 
   const formatAreaDropdownLabel = useCallback(
     (a: FunctionalAreaFromApi) => {
@@ -224,6 +191,7 @@ export default function ItemCreateScreen() {
       showAllOption: true,
       allLabel: t("staff_item_create.function_area_none"),
       allOptionAsCaption: true,
+      allOptionCaptionMutedWhenSelected: true,
     };
   }, [functionalAreas, functionAreaId, formatAreaDropdownLabel, t]);
 
@@ -248,12 +216,10 @@ export default function ItemCreateScreen() {
       return;
     }
     if (sectionId === "category") setCategoryId(itemId);
-    if (sectionId === "status") setStatus(itemId);
   }, []);
 
   const createMutation = useCreateAssetItem();
   const isPending = createMutation.isPending;
-  const isSuccess = createMutation.isSuccess;
   const error = createMutation.error;
 
   const addPickedImages = (assets: ImagePicker.ImagePickerAsset[]) => {
@@ -329,7 +295,7 @@ export default function ItemCreateScreen() {
         qrTag: trimmedQr || null,
         qrId: trimmedQr || null,
         conditionPercent: percent,
-        status: status || "IN_USE",
+        status: NEW_ASSET_DEFAULT_STATUS,
         functionAreaId,
       });
 
@@ -339,7 +305,9 @@ export default function ItemCreateScreen() {
         await uploadAssetItemImages(createdId, selectedImages);
       }
 
-      navigation.goBack();
+      Alert.alert(t("common.success"), t("staff_item_create.success_pending_approval"), [
+        { text: t("common.close"), onPress: () => navigation.goBack() },
+      ]);
     } catch (e) {
       const msg = e instanceof Error && e.message ? e.message : t("staff_item_create.error_message");
       setUploadError(msg);
@@ -404,7 +372,6 @@ export default function ItemCreateScreen() {
                 onSearchInputFocus={scrollCreateNearTop}
                 itemLayout="card"
                 searchAutoFocus={false}
-                keyboardAvoiding={false}
               />
             ) : null}
 
@@ -413,13 +380,13 @@ export default function ItemCreateScreen() {
               <DropdownBox
                 sections={[functionalAreaDropdownSection]}
                 summary={functionalAreaDropdownSummary}
+                summaryMuted={!functionAreaId}
                 onSelect={onItemCreateDropdownSelect}
                 style={{ marginBottom: 4 }}
                 keyboardVerticalOffset={insets.top + 52}
                 onSearchInputFocus={scrollCreateMid}
                 itemLayout="card"
                 searchAutoFocus={false}
-                keyboardAvoiding={false}
               />
             </View>
 
@@ -435,7 +402,6 @@ export default function ItemCreateScreen() {
                   onSearchInputFocus={scrollCreateMid}
                   itemLayout="card"
                   searchAutoFocus={false}
-                  keyboardAvoiding={false}
                 />
               ) : null}
             </View>
@@ -499,20 +465,6 @@ export default function ItemCreateScreen() {
                 keyboardType="number-pad"
                 maxLength={3}
                 editable={!isPending}
-              />
-            </View>
-
-            <View style={itemScreenStyles.fieldSpacer}>
-              <Text style={itemScreenStyles.label}>{t("staff_item_create.status_label")}</Text>
-              <DropdownBox
-                sections={[statusDropdownSection]}
-                summary={statusDropdownSummary}
-                onSelect={onItemCreateDropdownSelect}
-                style={{ marginBottom: 4 }}
-                keyboardVerticalOffset={insets.top + 52}
-                itemLayout="card"
-                searchAutoFocus={false}
-                keyboardAvoiding={false}
               />
             </View>
 
@@ -593,9 +545,6 @@ export default function ItemCreateScreen() {
               )}
             </TouchableOpacity>
 
-            {isSuccess && (
-              <Text style={itemScreenStyles.successText}>{t("staff_item_create.success_message")}</Text>
-            )}
             {error && (
               <Text style={itemScreenStyles.errorText}>{t("staff_item_create.error_message")}</Text>
             )}
@@ -609,7 +558,7 @@ export default function ItemCreateScreen() {
       <ImageCaptureModal
         visible={imageCaptureVisible}
         onClose={() => setImageCaptureVisible(false)}
-        onPicked={(assets) => {
+        onPicked={(assets, _source) => {
           setUploadError(null);
           addPickedImages(assets);
         }}

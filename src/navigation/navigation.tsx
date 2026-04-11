@@ -17,12 +17,12 @@ import TicketDetailScreen from "../features/staff/screens/staffTicket/TicketDeta
 import CategoryScreen from "../features/staff/screens/staffCategory/categoryScreen";
 import CategoryListScreen from "../features/staff/screens/staffCategory/CategoryListScreen";
 import CategoryEditScreen from "../features/staff/screens/staffCategory/CategoryEditScreen";
-import ItemListScreen from "../features/staff/screens/staffItems/ItemListScreen";
 import ItemCreateScreen from "../features/staff/screens/staffItems/ItemCreateScreen";
 import ItemEditScreen from "../features/staff/screens/staffItems/ItemEditScreen";
 import ItemDescriptionScreen from "../features/staff/screens/staffItems/itemDescription";
 import WorkSlotDetailScreen from "../features/staff/screens/staffWorkSlot/staffWorkSlotDetail";
 import StaffIssueNoteScreen from "../features/staff/screens/staffWorkSlot/staffIssueNote";
+import InspectionConfirmScreen from "../features/staff/screens/staffWorkSlot/InspectionConfirmScreen";
 import StaffDayOffListScreen from "../features/staff/screens/staffDayOff/staffDayOffList";
 import StaffRequestDayOffScreen from "../features/staff/screens/staffDayOff/staffRequestDayOff";
 import StaffIotListScreen from "../features/staff/screens/staffIoT/staffIotList";
@@ -32,6 +32,7 @@ import StaffIotWifiScreen from "../features/staff/screens/staffIoT/staffIotWifi"
 import StaffIotWifiPasswordScreen from "../features/staff/screens/staffIoT/staffIotWifiPasswordScreen";
 import StaffIotProvisionWaitingScreen from "../features/staff/screens/staffIoT/staffIotProvisionWaiting";
 import StaffIotDetailScreen from "../features/staff/screens/staffIoT/staffIotDetail";
+import StaffNotificationScreen from "../features/staff/screens/staffnotification/StaffNotificationScreen";
 import { StaffScheduleProvider } from "../features/staff/context/StaffScheduleContext";
 import KeycloakChangePasswordWebViewOverlay from "../shared/components/KeycloakChangePasswordWebViewOverlay";
 
@@ -114,14 +115,25 @@ const Navigation = () => {
             ) : (
               <>
                 <Stack.Screen name="Main" component={StaffTabs} />
+                <Stack.Screen name="StaffNotification" component={StaffNotificationScreen} />
                 <Stack.Screen
                   name="Camera"
                   component={CameraScreen}
-                  options={{ presentation: "modal" }}
+                  options={{
+                    presentation: "modal",
+                    /** Nền đen phủ edge-to-edge (sau status bar / thanh điều hướng hệ thống), giống màn quét QR IoT. */
+                    statusBarTranslucent: true,
+                    statusBarStyle: "light",
+                    statusBarBackgroundColor: "transparent",
+                    navigationBarTranslucent: true,
+                    navigationBarColor: "#00000000",
+                    contentStyle: { backgroundColor: "#000000" },
+                  }}
                 />
                 <Stack.Screen name="BuildingDetail" component={BuildingDetailScreenWrapper} />
                 <Stack.Screen name="TicketDetail" component={TicketDetailScreenWrapper} />
                 <Stack.Screen name="WorkSlotDetail" component={WorkSlotDetailScreen} />
+                <Stack.Screen name="InspectionConfirm" component={InspectionConfirmScreen} />
                 <Stack.Screen name="StaffIssueNote" component={StaffIssueNoteScreen} />
                 <Stack.Screen name="CategoryList" component={CategoryListScreen} />
                 <Stack.Screen name="Category" component={CategoryScreen} />
@@ -130,7 +142,6 @@ const Navigation = () => {
                   component={CategoryEditScreen}
                   options={{ presentation: "modal" }}
                 />
-                <Stack.Screen name="ItemList" component={ItemListScreen} />
                 <Stack.Screen name="ItemCreate" component={ItemCreateScreen} />
                 <Stack.Screen
                   name="ItemEdit"
@@ -154,15 +165,7 @@ const Navigation = () => {
               </>
             )
           ) : (
-            <Stack.Screen
-              name="AuthLogin"
-              component={Login}
-              options={{
-                statusBarTranslucent: true,
-                navigationBarColor: "#00000000",
-                navigationBarTranslucent: true,
-              }}
-            />
+            <Stack.Screen name="AuthLogin" component={Login} />
           )}
         </Stack.Navigator>
       </NavigationContainer>

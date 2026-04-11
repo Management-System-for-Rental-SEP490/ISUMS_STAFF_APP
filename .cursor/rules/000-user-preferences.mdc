@@ -1,119 +1,42 @@
 ---
-description: ISUMS Staff — tương tác AI (tạo file, giải thích chi tiết, tiếng Việt), i18n, spec, ticket/mock, data source. Chi tiết kỹ thuật code nằm trong 010-architecture-conventions.mdc.
+description: ISUMS Staff — tương tác AI, i18n, chú thích theo hàm + commit rõ; copy UI ngắn.
 globs: **/*
 alwaysApply: true
 ---
 
-# Quy tắc Tương tác và Code (User Preferences) – ISUMS Staff App
+# Quy tắc Tương tác (User Preferences) – ISUMS Staff App
 
-Bạn phải tuân thủ nghiêm ngặt các quy tắc dưới đây trong mọi câu trả lời. **Ứng dụng này là ISUMS Staff App** – dành riêng cho nhân viên kỹ thuật (role `technical`), tách từ ISUMS gốc.
+## 1. Ngôn ngữ
 
-**Luật kỹ thuật (services, hooks, màu, typography, BE, Alert, DropdownBox, phân trang, chuỗi BE, …):** bắt buộc đọc và làm theo **`010-architecture-conventions.mdc`**. File này (`000`) giữ phần **cách tương tác với user** và **ngữ cảnh nghiệp vụ Staff**.
+*   Luôn phản hồi bằng **Tiếng Việt** (trong chat với user).
 
-## 1. Quy định về Tạo File Mới
+## 2. Chú thích theo hàm, commit, và chữ trên giao diện
 
-**KHÔNG ĐƯỢC** tự tiện tạo file mới.
+### 2.1. Chú thích từng hàm (bắt buộc khi thêm/sửa logic đáng kể)
 
-Khi bạn nhận thấy cần tạo một file mới, bạn phải thực hiện theo quy trình sau:
-1.  **Dừng lại** và hỏi ý kiến người dùng trước.
-2.  **Đưa ra giải thích chi tiết**:
-    *   **Tại sao** cần tạo file này? (Lý do kỹ thuật, kiến trúc dự án...)
-    *   **Tại sao** chọn vị trí (thư mục) đó? (Tuân thủ cấu trúc dự án nào...)
-    *   Mục đích của file là gì?
-3.  Chỉ thực hiện lệnh tạo file (Write tool) khi người dùng đã xác nhận **"Đồng ý"**.
+Với **hàm / hook / handler** (và module phức tạp), thêm **khối chú thích phía trên** (JSDoc hoặc comment nhiều dòng) giải thích **đủ để đọc lại sau này vẫn hiểu**:
 
-*(Tạo file rule `.mdc` mới trong `.cursor/rules/` cũng áp dụng quy trình này — trừ khi user yêu cầu rõ.)*
+*   **Hàm dùng để làm gì** (mục đích trong luồng nghiệp vụ).
+*   **Chức năng / hành vi**: xử lý gì, gọi API nào, điều kiện quan trọng.
+*   Có thể ghi thêm **tham số, giá trị trả về**, edge case — nếu không thể suy ra nhanh từ tên hàm.
 
-## 2. Quy định về Giải thích Code (Gen Code)
+**Không** bắt buộc comment từng dòng lặp lại code hiển nhiên; ưu tiên **một khối đầu hàm rõ ràng** thay vì rải rác câu ngắn vô nghĩa.
 
-Mọi đoạn code được sinh ra phải đi kèm với chú thích và giải thích cực kỳ chi tiết, dành cho người mới bắt đầu (kém lập trình).
+### 2.2. Commit message
 
-*   **Comment trong code**: Phải giải thích từng dòng hoặc từng khối lệnh quan trọng.
-*   **Giải thích bên ngoài**:
-    *   Giải thích ý nghĩa của từng syntax (cú pháp) đặc biệt (ví dụ: `useEffect` làm gì, `?.` nghĩa là gì...).
-    *   Giải thích logic của hàm: Đầu vào là gì, xử lý gì, đầu ra là gì.
-    *   Tránh dùng thuật ngữ chuyên ngành quá sâu mà không giải thích lại bằng ngôn ngữ đơn giản dễ hiểu.
+Khi tạo commit / mô tả thay đổi: **giải thích được** đã làm gì, **vì sao** (ngắn gọn nhưng đủ để nắm luồng), tránh chỉ một từ chung chung nếu thay đổi không tầm thường.
 
-## 3. Ngôn ngữ
+### 2.3. Chuỗi hiển thị cho người dùng (UI)
 
-*   Luôn phản hồi bằng **Tiếng Việt**.
+**Tách biệt** với chú thích cho dev: text trên màn hình (label, nút, **alert**, toast) **ngắn**, trung tính.
 
-## 4. Tài liệu Tham chiếu Dự án
+*   **Ví dụ alert thành công:** chỉ **“Thành công”** / key i18n tương đương — **không** thêm phụ đề dài kiểu *“Ca làm việc và công việc đã … trên hệ thống”* trừ khi user yêu cầu rõ.
 
-*   **Tài liệu duy nhất:** `docs/SPECIFICATION.md` – Đặc tả đầy đủ: phạm vi Staff, công nghệ, kịch bản từng form, mock data và kế hoạch tích hợp API.
-*   **Tham chiếu:** Dùng `@ISUMS_STAFF_APP/docs` hoặc đọc `docs/SPECIFICATION.md`.
-*   **Khi người dùng hỏi** về tính năng, nghiệp vụ, hoặc cấu trúc: **TỰ ĐỘNG ĐỌC** `docs/SPECIFICATION.md` để lấy thông tin nếu chưa rõ, không cần chờ nhắc.
+## 3. Đa ngôn ngữ (i18n)
 
-## 5. Quy định về Đa ngôn ngữ (i18n)
+*   **KHÔNG** hardcode text user-facing.
+*   Dùng `t()` / hệ thống i18n có sẵn; cập nhật **đủ 3** file: `src/shared/i18n/vietnamese.ts`, `english.ts`, `japanese.ts`.
 
-Ứng dụng này tích hợp **3 ngôn ngữ** (Việt, Anh, Nhật), do đó bạn **PHẢI** đảm bảo tích hợp đa ngôn ngữ cho tất cả các phần có thể:
+## 4. Tạo file mới
 
-*   **KHÔNG ĐƯỢC** hardcode text trực tiếp vào code (ví dụ: `"Xin chào"`, `"Submit"`, `"Cancel"`).
-*   **PHẢI** sử dụng hệ thống i18n (internationalization) có sẵn trong dự án cho mọi text hiển thị cho người dùng:
-    *   Sử dụng các hàm dịch từ thư viện i18n (ví dụ: `t()`, `translate()`, hoặc các hàm tương tự).
-    *   **Vị trí lưu trữ bản dịch**:
-        *   Tiếng Việt: `src/shared/i18n/vietnamese.ts`
-        *   Tiếng Anh: `src/shared/i18n/english.ts`
-        *   Tiếng Nhật: `src/shared/i18n/japanese.ts`
-        *   File `src/shared/i18n/index.ts` chỉ dùng để config chung, **KHÔNG** thêm text trực tiếp vào đây.
-    *   Nếu cần tạo key mới, phải thêm vào **TẤT CẢ** các file ngôn ngữ (3 ngôn ngữ) tại các đường dẫn trên.
-*   **Áp dụng cho**:
-    *   Tất cả các label, button text, placeholder, error messages.
-    *   Các thông báo, alert, toast messages.
-    *   Tiêu đề màn hình, menu items.
-    *   Bất kỳ text nào hiển thị cho người dùng cuối.
-*   **Tránh bỏ sót**: Khi tạo component mới hoặc thêm tính năng mới, luôn kiểm tra lại xem có text nào cần dịch không.
-
-*(Checklist kỹ thuật i18n ngắn gọn cũng có trong `010-architecture-conventions.mdc`.)*
-
-## 6. Quy định về Ticket Workflow và Staff (đã có – mock)
-
-**Hiện trạng:** Ứng dụng Staff **chỉ có luồng Staff** – xem danh sách/chi tiết ticket, đặt lịch, quản lý building, category, item. **Đã implement** với **mock data**. Khi có API, thay mock bằng dữ liệu BE theo **`010-architecture-conventions.mdc`** (service + hook + types `api.ts`).
-
-### 6.1. Phạm vi ứng dụng Staff
-
-*   Ứng dụng này **không có** role tenant. Chỉ cho phép đăng nhập với role `technical`.
-*   Luồng tenant tạo ticket nằm ở ứng dụng ISUMS Tenant (riêng biệt).
-
-### 6.2. Luồng Staff (đã có – mock)
-
-*   **TicketListScreen:** `src/features/staff/screens/staffTicket/TicketListScreen.tsx` – danh sách ticket (mock `MOCK_STAFF_TICKETS`), filter status/priority, nhấn item → navigate **TicketDetail** với `ticketId`.
-*   **TicketDetailScreen:** `src/features/staff/screens/staffTicket/TicketDetailScreen.tsx` – chi tiết ticket, hiển thị đầy đủ thông tin; có action "Nhận Ticket" (logic mock). Tab Staff dùng TicketListScreen; Stack có màn TicketDetail.
-*   Khi có API: thay mock bằng React Query/Zustand; bổ sung actions Đặt lịch, Check-in, Hoàn thành theo spec (xem `docs/SPECIFICATION.md`).
-
-### 6.3. Types và cấu trúc
-
-*   **Types hiện tại:** `TicketStatus`, `TicketPriority`, `StaffTicketListItem` nằm trong `src/features/staff/data/mockStaffData.ts`.
-*   **Khi kết nối BE:** Đặt types/interface chuẩn tại **`src/shared/types/api.ts`**; tham khảo spec trong `docs/SPECIFICATION.md`.
-
-### 6.4. Lưu ý
-
-*   **Notification:** Khi có API, link thông báo ticket từ StaffNotificationScreen đến TicketDetailScreen.
-*   i18n: mục 5; mock/API + tầng code: **`010-architecture-conventions.mdc`**.
-
----
-
-## 7. Hiện trạng Dữ liệu (Data Source)
-
-*   **Phần lớn ứng dụng hiện dùng mock data** do đã xây dựng sẵn; **chưa áp dụng API** để liên kết với Backend (BE).
-*   **Ngoại lệ:** Luồng **authentication** đã dùng **Keycloak** (kết nối thật với IdP).
-*   Khi làm việc với dữ liệu (ticket, lịch staff, building, category, item, thông báo, v.v.), **nhớ** nguồn hiện tại là mock; khi kết nối BE → tuân thủ **`010-architecture-conventions.mdc`**.
-
----
-
-## 8. Kết nối BE, Alert, màu, typography, refresh, stack header, chuỗi BE, DropdownBox, phân trang (đã chuyển)
-
-Các mục **8–17** cũ (chi tiết dài) đã được **rút gọn và gom** vào **`010-architecture-conventions.mdc`** để:
-
-*   Tránh trùng lặp giữa hai file rule.
-*   Tăng khả năng model nhận **đủ** quy tắc kỹ thuật trong một lượt (file `010` ngắn hơn nhiều so với bản `000` trước đây).
-
-**Khi gen / sửa code:** tuân thủ **`010-architecture-conventions.mdc`**.  
-**Khi trả lời user:** tuân thủ **mục 1–3** (tạo file, giải thích, tiếng Việt) + **mục 4–7** (spec, i18n đầy đủ, ngữ cảnh Staff).
-
-### 8.1. Gen code trong chat (học tập vs áp dụng luôn)
-
-*   **Mặc định** (khi user không nói gì thêm): có thể gen trong chat **đủ** để user code tay theo — phù hợp mục **2** (giải thích chi tiết).
-*   **Khi user yêu cầu rõ** “gen ra luôn” / “áp dụng luôn” / dùng tool sửa repo: được phép patch/write trực tiếp; vẫn phải tuân thủ **`010`**.
-
----
+**KHÔNG** tự tiện tạo file mới. Khi cần, hỏi user và giải thích lý do/vị trí; chỉ tạo khi user xác nhận (trừ khi user yêu cầu rõ tạo file cụ thể).

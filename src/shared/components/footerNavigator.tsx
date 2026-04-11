@@ -10,8 +10,8 @@ import { iconStyles } from "../styles/iconStyles";
 import footerStyles from "../styles/footerStyles";
 import CalendarScreen from "../../features/staff/screens/staffCalendar/CalendarScreen";
 import StaffHomeScreen from "../../features/staff/screens/staffHome/StaffHomeScreen";
-import StaffNotificationScreen from "../../features/staff/screens/staffnotification/StaffNotificationScreen";
 import TicketListScreen from "../../features/staff/screens/staffTicket/TicketListScreen";
+import ItemListScreen from "../../features/staff/screens/staffItems/ItemListScreen";
 import { StaffScheduleProvider } from "../../features/staff/context/StaffScheduleContext";
 import i18next from "i18next";
 import { useTranslation } from "react-i18next";
@@ -26,7 +26,7 @@ const tabIconMap: Record<keyof MainTabParamList, (props: IconProps) => React.Rea
   Billing: (props) => <Icons.contract {...props} />,
   Profile: (props) => <Icons.user {...props} />,
   Calendar: (props) => <Icons.calendar {...props} />,
-  Notification: (props) => <Icons.notification {...props} />,
+  Devices: (props) => <Icons.devices {...props} />,
   Ticket: (props) => <Icons.ticket {...props} />,
 };
 
@@ -162,6 +162,7 @@ const DashboardListener = ({ // DashboardListener là một hàm để lắng ng
     navigation.getParent<NavigationProp<RootStackParamList>>()?.navigate("Camera"); // getParent là một phương thức của navigation, nó dùng để lấy navigation prop từ parent navigator.
   }, 
 });
+
 // Nếu bạn không truyền prop bằng function:
 // <Tab.Screen name="Dashboard">
 //   {(props) => <HomeScreen {...props} />}
@@ -201,7 +202,7 @@ const DashboardListener = ({ // DashboardListener là một hàm để lắng ng
 //   </Tab.Navigator>
 // );
 
-/** Tab Navigator cho Staff: Home (lịch + asset), Calendar, Ticket (danh sách ticket), Notification, Profile */
+/** Tab Navigator cho Staff: Home (lịch + asset), Calendar, Ticket, Thiết bị (danh sách), Profile */
 export const StaffTabs = () => {
   const { t } = useTranslation(); // Trigger re-render khi đổi ngôn ngữ
   const insets = useSafeAreaInsets();
@@ -216,7 +217,7 @@ export const StaffTabs = () => {
           component={StaffHomeScreen}
           listeners={DashboardListener}
         />
-        <Tab.Screen name="Notification" component={StaffNotificationScreen} />
+        <Tab.Screen name="Devices" component={ItemListScreen} />
         <Tab.Screen name="Profile" component={UserProfileScreen} />
       </Tab.Navigator>
     </StaffScheduleProvider>

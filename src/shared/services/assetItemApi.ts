@@ -3,6 +3,7 @@
  * GET /api/assets/items, POST, PUT, DELETE /api/assets/items/:id.
  */
 import axiosClient from "../api/axiosClient";
+import { logInspectionDebug, logInspectionError } from "../utils/inspectionDebugLog";
 import { ASSETS_API_BASE, BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
 import i18n from "../i18n";
 import { useAuthStore } from "../../store/useAuthStore";
@@ -439,11 +440,23 @@ export const updateAssetItem = async (
 export const updateAssetItemsMaintenanceBatch = async (
   payload: AssetMaintenanceBatchUpdateRequest
 ): Promise<AssetMaintenanceBatchUpdateApiResponse> => {
-  const response = await axiosClient.put<AssetMaintenanceBatchUpdateApiResponse>(
-    `${BACKEND_API_BASE}/assets/items/maintenance/batch`,
-    payload
-  );
-  return response.data;
+  const url = `${BACKEND_API_BASE}/assets/items/maintenance/batch`;
+  //const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/maintenance/batch`;
+  try {
+    logInspectionDebug("[AssetBatch]", "updateAssetItemsMaintenanceBatch", {
+      jobId: payload.jobId,
+      updateCount: payload.updates?.length ?? 0,
+    });
+    const response = await axiosClient.put<AssetMaintenanceBatchUpdateApiResponse>(url, payload);
+    logInspectionDebug("[AssetBatch]", "batch ok", {
+      status: response.status,
+      success: response.data?.success,
+    });
+    return response.data;
+  } catch (e: unknown) {
+    logInspectionError("[AssetBatch]", "batch failed", e);
+    throw e;
+  }
 };
 
 /**
@@ -598,43 +611,59 @@ export type AssetItemImageFromApi = {
   createdAt?: string | null;
 };
 
+/** Gom nhiều lần gọi liên tiếp (cùng asset) trong cửa sổ ngắn → một request / kết quả tái sử dụng. */
+const ASSET_ITEM_IMAGES_DEDUP_MS = 350;
+const assetItemImagesInflight = new Map<string, Promise<AssetItemImageFromApi[]>>();
+const assetItemImagesMicroCache = new Map<
+  string,
+  { at: number; data: AssetItemImageFromApi[] }
+>();
+
 /**
  * Lấy danh sách ảnh của asset item.
  * Endpoint (theo Postman trong ảnh bạn gửi): GET /api/assets/items/:id/images
+ *
+ * Cùng một `itemId`, nhiều lần gọi trong ~350ms hoặc trùng lúc request đang chạy sẽ dùng chung một
+ * kết quả (giảm GET lặp khi staff inspection / màn chi tiết kích hoạt nhiều effect).
  */
-export const getAssetItemImages = async (
+export const getAssetItemImages = (
   itemId: string,
   cacheBust?: number,
 ): Promise<AssetItemImageFromApi[]> => {
-  if (!itemId?.trim()) return [];
-  const baseUrl = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
-  const url = cacheBust ? `${baseUrl}?t=${encodeURIComponent(String(cacheBust))}` : baseUrl;
-  const devLog =
-    typeof __DEV__ !== "undefined" && __DEV__
-      ? (...args: any[]) => console.log(...args)
-      : null;
+  if (!itemId?.trim()) return Promise.resolve([]);
+  const key = itemId.trim();
+  const now = Date.now();
 
-  try {
-    devLog?.("[assetItemApi] getAssetItemImages -> GET", { itemId, url });
-    const response = await axiosClient.get<ApiResponse<AssetItemImageFromApi[]>>(url);
-    const ok = Boolean(response?.data?.success);
-    const count = Array.isArray(response?.data?.data) ? response.data.data.length : -1;
-    devLog?.("[assetItemApi] getAssetItemImages <-", {
-      itemId,
-      ok,
-      count,
-      statusCode: response?.data?.statusCode,
-      message: response?.data?.message,
-    });
+  const inflight = assetItemImagesInflight.get(key);
+  if (inflight) return inflight;
 
-    if (ok && Array.isArray(response.data.data)) {
-      return response.data.data;
-    }
-    return [];
-  } catch (e) {
-    devLog?.("[assetItemApi] getAssetItemImages ERROR", { itemId, url, error: String(e) });
-    return [];
+  const cached = assetItemImagesMicroCache.get(key);
+  if (cached && now - cached.at < ASSET_ITEM_IMAGES_DEDUP_MS) {
+    return Promise.resolve(cached.data);
   }
+
+  const baseUrl = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(key)}/images`;
+  const url = cacheBust ? `${baseUrl}?t=${encodeURIComponent(String(cacheBust))}` : baseUrl;
+
+  const run = (async (): Promise<AssetItemImageFromApi[]> => {
+    try {
+      const response = await axiosClient.get<ApiResponse<AssetItemImageFromApi[]>>(url);
+      const ok = Boolean(response?.data?.success);
+      let data: AssetItemImageFromApi[] = [];
+      if (ok && Array.isArray(response.data.data)) {
+        data = response.data.data;
+      }
+      assetItemImagesMicroCache.set(key, { at: Date.now(), data });
+      return data;
+    } catch {
+      return [];
+    } finally {
+      assetItemImagesInflight.delete(key);
+    }
+  })();
+
+  assetItemImagesInflight.set(key, run);
+  return run;
 };
 
 /**

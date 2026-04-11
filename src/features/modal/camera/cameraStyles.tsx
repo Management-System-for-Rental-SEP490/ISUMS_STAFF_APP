@@ -3,6 +3,11 @@ import { brandBlueMutedBg, brandSecondary, neutral } from "../../../shared/theme
 import { appTypography } from "../../../shared/utils/typography";
 
 export const cameraStyles = StyleSheet.create({
+  /** Nền đen full màn (kể cả vùng dưới thanh điều hướng hệ thống khi translucent). */
+  rootBleed: {
+    flex: 1,
+    backgroundColor: neutral.black,
+  },
   container: {
     flex: 1,
     justifyContent: "center",
@@ -12,6 +17,10 @@ export const cameraStyles = StyleSheet.create({
     ...appTypography.body,
     textAlign: "center",
     marginBottom: 10,
+  },
+  /** Chữ trên nền đen (loading / xin quyền camera). */
+  textBleed: {
+    color: neutral.surface,
   },
   button: {
     padding: 10,

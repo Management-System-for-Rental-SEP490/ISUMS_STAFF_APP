@@ -2,11 +2,11 @@
  * API lịch làm việc (schedule) từ Backend.
  * - GET /api/schedules/templates/current/{date} - mẫu lịch (giờ làm, ngày làm việc).
  * - GET /api/schedules/work_slots/staff - danh sách work slots đã gán (staff từ token).
- * - GET /api/schedules/work_slots/generate?start=&end= - slot theo ngày (AVAILABLE, …) cho đăng ký issue.
+ * - GET /api/schedules/work_slots/slots/me?startDate=&endDate= - slot của staff (theo token), chỉ ngày làm việc (không Chủ nhật).
  * - POST /api/schedules/work_slots/staff/confirm — staff đăng ký giờ xử lý ticket (`jobId` = ticket id).
  */
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
+import { BACKEND_API_BASE } from "../api/config";
 import { useAuthStore } from "../../store/useAuthStore";
 import type {
   ScheduleTemplateApiResponse,
@@ -111,18 +111,19 @@ export const getWorkSlotsByStaffId = async (
 };
 
 /**
- * Sinh danh sách khung giờ làm việc trong khoảng ngày (theo template + trạng thái slot).
- * Dùng cho luồng issue: staff chọn slot AVAILABLE để đăng ký xử lý ticket (sau này POST/PUT do BE).
+ * Lấy khung giờ làm việc của staff (theo JWT) trong khoảng ngày.
+ * Dùng cho luồng issue: staff chọn slot có `status === AVAILABLE` để đăng ký xử lý ticket.
+ * BE trả các ngày làm việc (thường T2–T7), không có Chủ nhật.
  *
- * @param startYmd endYmd Định dạng YYYY-MM-DD, inclusive.
+ * @param startDate endDate Định dạng YYYY-MM-DD, inclusive.
  */
-export const getGeneratedWorkSlots = async (
-  startYmd: string,
-  endYmd: string
+export const getMyWorkSlots = async (
+  startDate: string,
+  endDate: string
 ): Promise<GenerateWorkSlotsApiResponse> => {
   const response = await axiosClient.get<GenerateWorkSlotsApiResponse>(
-    `${BACKEND_API_BASE}/schedules/work_slots/generate`,
-    { params: { start: startYmd, end: endYmd } }
+    `${BACKEND_API_BASE}/schedules/work_slots/slots/me`,
+    { params: { startDate, endDate } }
   );
   return response.data;
 };

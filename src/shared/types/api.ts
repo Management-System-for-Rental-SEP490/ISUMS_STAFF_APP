@@ -355,7 +355,12 @@ export type AssetItemsParams = {
  * Trạng thái thiết bị (asset) theo enum BE: không AVAILABLE / DELETED.
  * BE cũ: `AVAILABLE` → IN_USE; `DELETED` → DISPOSED (chuẩn hóa trong `normalizeAssetItemStatusFromApi`).
  */
-export type AssetStatus = "IN_USE" | "ACTIVE" | "BROKEN" | "DISPOSED";
+export type AssetStatus =
+  | "IN_USE"
+  | "ACTIVE"
+  | "BROKEN"
+  | "DISPOSED"
+  | "WAITING_MANAGER_CONFIRM";
 
 export function normalizeAssetItemStatusFromApi(
   status: string | null | undefined
@@ -454,6 +459,8 @@ export interface AssetMaintenanceBatchUpdatePayload {
   assetId: string;
   conditionPercent: number;
   note: string;
+  /** Khi bật “bị hỏng” — gửi BROKEN; bỏ qua để giữ trạng thái hiện tại. */
+  status?: string;
 }
 
 /** Body cho API PUT /api/assets/items/maintenance/batch. */
@@ -705,11 +712,13 @@ export interface ConfirmStaffWorkSlotResponse {
 /** Trạng thái slot do BE sinh (VD: AVAILABLE để staff chọn đăng ký issue). */
 export type GeneratedWorkSlotStatus = "AVAILABLE" | string;
 
-/** Một khung giờ trong ngày từ API generate. */
+/** Một khung giờ trong ngày từ API generate hoặc GET .../slots/me. */
 export interface GeneratedWorkSlotTimeFromApi {
   startTime: string;
   endTime: string;
   status: GeneratedWorkSlotStatus;
+  /** Có trên API slots/me (số staff còn trống trong khung). */
+  availableStaffCount?: number;
 }
 
 /** Một ngày và danh sách slot trống/đã book từ generate. */
@@ -718,7 +727,11 @@ export interface GeneratedWorkSlotsDayFromApi {
   slots: GeneratedWorkSlotTimeFromApi[];
 }
 
-/** Response GET /api/schedules/work_slots/generate?start=YYYY-MM-DD&end=YYYY-MM-DD */
+/**
+ * Response GET /api/schedules/work_slots/generate?start=&end=
+ * hoặc GET /api/schedules/work_slots/slots/me?startDate=&endDate=
+ * (khoảng ngày có thể gồm Chủ nhật; BE chỉ trả các ngày làm việc trong tuần, không có Chủ nhật).
+ */
 export interface GenerateWorkSlotsApiResponse {
   data: GeneratedWorkSlotsDayFromApi[];
   message: string;
@@ -821,9 +834,38 @@ export interface InspectionFromApi {
   assignedStaffId: string;
   slotId: string;
   status: string;
+  /** CHECK_IN | CHECK_OUT (kiểu phiếu kiểm định). */
+  type?: string | null;
   note?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  /** Hợp đồng — BE có thể trả để lấy inspection CHECK_IN cùng hợp đồng. */
+  contractId?: string | null;
+}
+
+/** Sự kiện tài sản (GET /api/assets/events?jobId=). */
+export interface AssetEventFromApi {
+  assetId: string;
+  assetName?: string | null;
+  conditionPercent?: number | null;
+  note?: string | null;
+  eventType?: string | null;
+}
+
+/** Response GET /api/assets/events. */
+export interface AssetEventsApiResponse {
+  data: AssetEventFromApi[];
+  message?: string;
+  statusCode?: number;
+  success?: boolean;
+}
+
+/** Response GET /api/maintenances/inspections (danh sách). */
+export interface InspectionListApiResponse {
+  data: InspectionFromApi[];
+  message?: string;
+  statusCode?: number;
+  success?: boolean;
 }
 
 export interface InspectionApiResponse {

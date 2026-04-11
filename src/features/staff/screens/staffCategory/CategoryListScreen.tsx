@@ -17,12 +17,17 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
-import { useAssetCategories } from "../../../../shared/hooks";
+import {
+  useAssetCategories,
+  useRefreshControlGate,
+  refreshControlAndroidGateProps,
+} from "../../../../shared/hooks";
 import { itemScreenStyles } from "../staffItems/itemScreenStyles";
 import type { AssetCategoryFromApi } from "../../../../shared/types/api";
 import { brandPrimary } from "../../../../shared/theme/color";
 import {
   StackScreenTitleBadge,
+  StackScreenTitleBarBalance,
   StackScreenTitleHeaderStrip,
   stackScreenTitleBackBtnOnBrand,
   stackScreenTitleCenterSlotStyle,
@@ -30,6 +35,7 @@ import {
   stackScreenTitleRowStyle,
   stackScreenTitleSideSlotStyle,
 } from "../../../../shared/components/StackScreenTitleBadge";
+import { StaffScreenActionFab } from "../../../../shared/components/StaffScreenActionFab";
 import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "CategoryList">;
@@ -41,6 +47,7 @@ export default function CategoryListScreen() {
 
   const { data, isLoading, isError, refetch, isRefetching } = useAssetCategories();
   const categories: AssetCategoryFromApi[] = data?.data ?? [];
+  const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
 
   const sortedCategories = useMemo(
     () =>
@@ -104,15 +111,7 @@ export default function CategoryListScreen() {
             {t("staff_category_list.title")}
           </StackScreenTitleBadge>
         </View>
-        <View style={stackScreenTitleSideSlotStyle}>
-          <TouchableOpacity
-            style={stackScreenTitleBackBtnOnBrand}
-            onPress={openCreateCategoryForm}
-            activeOpacity={0.7}
-          >
-            <Icons.plus size={22} color={stackScreenTitleOnBrandIconColor} />
-          </TouchableOpacity>
-        </View>
+        <StackScreenTitleBarBalance />
       </View>
     </StackScreenTitleHeaderStrip>
   );
@@ -130,6 +129,10 @@ export default function CategoryListScreen() {
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={brandPrimary} />
         </View>
+        <StaffScreenActionFab
+          onPress={openCreateCategoryForm}
+          accessibilityLabel={t("staff_home.add_menu_create_category")}
+        />
       </View>
     );
   }
@@ -141,14 +144,22 @@ export default function CategoryListScreen() {
         <ScrollView
           contentContainerStyle={[
             itemScreenStyles.scrollContent,
-            { flexGrow: 1, justifyContent: "center", alignItems: "center" },
+            {
+              flexGrow: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              paddingBottom: 24 + insets.bottom + 72,
+            },
           ]}
+          onScroll={onScrollForRefreshGate}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}
               onRefresh={() => refetch()}
               tintColor={brandPrimary}
               colors={[brandPrimary]}
+              {...refreshControlAndroidGateProps(scrollAtTop, isRefetching)}
             />
           }
         >
@@ -157,6 +168,10 @@ export default function CategoryListScreen() {
             <Text style={itemScreenStyles.tryAgainBtnText}>{t("common.try_again")}</Text>
           </TouchableOpacity>
         </ScrollView>
+        <StaffScreenActionFab
+          onPress={openCreateCategoryForm}
+          accessibilityLabel={t("staff_home.add_menu_create_category")}
+        />
       </View>
     );
   }
@@ -166,14 +181,20 @@ export default function CategoryListScreen() {
       {categoryListTopBar}
 
       <ScrollView
-        contentContainerStyle={[itemScreenStyles.scrollContent, { paddingBottom: 24 + insets.bottom }]}
+        contentContainerStyle={[
+          itemScreenStyles.scrollContent,
+          { paddingBottom: 24 + insets.bottom + 72 },
+        ]}
         showsVerticalScrollIndicator={false}
+        onScroll={onScrollForRefreshGate}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={() => refetch()}
             tintColor={brandPrimary}
             colors={[brandPrimary]}
+            {...refreshControlAndroidGateProps(scrollAtTop, isRefetching)}
           />
         }
       >
@@ -185,7 +206,6 @@ export default function CategoryListScreen() {
             style={itemScreenStyles.filterDropdown}
             searchPlaceholder={t("staff_category_list.search_category_only") as string}
             searchAutoFocus={false}
-            keyboardAvoiding={false}
             defaultExpanded
             itemLayout="card"
             resultsMaxHeight={560}
@@ -197,6 +217,10 @@ export default function CategoryListScreen() {
           <Text style={itemScreenStyles.emptyText}>{t("staff_category_list.empty")}</Text>
         ) : null}
       </ScrollView>
+      <StaffScreenActionFab
+        onPress={openCreateCategoryForm}
+        accessibilityLabel={t("staff_home.add_menu_create_category")}
+      />
     </View>
   );
 }

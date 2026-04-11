@@ -14,17 +14,20 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { useNavigation } from "@react-navigation/native";
 import Header from "../../../../shared/components/header";
 import Icons from "../../../../shared/theme/icon";
 import { staffNotificationStyles } from "./staffNotificationStyles";
 import { brandPrimary } from "../../../../shared/theme/color";
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
 import { formatTimeAgoI18n, getTotalPages, slicePage } from "../../../../shared/utils";
+import { useRefreshControlGate, refreshControlAndroidGateProps } from "../../../../shared/hooks";
 import type { StaffNotificationItem } from "../../../../shared/types/api";
 
 export default function StaffNotificationScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const notifications = useMemo((): StaffNotificationItem[] => {
     const base: StaffNotificationItem[] = [
       {
@@ -107,6 +110,8 @@ export default function StaffNotificationScreen() {
     setTimeout(() => setRefreshing(false), 450);
   }, []);
 
+  const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
+
   const renderItem: ListRenderItem<StaffNotificationItem> = ({ item }) => {
     const title = t(item.titleKey, item.params as Record<string, string>);
     const body = t(item.bodyKey, item.params as Record<string, string>);
@@ -169,7 +174,13 @@ export default function StaffNotificationScreen() {
 
   return (
     <View style={staffNotificationStyles.container}>
-      <Header variant="default" />
+      <Header
+        variant="default"
+        staffTabWelcome
+        staffTabBackButton={navigation.canGoBack()}
+        onStaffTabBackPress={() => navigation.goBack()}
+        staffTabBackAccessibilityLabel={t("common.back")}
+      />
       <FlatList
         data={pagedNotifications}
         renderItem={renderItem}
@@ -190,12 +201,15 @@ export default function StaffNotificationScreen() {
             : staffNotificationStyles.listContent
         }
         showsVerticalScrollIndicator={false}
+        onScroll={onScrollForRefreshGate}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={brandPrimary}
             colors={[brandPrimary]}
+            {...refreshControlAndroidGateProps(scrollAtTop, refreshing)}
           />
         }
       />
