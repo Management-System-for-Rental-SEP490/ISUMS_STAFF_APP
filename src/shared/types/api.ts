@@ -856,6 +856,7 @@ export interface InspectionFromApi {
   houseId: string;
   assignedStaffId: string;
   slotId: string;
+  /** CREATED, SCHEDULED, IN_PROGRESS, APPROVED (đã kiểm định — chờ quản lý), DONE, ... */
   status: string;
   /** CHECK_IN | CHECK_OUT (kiểu phiếu kiểm định). */
   type?: string | null;

@@ -8,9 +8,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { CustomAlert as Alert } from "../../../shared/components/alert";
-import { RefreshLogoInline, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
+import { RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import { useCameraPinchZoom } from "../../../shared/hooks/useCameraPinchZoom";
-import { brandPrimary, neutral } from "../../../shared/theme/color";
+import { neutral } from "../../../shared/theme/color";
 import Icons from "../../../shared/theme/icon";
 
 type Props = {
@@ -69,9 +69,14 @@ export function ImageCaptureModal({
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const { zoom, pinchGesture, resetZoom } = useCameraPinchZoom();
-  const [capturing, setCapturing] = useState(false);
   const [lastPickedUri, setLastPickedUri] = useState<string | null>(null);
   const [cameraFacing, setCameraFacing] = useState<"back" | "front">("back");
+  const cameraShotsRemainingRef = useRef(cameraShotsRemaining);
+  const captureQueueRef = useRef(Promise.resolve());
+
+  useEffect(() => {
+    cameraShotsRemainingRef.current = cameraShotsRemaining;
+  }, [cameraShotsRemaining]);
 
   useEffect(() => {
     if (!visible) return;
@@ -84,6 +89,10 @@ export function ImageCaptureModal({
   useEffect(() => {
     if (!visible) resetZoom();
   }, [visible, resetZoom]);
+
+  useEffect(() => {
+    if (!visible) captureQueueRef.current = Promise.resolve();
+  }, [visible]);
 
   const resolvedLibraryLabel = useMemo(
     () => libraryLabel ?? t("staff_item_create.images_library"),
@@ -101,34 +110,32 @@ export function ImageCaptureModal({
     cameraShotsRemaining != null &&
     cameraShotsRemaining >= 0;
 
-  const handleTakePhoto = async () => {
-    if (cameraShotsRemaining !== undefined && cameraShotsRemaining <= 0) {
-      Alert.alert(
-        t("common.images_limit_title"),
-        t("common.images_limit_max_message", { max: maxImagesForAlert ?? 5 }),
-        [{ text: t("common.close") }]
-      );
-      return;
-    }
-    try {
-      setCapturing(true);
-      const photo = await cameraRef.current?.takePictureAsync({
-        quality: captureQuality,
-      });
-      if (photo?.uri) {
-        setLastPickedUri(photo.uri);
-        void saveCaptureToDeviceGallery(photo.uri);
-        // Chụp xong vẫn giữ modal mở để bạn thấy ảnh mới nhất,
-        // và có thể tiếp tục chụp hoặc chuyển sang thư viện.
-        onPicked([{ uri: photo.uri } as ImagePicker.ImagePickerAsset], "camera");
+  const handleTakePhoto = () => {
+    captureQueueRef.current = captureQueueRef.current.then(async () => {
+      const rem = cameraShotsRemainingRef.current;
+      if (rem !== undefined && rem <= 0) {
+        Alert.alert(
+          t("common.images_limit_title"),
+          t("common.images_limit_max_message", { max: maxImagesForAlert ?? 5 }),
+          [{ text: t("common.close") }]
+        );
+        return;
       }
-    } catch (e) {
-      Alert.alert(t("common.error"), e instanceof Error ? e.message : String(e), [
-        { text: t("common.close") },
-      ]);
-    } finally {
-      setCapturing(false);
-    }
+      try {
+        const photo = await cameraRef.current?.takePictureAsync({
+          quality: captureQuality,
+        });
+        if (photo?.uri) {
+          setLastPickedUri(photo.uri);
+          void saveCaptureToDeviceGallery(photo.uri);
+          onPicked([{ uri: photo.uri } as ImagePicker.ImagePickerAsset], "camera");
+        }
+      } catch (e) {
+        Alert.alert(t("common.error"), e instanceof Error ? e.message : String(e), [
+          { text: t("common.close") },
+        ]);
+      }
+    });
   };
 
   const handlePickFromLibrary = async () => {
@@ -249,8 +256,7 @@ export function ImageCaptureModal({
 
                 {/* Nút chụp (ở giữa) */}
                 <TouchableOpacity
-                  onPress={() => void handleTakePhoto()}
-                  disabled={capturing}
+                  onPress={() => handleTakePhoto()}
                   accessibilityRole="button"
                   accessibilityLabel={t("staff_item_create.images_camera")}
                   style={{
@@ -261,22 +267,17 @@ export function ImageCaptureModal({
                     justifyContent: "center",
                     borderWidth: 4,
                     borderColor: neutral.surface,
-                    backgroundColor: capturing ? brandPrimary : "rgba(255,255,255,0.10)",
+                    backgroundColor: "rgba(255,255,255,0.10)",
                     opacity:
                       cameraShotsRemaining !== undefined && cameraShotsRemaining <= 0 ? 0.45 : 1,
                   }}
                 >
-                  {capturing ? (
-                    <RefreshLogoInline logoPx={22} />
-                  ) : (
-                    <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: neutral.surface }} />
-                  )}
+                  <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: neutral.surface }} />
                 </TouchableOpacity>
 
                 {/* Thumbnail nút thư viện (bên phải) */}
                 <TouchableOpacity
                   onPress={() => void handlePickFromLibrary()}
-                  disabled={capturing}
                   accessibilityRole="button"
                   accessibilityLabel={resolvedLibraryLabel}
                   style={{

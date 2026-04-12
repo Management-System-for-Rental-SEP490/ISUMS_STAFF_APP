@@ -423,6 +423,7 @@ export default {
         "job_status_SCHEDULED": "Đã lên lịch",
         "job_status_NEED_RESCHEDULE": "Cần lên lịch lại",
         "job_status_IN_PROGRESS": "Đang thực hiện",
+        "job_status_APPROVED": "Đã kiểm định",
         "job_status_COMPLETED": "Hoàn thành",
         "job_status_DONE": "Hoàn tất",
         "job_status_FAILED": "Thất bại",

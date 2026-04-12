@@ -424,6 +424,7 @@ export default {
         "job_status_SCHEDULED": "予定済み",
         "job_status_NEED_RESCHEDULE": "再スケジュール必要",
         "job_status_IN_PROGRESS": "進行中",
+        "job_status_APPROVED": "検査済み",
         "job_status_COMPLETED": "完了",
         "job_status_DONE": "完了",
         "job_status_FAILED": "失敗",

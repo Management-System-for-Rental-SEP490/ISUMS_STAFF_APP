@@ -423,6 +423,7 @@ export default {
         "job_status_SCHEDULED": "Scheduled",
         "job_status_NEED_RESCHEDULE": "Need reschedule",
         "job_status_IN_PROGRESS": "In progress",
+        "job_status_APPROVED": "Inspected",
         "job_status_COMPLETED": "Completed",
         "job_status_DONE": "Done",
         "job_status_FAILED": "Failed",

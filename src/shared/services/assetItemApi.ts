@@ -484,7 +484,7 @@ export const updateAssetItem = async (
 export const updateAssetItemsMaintenanceBatch = async (
   payload: AssetMaintenanceBatchUpdateRequest
 ): Promise<AssetMaintenanceBatchUpdateApiResponse> => {
-  const url = `${ASSETS_API_BASE}/assets/items/maintenance/batch`;
+  const url = `${BACKEND_API_BASE}/assets/items/maintenance/batch`;
 
   try {
     logInspectionDebug("[AssetBatch]", "updateAssetItemsMaintenanceBatch", {
@@ -793,8 +793,8 @@ export const getAssetItemImages = (
   }
 
   // Cùng ASSETS_API_BASE với upload/delete — tránh GET primary trong khi POST lên fallback/ngrok.
-  //const baseUrl = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(key)}/images`;
-  const baseUrl = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/${encodeURIComponent(key)}/images`;
+  const baseUrl = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(key)}/images`;
+  //const baseUrl = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/${encodeURIComponent(key)}/images`;
   const url = cacheBust ? `${baseUrl}?t=${encodeURIComponent(String(cacheBust))}` : baseUrl;
 
   const run = (async (): Promise<AssetItemImageFromApi[]> => {
@@ -836,8 +836,8 @@ export const uploadAssetItemImages = async (
     throw new Error("Missing auth token for asset item image upload");
   }
 
-  //const url = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
-  const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/${encodeURIComponent(itemId)}/images`;
+  const url = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
+  //const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/${encodeURIComponent(itemId)}/images`;
   const formData = new FormData();
 
   images.forEach((img, idx) => {
@@ -897,7 +897,8 @@ export const uploadAssetEventImages = async (
     throw new Error("Missing auth token for asset event image upload");
   }
 
-  const url = `${ASSETS_API_BASE}/assets/events/${encodeURIComponent(id)}/images`;
+  const url = `${BACKEND_API_BASE}/assets/events/${encodeURIComponent(id)}/images`;
+  //const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/events/${encodeURIComponent(id)}/images`;
   const formData = new FormData();
 
   images.forEach((img, idx) => {
@@ -957,8 +958,8 @@ export const deleteAssetItemImage = async (
     throw new Error("Missing itemId or imageId for deleting asset item image");
   }
 
-  //const url = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(normalizedItemId)}/image/${encodeURIComponent(normalizedImageId)}`;
-  const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/${encodeURIComponent(normalizedItemId)}/image/${encodeURIComponent(normalizedImageId)}`;
+  const url = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(normalizedItemId)}/image/${encodeURIComponent(normalizedImageId)}`;
+  //const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/${encodeURIComponent(normalizedItemId)}/image/${encodeURIComponent(normalizedImageId)}`;
   const response = await axiosClient.delete<ApiResponse<null>>(url);
   const ok = Boolean(response?.data?.success);
   if (!ok) {

@@ -112,6 +112,7 @@ const JOB_STATUS_KEYS = new Set([
   "CONFIRMED",
   "SCHEDULED",
   "IN_PROGRESS",
+  "APPROVED",
   "COMPLETED",
   "FAILED",
   "OVERDUE",
@@ -231,8 +232,8 @@ export default function WorkSlotDetailScreen() {
   selectedMaintenanceAssetIdRef.current = selectedMaintenanceAssetId;
   const editorDeletingImageIdRef = useRef(editorDeletingImageId);
   editorDeletingImageIdRef.current = editorDeletingImageId;
-  /** Chuỗi xử lý pick ảnh tuần tự — tránh bỏ qua lần chụp khi upload trước chưa xong. */
-  const editorImagePickQueueRef = useRef(Promise.resolve());
+  /** Hàng đợi upload lên server (tuần tự để merge/ref không lệch); không chặn lần chụp/chọn tiếp theo. */
+  const maintenanceImageUploadQueueRef = useRef(Promise.resolve());
   const maintenanceSessionImageCountRef = useRef(0);
   /**
    * Ảnh đã upload lên asset trong phiên bảo trì, map theo `serverImageId` để xóa khỏi danh sách
@@ -987,7 +988,8 @@ export default function WorkSlotDetailScreen() {
   );
 
   /**
-   * Upload ảnh lên asset đang mở trong modal; `assetId` truyền rõ để chuỗi hàng đợi không lệch khi đổi thiết bị.
+   * Upload ảnh lên asset đang mở trong modal; `assetId` truyền rõ khi đổi thiết bị.
+   * Slot phiên đã được trừ ở `handleEditorImagesPicked` trước khi gọi hàm này.
    */
   const uploadEditorImages = useCallback(
     async (assetId: string, files: AssetItemImageToUpload[]) => {
@@ -997,9 +999,6 @@ export default function WorkSlotDetailScreen() {
         const beforeAsset = await getAssetItemById(assetId);
         const beforeIds = new Set(getImagesFromAssetItem(beforeAsset).map((i) => i.id));
         await uploadAssetItemImages(assetId, files);
-        const added = files.length;
-        maintenanceSessionImageCountRef.current += added;
-        setMaintenanceEditorSessionImageCount((c) => c + added);
         const afterImages = await refreshEditorImages(assetId);
         const newImages = afterImages.filter((i) => !beforeIds.has(i.id));
         const n = Math.min(newImages.length, files.length);
@@ -1044,61 +1043,68 @@ export default function WorkSlotDetailScreen() {
   }, [editorDeletingImageId, t]);
 
   /**
-   * Xử lý ảnh từ camera/thư viện: hàng đợi tuần tự (không drop khi upload chưa xong).
-   * Giới hạn MAX chỉ theo số ảnh đã thêm trong phiên mở modal (không trừ ảnh cũ trên asset).
+   * Ảnh từ camera/thư viện: trừ slot ngay (đúng giới hạn), upload chạy nền theo hàng đợi — không phải chờ mạng mới chụp/chọn tiếp.
    */
   const handleEditorImagesPicked = useCallback(
     (assets: ImagePicker.ImagePickerAsset[], _source: "camera" | "library") => {
-      editorImagePickQueueRef.current = editorImagePickQueueRef.current
-        .then(async () => {
-          const assetId = selectedMaintenanceAssetIdRef.current;
-          if (!assetId) return;
-          if (editorDeletingImageIdRef.current != null) return;
+      const assetId = selectedMaintenanceAssetIdRef.current;
+      if (!assetId) return;
+      if (editorDeletingImageIdRef.current != null) return;
 
-          const filtered = assets.filter((a) => Boolean(a.uri));
-          if (filtered.length === 0) return;
+      const filtered = assets.filter((a) => Boolean(a.uri));
+      if (filtered.length === 0) return;
 
-          const sessionCount = maintenanceSessionImageCountRef.current;
-          const room = Math.max(0, MAX_MAINTENANCE_ASSET_IMAGES - sessionCount);
-          if (room <= 0) {
-            CustomAlert.alert(
-              t("common.images_limit_title"),
-              t("common.images_limit_max_message", { max: MAX_MAINTENANCE_ASSET_IMAGES }),
-              [{ text: t("common.close") }]
+      const sessionCount = maintenanceSessionImageCountRef.current;
+      const room = Math.max(0, MAX_MAINTENANCE_ASSET_IMAGES - sessionCount);
+      if (room <= 0) {
+        CustomAlert.alert(
+          t("common.images_limit_title"),
+          t("common.images_limit_max_message", { max: MAX_MAINTENANCE_ASSET_IMAGES }),
+          [{ text: t("common.close") }]
+        );
+        return;
+      }
+
+      const slice = filtered.slice(0, room);
+      if (filtered.length > slice.length) {
+        CustomAlert.alert(
+          t("common.images_limit_title"),
+          t("common.images_limit_truncated_message", {
+            added: slice.length,
+            max: MAX_MAINTENANCE_ASSET_IMAGES,
+          }),
+          [{ text: t("common.close") }]
+        );
+      }
+
+      const files: AssetItemImageToUpload[] = slice.map((a, idx) => ({
+        uri: a.uri as string,
+        fileName: a.fileName ?? `maintenance-${assetId}-${Date.now()}-${idx}.jpg`,
+        mimeType: a.mimeType ?? "image/jpeg",
+      }));
+
+      if (files.length === 0) return;
+
+      const reserved = files.length;
+      maintenanceSessionImageCountRef.current += reserved;
+      setMaintenanceEditorSessionImageCount((c) => c + reserved);
+
+      const filesForUpload = files;
+      maintenanceImageUploadQueueRef.current = maintenanceImageUploadQueueRef.current
+        .then(() =>
+          uploadEditorImages(assetId, filesForUpload).catch((err: unknown) => {
+            maintenanceSessionImageCountRef.current = Math.max(
+              0,
+              maintenanceSessionImageCountRef.current - reserved
             );
-            return;
-          }
-
-          const slice = filtered.slice(0, room);
-          if (filtered.length > slice.length) {
-            CustomAlert.alert(
-              t("common.images_limit_title"),
-              t("common.images_limit_truncated_message", {
-                added: slice.length,
-                max: MAX_MAINTENANCE_ASSET_IMAGES,
-              }),
-              [{ text: t("common.close") }]
-            );
-          }
-
-          const files: AssetItemImageToUpload[] = slice.map((a, idx) => ({
-            uri: a.uri as string,
-            fileName: a.fileName ?? `maintenance-${assetId}-${Date.now()}-${idx}.jpg`,
-            mimeType: a.mimeType ?? "image/jpeg",
-          }));
-
-          if (files.length === 0) return;
-
-          try {
-            await uploadEditorImages(assetId, files);
-          } catch (err) {
+            setMaintenanceEditorSessionImageCount((c) => Math.max(0, c - reserved));
             CustomAlert.alert(
               t("common.error"),
               err instanceof Error ? err.message : t("staff_work_slot_detail.maintenance_batch_error"),
               [{ text: t("common.close") }]
             );
-          }
-        })
+          })
+        )
         .catch(() => {});
     },
     [t, uploadEditorImages]

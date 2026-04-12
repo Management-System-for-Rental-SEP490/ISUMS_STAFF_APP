@@ -14,6 +14,7 @@ export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   BLOCKED: { bg: "#F3F4F6", text: "#6B7280" },
   NEED_RESCHEDULE: { bg: brandTintBg, text: brandPrimary },
   IN_PROGRESS: { bg: brandTintBg, text: brandPrimary },
+  APPROVED: { bg: brandTintBg, text: brandPrimary },
   COMPLETED: { bg: brandTintBg, text: brandPrimary },
   // Issue/ticket states
   WAITING_MANAGER_APPROVAL: { bg: brandTintBg, text: brandSecondary },
