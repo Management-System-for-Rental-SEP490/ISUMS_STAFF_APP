@@ -5,8 +5,10 @@ import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { CustomAlert as Alert } from "../../../shared/components/alert";
+import { useCameraPinchZoom } from "../../../shared/hooks/useCameraPinchZoom";
 import { brandPrimary, neutral } from "../../../shared/theme/color";
 import Icons from "../../../shared/theme/icon";
 
@@ -21,10 +23,16 @@ type Props = {
   /** Chất lượng ảnh chụp/thư viện: 0..1 (thấp hơn => nhẹ hơn). */
   captureQuality?: number;
   /**
-   * Khi truyền: số ảnh chụp còn được phép trong phiên (0 = khóa nút chụp).
-   * Chọn từ thư viện không dùng giới hạn này.
+   * Khi truyền: số ảnh chụp còn được phép (0 = khóa nút chụp).
    */
   cameraShotsRemaining?: number;
+  /**
+   * Giới hạn số ảnh chọn một lần từ thư viện (iOS 14+; Android theo SDK).
+   * Không truyền = không giới hạn ở picker (màn gọi vẫn nên cắt/ghi chú sau khi chọn).
+   */
+  librarySelectionLimit?: number;
+  /** Dùng trong thông báo khi không còn slot (kèm `librarySelectionLimit` = 0). */
+  maxImagesForAlert?: number;
 };
 
 export function ImageCaptureModal({
@@ -35,6 +43,8 @@ export function ImageCaptureModal({
   libraryPermissionErrorMessage,
   captureQuality = 0.45,
   cameraShotsRemaining,
+  librarySelectionLimit,
+  maxImagesForAlert,
 }: Props) {
   /** Lưu file chụp vào album/thư viện máy (không chặn luồng đính kèm nếu lỗi quyền). */
   const saveCaptureToDeviceGallery = async (localUri: string) => {
@@ -57,6 +67,7 @@ export function ImageCaptureModal({
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
+  const { zoom, pinchGesture, resetZoom } = useCameraPinchZoom();
   const [capturing, setCapturing] = useState(false);
   const [lastPickedUri, setLastPickedUri] = useState<string | null>(null);
   const [cameraFacing, setCameraFacing] = useState<"back" | "front">("back");
@@ -69,6 +80,10 @@ export function ImageCaptureModal({
     }
   }, [visible, permission, requestPermission]);
 
+  useEffect(() => {
+    if (!visible) resetZoom();
+  }, [visible, resetZoom]);
+
   const resolvedLibraryLabel = useMemo(
     () => libraryLabel ?? t("staff_item_create.images_library"),
     [libraryLabel, t]
@@ -79,9 +94,19 @@ export function ImageCaptureModal({
     [libraryPermissionErrorMessage, t]
   );
 
+  const showLimitBanner =
+    maxImagesForAlert != null &&
+    maxImagesForAlert > 0 &&
+    cameraShotsRemaining != null &&
+    cameraShotsRemaining >= 0;
+
   const handleTakePhoto = async () => {
     if (cameraShotsRemaining !== undefined && cameraShotsRemaining <= 0) {
-      Alert.alert(t("common.camera_no_more_shots"), undefined, [{ text: t("common.close") }]);
+      Alert.alert(
+        t("common.images_limit_title"),
+        t("common.images_limit_max_message", { max: maxImagesForAlert ?? 5 }),
+        [{ text: t("common.close") }]
+      );
       return;
     }
     try {
@@ -106,6 +131,14 @@ export function ImageCaptureModal({
   };
 
   const handlePickFromLibrary = async () => {
+    if (librarySelectionLimit !== undefined && librarySelectionLimit <= 0) {
+      Alert.alert(
+        t("common.images_limit_title"),
+        t("common.images_limit_max_message", { max: maxImagesForAlert ?? 5 }),
+        [{ text: t("common.close") }]
+      );
+      return;
+    }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== "granted") {
       Alert.alert(t("common.error"), resolvedLibraryPermissionError, [
@@ -120,12 +153,30 @@ export function ImageCaptureModal({
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"] as ImagePicker.MediaType[],
       allowsMultipleSelection: true,
+      selectionLimit:
+        librarySelectionLimit !== undefined ? Math.max(1, librarySelectionLimit) : 0,
       quality: captureQuality,
     });
 
     if (result.canceled) return;
     if (result.assets?.length) {
-      onPicked(result.assets, "library");
+      let assets = result.assets;
+      const cap =
+        librarySelectionLimit !== undefined && librarySelectionLimit > 0
+          ? librarySelectionLimit
+          : null;
+      if (cap != null && assets.length > cap) {
+        assets = assets.slice(0, cap);
+        Alert.alert(
+          t("common.images_limit_title"),
+          t("common.images_limit_truncated_message", {
+            added: cap,
+            max: maxImagesForAlert ?? cap,
+          }),
+          [{ text: t("common.close") }]
+        );
+      }
+      onPicked(assets, "library");
     }
   };
 
@@ -138,7 +189,7 @@ export function ImageCaptureModal({
       onRequestClose={onClose}
       presentationStyle="fullScreen"
     >
-      <View style={{ flex: 1, backgroundColor: neutral.black }}>
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: neutral.black }}>
         {!cameraAllowed ? (
           <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 16 }}>
             <ActivityIndicator size="large" color={brandPrimary} />
@@ -154,7 +205,16 @@ export function ImageCaptureModal({
           </View>
         ) : (
           <>
-            <CameraView ref={cameraRef} style={{ flex: 1 }} facing={cameraFacing} />
+            <GestureDetector gesture={pinchGesture}>
+              <View style={{ flex: 1 }}>
+                <CameraView
+                  ref={cameraRef}
+                  style={{ flex: 1 }}
+                  facing={cameraFacing}
+                  zoom={zoom}
+                />
+              </View>
+            </GestureDetector>
 
             <View
               style={{
@@ -167,6 +227,22 @@ export function ImageCaptureModal({
                 backgroundColor: "rgba(0,0,0,0.25)",
               }}
             >
+              {showLimitBanner ? (
+                <Text
+                  style={{
+                    textAlign: "center",
+                    color: neutral.surface,
+                    marginBottom: 10,
+                    fontSize: 13,
+                    fontWeight: "600",
+                  }}
+                >
+                  {t("common.images_count_of_max", {
+                    current: Math.max(0, (maxImagesForAlert ?? 0) - cameraShotsRemaining!),
+                    max: maxImagesForAlert,
+                  })}
+                </Text>
+              ) : null}
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 {/* Placeholder để giữ tâm nút chụp */}
                 <View style={{ width: 56, height: 56 }} />
@@ -213,6 +289,8 @@ export function ImageCaptureModal({
                     alignItems: "center",
                     justifyContent: "center",
                     overflow: "hidden",
+                    opacity:
+                      librarySelectionLimit !== undefined && librarySelectionLimit <= 0 ? 0.45 : 1,
                   }}
                 >
                   {lastPickedUri ? (
@@ -248,7 +326,7 @@ export function ImageCaptureModal({
             </TouchableOpacity>
           </>
         )}
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

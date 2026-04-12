@@ -4,11 +4,13 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { GestureDetector } from "react-native-gesture-handler";
 import { useTranslation } from "react-i18next";
 import Icons from "../../../../shared/theme/icon";
 import type { RootStackParamList } from "../../../../shared/types";
 import { staffIotStyles as s } from "./staffIotStyles";
 import { CustomAlert } from "../../../../shared/components/alert";
+import { useCameraPinchZoom } from "../../../../shared/hooks/useCameraPinchZoom";
 
 type RouteT = RouteProp<RootStackParamList, "StaffIotQrScan">;
 type NavT = NativeStackNavigationProp<RootStackParamList, "StaffIotQrScan">;
@@ -119,6 +121,7 @@ export default function StaffIotQrScanScreen() {
   const { houseId, houseName, kind, areaId, areaName } = route.params;
 
   const [permission, requestPermission] = useCameraPermissions();
+  const { zoom, pinchGesture } = useCameraPinchZoom();
   const [scanned, setScanned] = useState(false);
 
   const frameLayout = useMemo(() => {
@@ -222,15 +225,24 @@ export default function StaffIotQrScanScreen() {
         </View>
       ) : (
         <>
-          <CameraView
-            style={{ flex: 1 }}
-            onBarcodeScanned={scanned ? undefined : onQrScanned}
-            barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-          />
+          <GestureDetector gesture={pinchGesture}>
+            <View style={{ flex: 1 }}>
+              <CameraView
+                style={{ flex: 1 }}
+                zoom={zoom}
+                onBarcodeScanned={scanned ? undefined : onQrScanned}
+                barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+              />
+            </View>
+          </GestureDetector>
 
           <View style={s.qrScanMaskRoot} pointerEvents="box-none">
-            <View style={[s.qrDimLayer, { left: 0, right: 0, top: 0, height: top }]} />
             <View
+              pointerEvents="none"
+              style={[s.qrDimLayer, { left: 0, right: 0, top: 0, height: top }]}
+            />
+            <View
+              pointerEvents="none"
               style={[
                 s.qrDimLayer,
                 {
@@ -241,8 +253,12 @@ export default function StaffIotQrScanScreen() {
                 },
               ]}
             />
-            <View style={[s.qrDimLayer, { left: 0, width: left, top, height: squareSize }]} />
             <View
+              pointerEvents="none"
+              style={[s.qrDimLayer, { left: 0, width: left, top, height: squareSize }]}
+            />
+            <View
+              pointerEvents="none"
               style={[
                 s.qrDimLayer,
                 {

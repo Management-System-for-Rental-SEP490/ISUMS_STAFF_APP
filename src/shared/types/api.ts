@@ -371,6 +371,13 @@ export function normalizeAssetItemStatusFromApi(
   return s;
 }
 
+/** Ảnh đính kèm thiết bị — GET item (embed) hoặc GET .../items/:id/images. */
+export interface AssetItemImageFromApi {
+  id: string;
+  url: string;
+  createdAt?: string | null;
+}
+
 /** Một thiết bị/item từ API GET /api/asset/items (có thể filter theo houseId, categoryId). */
 export interface AssetItemFromApi {
   /** ID thiết bị. */
@@ -402,6 +409,8 @@ export interface AssetItemFromApi {
    * BE có thể trả `functionAreaId` hoặc `functionalAreaId` — service chuẩn hóa về `functionAreaId`.
    */
   functionAreaId?: string | null;
+  /** Ảnh — BE có thể trả sẵn trong GET item. */
+  images?: AssetItemImageFromApi[];
 }
 
 /** Response body của API GET /api/asset/items. */
@@ -461,6 +470,11 @@ export interface AssetMaintenanceBatchUpdatePayload {
   note: string;
   /** Khi bật “bị hỏng” — gửi BROKEN; bỏ qua để giữ trạng thái hiện tại. */
   status?: string;
+  /**
+   * Ảnh local (camera/gallery) gửi kèm — BE nhận multipart `updates[i].images` (lặp key).
+   * Chỉ dùng khi test / khi UI đã gắn ảnh vào draft.
+   */
+  localImages?: Array<{ uri: string; fileName?: string; mimeType?: string }>;
 }
 
 /** Body cho API PUT /api/assets/items/maintenance/batch. */

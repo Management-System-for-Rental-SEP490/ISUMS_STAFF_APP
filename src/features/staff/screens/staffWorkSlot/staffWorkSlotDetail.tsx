@@ -3,7 +3,7 @@
  * Hiển thị đầy đủ thông tin work slot và ticket/issue (lấy từ API GET /api/issues/tickets/{ticketId}).
  * ticketId lấy từ work slot API: GET /api/schedules/work_slots/staff/{staffId}.
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Image,
@@ -43,7 +43,11 @@ import {
   type IssueTicketFromApi,
   type JobFromApi,
 } from "../../../../shared/types/api";
-import { logInspectionDebug } from "../../../../shared/utils/inspectionDebugLog";
+import {
+  logInspectionDebug,
+  popInspectionFlowDebugSession,
+  pushInspectionFlowDebugSession,
+} from "../../../../shared/utils/inspectionDebugLog";
 import Icons from "../../../../shared/theme/icon";
 import { iconStyles } from "../../../../shared/styles/iconStyles";
 import { staffWorkSlotStyles, STATUS_COLORS } from "./staffWorkSlotStyles";
@@ -67,7 +71,7 @@ import { useFunctionalAreasByHouseId, useHouseById } from "../../../../shared/ho
 import {
   getAssetItemsByHouseId,
   getAssetItemById,
-  getAssetItemImages,
+  getImagesFromAssetItem,
   deleteAssetItemImage,
   uploadAssetItemImages,
   type AssetItemImageFromApi,
@@ -193,6 +197,8 @@ export default function WorkSlotDetailScreen() {
   const [selectedMaintenanceAssetId, setSelectedMaintenanceAssetId] = useState<string | null>(null);
   const [maintenanceSortFloor, setMaintenanceSortFloor] = useState<string | null>(null);
   const [maintenanceDrafts, setMaintenanceDrafts] = useState<Record<string, MaintenanceDraft>>({});
+  const maintenanceDraftsRef = useRef(maintenanceDrafts);
+  maintenanceDraftsRef.current = maintenanceDrafts;
   const [maintenanceSubmitted, setMaintenanceSubmitted] = useState(false);
   /** Issue IN_PROGRESS: đã gửi xong màn ghi nhận sửa chữa → chỉ hiện nút Hoàn thành. */
   const [issueRepairSubmitted, setIssueRepairSubmitted] = useState(false);
@@ -214,9 +220,19 @@ export default function WorkSlotDetailScreen() {
     Record<string, { conditionPercent?: number | null; note?: string | null }>
   >({});
   const [inspectionSessionPhotoUrls, setInspectionSessionPhotoUrls] = useState<string[]>([]);
-  /** Chỉ tăng khi upload từ camera — dùng giới hạn MAX_MAINTENANCE_ASSET_IMAGES cho lượt chụp. */
-  const [cameraSessionCountByAsset, setCameraSessionCountByAsset] = useState<Record<string, number>>({});
   const [editorMarkBroken, setEditorMarkBroken] = useState(false);
+  /** Số ảnh đã thêm (upload) trong lần mở modal này — giới hạn MAX, không trừ ảnh cũ trên asset. */
+  const [maintenanceEditorSessionImageCount, setMaintenanceEditorSessionImageCount] = useState(0);
+
+  const editorServerImagesRef = useRef(editorServerImages);
+  editorServerImagesRef.current = editorServerImages;
+  const selectedMaintenanceAssetIdRef = useRef(selectedMaintenanceAssetId);
+  selectedMaintenanceAssetIdRef.current = selectedMaintenanceAssetId;
+  const editorDeletingImageIdRef = useRef(editorDeletingImageId);
+  editorDeletingImageIdRef.current = editorDeletingImageId;
+  /** Chuỗi xử lý pick ảnh tuần tự — tránh bỏ qua lần chụp khi upload trước chưa xong. */
+  const editorImagePickQueueRef = useRef(Promise.resolve());
+  const maintenanceSessionImageCountRef = useRef(0);
 
   const currentHouseId = isIssueSlot ? ticket?.houseId : job?.houseId;
   const { data: houseByIdResp } = useHouseById(currentHouseId);
@@ -452,7 +468,8 @@ export default function WorkSlotDetailScreen() {
         setMaintenanceDrafts({});
         submittedMaintenanceJobIdsInSession.delete(job.id);
         setInspectionSessionPhotoUrls([]);
-        setCameraSessionCountByAsset({});
+        maintenanceSessionImageCountRef.current = 0;
+        setMaintenanceEditorSessionImageCount(0);
       } else if (finishedNow) {
         setMaintenanceSubmitted(false);
         submittedMaintenanceJobIdsInSession.delete(job.id);
@@ -548,22 +565,20 @@ export default function WorkSlotDetailScreen() {
     []
   );
 
-  const refreshEditorImages = useCallback(async (assetId: string) => {
-    const images = await getAssetItemImages(assetId, Date.now());
+  /**
+   * Tải lại danh sách ảnh từ BE cho asset đang sửa.
+   * Gán `editorServerImagesRef` đồng bộ với mảng mới — hàng đợi upload chạy ngay sau `await`
+   * (trước khi React re-render) nên không được dựa vào `editorServerImages` state/ref theo render.
+   */
+  const refreshEditorImages = useCallback(async (assetId: string): Promise<AssetItemImageFromApi[]> => {
+    const asset = await getAssetItemById(assetId);
+    const images = getImagesFromAssetItem(asset);
     const urls = images.map((img) => img.url).filter((url) => url.trim().length > 0);
+    editorServerImagesRef.current = images;
     setEditorServerImages(images);
     setEditorImageUrls(urls);
     setEditorImagesVersion((v) => v + 1);
-    setMaintenanceDrafts((prev) => {
-      const draft = prev[assetId];
-      if (!draft) return prev;
-      return {
-        ...prev,
-        [assetId]: {
-          ...draft,
-        },
-      };
-    });
+    return images;
   }, []);
 
   useEffect(() => {
@@ -572,17 +587,15 @@ export default function WorkSlotDetailScreen() {
       if (!maintenanceEditorVisible || !selectedMaintenanceAssetId) return;
       setMaintenanceEditorLoading(true);
       try {
-        const [asset, images] = await Promise.all([
-          getAssetItemById(selectedMaintenanceAssetId),
-          getAssetItemImages(selectedMaintenanceAssetId, Date.now()),
-        ]);
+        const asset = await getAssetItemById(selectedMaintenanceAssetId);
         if (cancelled) return;
-        // Ảnh luôn lấy theo API ảnh của thiết bị, không phụ thuộc API chi tiết item.
+        const images = getImagesFromAssetItem(asset);
+        editorServerImagesRef.current = images;
         setEditorServerImages(images);
         setEditorImageUrls(images.map((img) => img.url).filter((url) => url.trim().length > 0));
         setEditorImagesVersion((v) => v + 1);
         if (!asset) return;
-        const existingDraft = maintenanceDrafts[selectedMaintenanceAssetId];
+        const existingDraft = maintenanceDraftsRef.current[selectedMaintenanceAssetId];
         setEditorMarkBroken(existingDraft?.markBroken ?? false);
         setEditorConditionPercent(
           String(existingDraft?.conditionPercent ?? asset.conditionPercent ?? "")
@@ -606,6 +619,7 @@ export default function WorkSlotDetailScreen() {
           setEditorConditionPercent("");
           setEditorNote("");
           setEditorUpdateAt(t("staff_work_slot_detail.maintenance_update_at_empty"));
+          editorServerImagesRef.current = [];
           setEditorServerImages([]);
           setEditorImageUrls([]);
         }
@@ -617,7 +631,7 @@ export default function WorkSlotDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [maintenanceEditorVisible, selectedMaintenanceAssetId, maintenanceDrafts, t]);
+  }, [maintenanceEditorVisible, selectedMaintenanceAssetId, t]);
 
   /** Đóng camera khi đóng modal bảo trì — tránh ImageCaptureModal còn mở phía sau. */
   useEffect(() => {
@@ -625,6 +639,13 @@ export default function WorkSlotDetailScreen() {
       setImageCaptureVisible(false);
     }
   }, [maintenanceEditorVisible]);
+
+  /** Mỗi lần mở modal sửa thiết bị / đổi asset: reset bộ đếm ảnh thêm trong phiên (không liên quan ảnh cũ trên server). */
+  useEffect(() => {
+    if (!maintenanceEditorVisible || !selectedMaintenanceAssetId) return;
+    maintenanceSessionImageCountRef.current = 0;
+    setMaintenanceEditorSessionImageCount(0);
+  }, [maintenanceEditorVisible, selectedMaintenanceAssetId]);
 
   const handleSubmitMaintenanceBatch = useCallback(() => {
     if (!job?.id) return;
@@ -906,23 +927,22 @@ export default function WorkSlotDetailScreen() {
     [maintenanceAssetsSorted, selectedMaintenanceAssetId]
   );
 
-  const cameraSessionCountForEditor = useMemo(() => {
-    if (!selectedMaintenanceAssetId) return 0;
-    return cameraSessionCountByAsset[selectedMaintenanceAssetId] ?? 0;
-  }, [selectedMaintenanceAssetId, cameraSessionCountByAsset]);
-
+  /**
+   * Upload ảnh lên asset đang mở trong modal; `assetId` truyền rõ để chuỗi hàng đợi không lệch khi đổi thiết bị.
+   */
   const uploadEditorImages = useCallback(
-    async (files: AssetItemImageToUpload[], source: "camera" | "library") => {
-      if (!selectedMaintenanceAssetId || files.length === 0) return;
-      const assetId = selectedMaintenanceAssetId;
+    async (assetId: string, files: AssetItemImageToUpload[]) => {
+      if (!assetId?.trim() || files.length === 0) return;
       setEditorImageUploading(true);
       try {
-        const before = await getAssetItemImages(assetId, Date.now());
-        const beforeIds = new Set(before.map((i) => i.id));
+        const beforeAsset = await getAssetItemById(assetId);
+        const beforeIds = new Set(getImagesFromAssetItem(beforeAsset).map((i) => i.id));
         await uploadAssetItemImages(assetId, files);
-        await refreshEditorImages(assetId);
-        const after = await getAssetItemImages(assetId, Date.now());
-        const newUrls = after
+        const added = files.length;
+        maintenanceSessionImageCountRef.current += added;
+        setMaintenanceEditorSessionImageCount((c) => c + added);
+        const afterImages = await refreshEditorImages(assetId);
+        const newUrls = afterImages
           .filter((i) => !beforeIds.has(i.id))
           .map((i) => i.url)
           .filter((u) => u.trim().length > 0);
@@ -933,43 +953,38 @@ export default function WorkSlotDetailScreen() {
             added: newUrls.length,
           });
         }
-        if (source === "camera") {
-          setCameraSessionCountByAsset((prev) => ({
-            ...prev,
-            [assetId]: (prev[assetId] ?? 0) + files.length,
-          }));
-        }
       } finally {
         setEditorImageUploading(false);
       }
     },
-    [isInspectionSlot, refreshEditorImages, selectedMaintenanceAssetId]
+    [isInspectionSlot, refreshEditorImages]
   );
 
   const handleOpenMaintenanceImageCapture = useCallback(() => {
-    if (editorImageUploading || editorDeletingImageId != null) {
+    if (editorDeletingImageId != null) {
       CustomAlert.alert(t("common.error"), t("common.loading"), [{ text: t("common.close") }]);
       return;
     }
     setImageCaptureVisible(true);
-  }, [editorDeletingImageId, editorImageUploading, t]);
+  }, [editorDeletingImageId, t]);
 
+  /**
+   * Xử lý ảnh từ camera/thư viện: hàng đợi tuần tự (không drop khi upload chưa xong).
+   * Giới hạn MAX chỉ theo số ảnh đã thêm trong phiên mở modal (không trừ ảnh cũ trên asset).
+   */
   const handleEditorImagesPicked = useCallback(
-    (assets: ImagePicker.ImagePickerAsset[], source: "camera" | "library") => {
-      void (async () => {
-        if (!selectedMaintenanceAssetId) return;
-        if (editorImageUploading || editorDeletingImageId != null) return;
+    (assets: ImagePicker.ImagePickerAsset[], _source: "camera" | "library") => {
+      editorImagePickQueueRef.current = editorImagePickQueueRef.current
+        .then(async () => {
+          const assetId = selectedMaintenanceAssetIdRef.current;
+          if (!assetId) return;
+          if (editorDeletingImageIdRef.current != null) return;
 
-        const filtered = assets.filter((a) => Boolean(a.uri));
-        let slice: ImagePicker.ImagePickerAsset[];
-        let uploadSource: "camera" | "library";
+          const filtered = assets.filter((a) => Boolean(a.uri));
+          if (filtered.length === 0) return;
 
-        if (source === "library") {
-          slice = filtered;
-          uploadSource = "library";
-        } else {
-          const cameraCount = cameraSessionCountByAsset[selectedMaintenanceAssetId] ?? 0;
-          const room = MAX_MAINTENANCE_ASSET_IMAGES - cameraCount;
+          const sessionCount = maintenanceSessionImageCountRef.current;
+          const room = Math.max(0, MAX_MAINTENANCE_ASSET_IMAGES - sessionCount);
           if (room <= 0) {
             CustomAlert.alert(
               t("common.images_limit_title"),
@@ -978,8 +993,8 @@ export default function WorkSlotDetailScreen() {
             );
             return;
           }
-          slice = filtered.slice(0, room);
-          uploadSource = "camera";
+
+          const slice = filtered.slice(0, room);
           if (filtered.length > slice.length) {
             CustomAlert.alert(
               t("common.images_limit_title"),
@@ -990,35 +1005,28 @@ export default function WorkSlotDetailScreen() {
               [{ text: t("common.close") }]
             );
           }
-        }
 
-        const files: AssetItemImageToUpload[] = slice.map((a, idx) => ({
-          uri: a.uri as string,
-          fileName: a.fileName ?? `maintenance-${selectedMaintenanceAssetId ?? "asset"}-${Date.now()}-${idx}.jpg`,
-          mimeType: a.mimeType ?? "image/jpeg",
-        }));
+          const files: AssetItemImageToUpload[] = slice.map((a, idx) => ({
+            uri: a.uri as string,
+            fileName: a.fileName ?? `maintenance-${assetId}-${Date.now()}-${idx}.jpg`,
+            mimeType: a.mimeType ?? "image/jpeg",
+          }));
 
-        if (files.length === 0) return;
+          if (files.length === 0) return;
 
-        try {
-          await uploadEditorImages(files, uploadSource);
-        } catch (err) {
-          CustomAlert.alert(
-            t("common.error"),
-            err instanceof Error ? err.message : t("staff_work_slot_detail.maintenance_batch_error"),
-            [{ text: t("common.close") }]
-          );
-        }
-      })();
+          try {
+            await uploadEditorImages(assetId, files);
+          } catch (err) {
+            CustomAlert.alert(
+              t("common.error"),
+              err instanceof Error ? err.message : t("staff_work_slot_detail.maintenance_batch_error"),
+              [{ text: t("common.close") }]
+            );
+          }
+        })
+        .catch(() => {});
     },
-    [
-      editorDeletingImageId,
-      editorImageUploading,
-      selectedMaintenanceAssetId,
-      cameraSessionCountByAsset,
-      t,
-      uploadEditorImages,
-    ]
+    [t, uploadEditorImages]
   );
 
   const handleDeleteEditorImage = useCallback(
@@ -1108,8 +1116,15 @@ export default function WorkSlotDetailScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (isInspectionSlot) {
+        pushInspectionFlowDebugSession();
+      }
       refetchItem();
-      return undefined;
+      return () => {
+        if (isInspectionSlot) {
+          popInspectionFlowDebugSession();
+        }
+      };
     }, [slot.ticketId, isIssueSlot, isInspectionSlot])
   );
 
@@ -1445,7 +1460,6 @@ export default function WorkSlotDetailScreen() {
           editorImageUploading={editorImageUploading}
           editorDeletingImageId={editorDeletingImageId}
           onOpenMaintenanceImageCapture={handleOpenMaintenanceImageCapture}
-          cameraSessionCountForEditor={cameraSessionCountForEditor}
           onSaveMaintenanceAssetDraft={handleSaveMaintenanceAssetDraft}
           imageCaptureVisible={imageCaptureVisible}
           setImageCaptureVisible={setImageCaptureVisible}
@@ -1453,6 +1467,7 @@ export default function WorkSlotDetailScreen() {
           activeImageUrl={activeImageUrl}
           setActiveImageUrl={setActiveImageUrl}
           hasFloorAreas={hasFloorAreas}
+          maintenanceSessionImageCount={maintenanceEditorSessionImageCount}
         />
       ) : inspectionTypeUpper === "CHECK_OUT" ? (
         <WorkSlotInspectionCheckOutModalFlow
@@ -1492,7 +1507,6 @@ export default function WorkSlotDetailScreen() {
           editorImageUploading={editorImageUploading}
           editorDeletingImageId={editorDeletingImageId}
           onOpenMaintenanceImageCapture={handleOpenMaintenanceImageCapture}
-          cameraSessionCountForEditor={cameraSessionCountForEditor}
           onSaveMaintenanceAssetDraft={handleSaveMaintenanceAssetDraft}
           imageCaptureVisible={imageCaptureVisible}
           setImageCaptureVisible={setImageCaptureVisible}
@@ -1500,6 +1514,7 @@ export default function WorkSlotDetailScreen() {
           activeImageUrl={activeImageUrl}
           setActiveImageUrl={setActiveImageUrl}
           hasFloorAreas={hasFloorAreas}
+          maintenanceSessionImageCount={maintenanceEditorSessionImageCount}
         />
       ) : (
         <WorkSlotInspectionCheckInModalFlow
@@ -1537,7 +1552,6 @@ export default function WorkSlotDetailScreen() {
           editorImageUploading={editorImageUploading}
           editorDeletingImageId={editorDeletingImageId}
           onOpenMaintenanceImageCapture={handleOpenMaintenanceImageCapture}
-          cameraSessionCountForEditor={cameraSessionCountForEditor}
           onSaveMaintenanceAssetDraft={handleSaveMaintenanceAssetDraft}
           imageCaptureVisible={imageCaptureVisible}
           setImageCaptureVisible={setImageCaptureVisible}
@@ -1545,6 +1559,7 @@ export default function WorkSlotDetailScreen() {
           activeImageUrl={activeImageUrl}
           setActiveImageUrl={setActiveImageUrl}
           hasFloorAreas={hasFloorAreas}
+          maintenanceSessionImageCount={maintenanceEditorSessionImageCount}
         />
       )}
     </View>

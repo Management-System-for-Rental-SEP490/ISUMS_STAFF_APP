@@ -22,6 +22,7 @@ export default {
         "images_limit_max_message": "You can attach at most {{max}} photos. Remove some to add more.",
         "images_limit_truncated_message": "Only {{added}} photo(s) were added (maximum {{max}}).",
         "camera_no_more_shots": "You cannot take any more photos",
+        "images_count_of_max": "{{current}}/{{max}}",
         "a11y_brand_go_home": "ISUMS — go to staff home",
         "currency_vnd_unit": "VND",
         "currency_not_available": "—"
@@ -727,7 +728,8 @@ export default {
         "maintenance_note_placeholder": "Enter maintenance note...",
         "maintenance_update_at_label": "Last updated at",
         "maintenance_update_at_empty": "No data",
-        "maintenance_images_label": "Images (URL)",
+        "maintenance_images_label": "Images",
+        "maintenance_images_empty": "No images yet",
         "maintenance_image_input_placeholder": "Paste image URL",
         "maintenance_add_image_btn": "Add image URL",
         "open_item_edit_for_images": "Open image editor (delete/camera/library)",

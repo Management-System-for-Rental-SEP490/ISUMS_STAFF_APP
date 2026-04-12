@@ -125,6 +125,10 @@ const headerStyles = StyleSheet.create({
     minWidth: 0,
     position: "relative",
   },
+  /** Chỉ khi có icon chuông: thêm khoảng dưới để neo chuông sát mép dưới vùng header. */
+  staffTabWelcomeBodyBellDock: {
+    paddingBottom: 8,
+  },
   /** Cột chữ: full width; chữ có thể chồng lên vùng icon (nút nằm layer trên). */
   staffTabWelcomeTextCol: {
     width: "100%",
@@ -139,6 +143,10 @@ const headerStyles = StyleSheet.create({
     bottom: 6,
     zIndex: 2,
     elevation: 0,
+  },
+  /** Chuông: neo sát mép dưới `staffTabWelcomeBody` (kết hợp `staffTabWelcomeBodyBellDock`). */
+  staffTabWelcomeBellAbsoluteBottom: {
+    bottom: 0,
   },
   staffTabWelcomeGreeting: {
     ...appTypography.sectionHeading,

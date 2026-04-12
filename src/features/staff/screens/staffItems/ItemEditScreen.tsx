@@ -140,15 +140,25 @@ export default function ItemEditScreen() {
     }, [item.id, item.nfcTag, item.qrTag])
   );
 
-  // Refresh ảnh khi item được load/cập nhật từ API
+  // Refresh ảnh khi item được load/cập nhật từ API — ưu tiên mảng `images` từ GET item, fallback GET .../images
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
       if (!latestItem?.id) return;
       try {
         setImagesLoading(true);
-        const imgs = await getAssetItemImages(latestItem.id);
-        if (!cancelled) setItemImages(imgs);
+        const embedded =
+          latestItem.images?.map((img) => ({
+            id: String(img.id ?? "").trim(),
+            url: String(img.url ?? ""),
+            createdAt: img.createdAt ?? null,
+          })).filter((x) => x.id.length > 0 && x.url.length > 0) ?? [];
+        if (embedded.length > 0) {
+          if (!cancelled) setItemImages(embedded);
+        } else {
+          const imgs = await getAssetItemImages(latestItem.id);
+          if (!cancelled) setItemImages(imgs);
+        }
       } catch {
         if (!cancelled) setItemImages([]);
       } finally {
@@ -159,7 +169,7 @@ export default function ItemEditScreen() {
     return () => {
       cancelled = true;
     };
-  }, [latestItem.id]);
+  }, [latestItem.id, latestItem.images]);
 
   const [houseId, setHouseId] = useState(latestItem.houseId);
   const [categoryId, setCategoryId] = useState(latestItem.categoryId);
@@ -685,7 +695,7 @@ export default function ItemEditScreen() {
 
   const handleTakePhoto = async () => {
     if (formLocked) return;
-    if (pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES) {
+    if (itemImages.length + pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES) {
       Alert.alert(
         t("common.images_limit_title"),
         t("common.images_limit_max_message", { max: MAX_ASSET_ATTACHMENT_IMAGES })
@@ -1089,14 +1099,16 @@ export default function ItemEditScreen() {
                   <TouchableOpacity
                     style={[
                       itemScreenStyles.imageButton,
-                      pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES && { opacity: 0.5 },
+                      itemImages.length + pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES && {
+                        opacity: 0.5,
+                      },
                     ]}
                     onPress={handleTakePhoto}
                     activeOpacity={0.9}
                     disabled={
                       isPending ||
                       uploadingImages ||
-                      pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES
+                      itemImages.length + pendingImagePreviews.length >= MAX_ASSET_ATTACHMENT_IMAGES
                     }
                   >
                     <Text style={itemScreenStyles.imageButtonText}>{t("staff_item_create.images_camera")}</Text>
@@ -1281,7 +1293,10 @@ export default function ItemEditScreen() {
           setUploadError(null);
           const picked = addPickedImages(assets);
           setPendingImagePreviews((prev) => {
-            const room = MAX_ASSET_ATTACHMENT_IMAGES - prev.length;
+            const room = Math.max(
+              0,
+              MAX_ASSET_ATTACHMENT_IMAGES - itemImages.length - prev.length
+            );
             if (room <= 0) {
               requestAnimationFrame(() =>
                 Alert.alert(
@@ -1307,6 +1322,15 @@ export default function ItemEditScreen() {
           });
         }}
         libraryLabel={t("staff_item_create.images_library")}
+        cameraShotsRemaining={Math.max(
+          0,
+          MAX_ASSET_ATTACHMENT_IMAGES - itemImages.length - pendingImagePreviews.length
+        )}
+        librarySelectionLimit={Math.max(
+          0,
+          MAX_ASSET_ATTACHMENT_IMAGES - itemImages.length - pendingImagePreviews.length
+        )}
+        maxImagesForAlert={MAX_ASSET_ATTACHMENT_IMAGES}
       />
     </View>
   );

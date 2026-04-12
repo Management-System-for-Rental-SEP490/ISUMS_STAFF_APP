@@ -4,6 +4,10 @@
 import { getIssueTicketById } from "../../../shared/services/issuesApi";
 import { getInspectionById, getJobById } from "../../../shared/services/maintenanceApi";
 import { getStaffIdForSchedule, getWorkSlotsByStaffId } from "../../../shared/services/scheduleApi";
+import {
+  popInspectionFlowDebugSession,
+  pushInspectionFlowDebugSession,
+} from "../../../shared/utils/inspectionDebugLog";
 import type { WorkSlotFromApi } from "../../../shared/types/api";
 
 const TERMINAL_SLOT = new Set(["DONE", "COMPLETED", "CLOSED"]);
@@ -47,53 +51,63 @@ export async function waitForWorkSlotCompletionSync(opts: {
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  for (let i = 0; i < maxAttempts; i++) {
-    let jobOk = false;
-    try {
-      if (opts.kind === "issue") {
-        const r = await getIssueTicketById(opts.jobId);
-        jobOk = Boolean(
-          r?.success &&
-            r.data &&
-            isTerminalJobStatus(r.data.status, "issue")
-        );
-      } else if (opts.kind === "inspection") {
-        const r = await getInspectionById(opts.jobId);
-        jobOk = Boolean(
-          r?.success &&
-            r.data &&
-            isTerminalJobStatus(r.data.status, "inspection")
-        );
-      } else {
-        const r = await getJobById(opts.jobId);
-        jobOk = Boolean(
-          r?.success &&
-            r.data &&
-            isTerminalJobStatus(r.data.status, "maintenance")
-        );
-      }
-    } catch {
-      jobOk = false;
-    }
-
-    let apiSlot: WorkSlotFromApi | null = null;
-    let slotOk = false;
-    try {
-      if (staffId) {
-        const ws = await getWorkSlotsByStaffId(staffId);
-        const rows = Array.isArray(ws.data) ? ws.data : [];
-        apiSlot = rows.find((s) => s.id === opts.scheduleSlotId) ?? null;
-        slotOk = apiSlot ? isTerminalSlotStatus(apiSlot.status) : false;
-      }
-    } catch {
-      slotOk = false;
-    }
-
-    if (jobOk && slotOk) {
-      return { startTimeIso: apiSlot?.startTime ?? null, apiSlot };
-    }
-    await sleep(delayMs);
+  const inspectionSyncSession = opts.kind === "inspection";
+  if (inspectionSyncSession) {
+    pushInspectionFlowDebugSession();
   }
+  try {
+    for (let i = 0; i < maxAttempts; i++) {
+      let jobOk = false;
+      try {
+        if (opts.kind === "issue") {
+          const r = await getIssueTicketById(opts.jobId);
+          jobOk = Boolean(
+            r?.success &&
+              r.data &&
+              isTerminalJobStatus(r.data.status, "issue")
+          );
+        } else if (opts.kind === "inspection") {
+          const r = await getInspectionById(opts.jobId);
+          jobOk = Boolean(
+            r?.success &&
+              r.data &&
+              isTerminalJobStatus(r.data.status, "inspection")
+          );
+        } else {
+          const r = await getJobById(opts.jobId);
+          jobOk = Boolean(
+            r?.success &&
+              r.data &&
+              isTerminalJobStatus(r.data.status, "maintenance")
+          );
+        }
+      } catch {
+        jobOk = false;
+      }
 
-  return { startTimeIso: null, apiSlot: null };
+      let apiSlot: WorkSlotFromApi | null = null;
+      let slotOk = false;
+      try {
+        if (staffId) {
+          const ws = await getWorkSlotsByStaffId(staffId);
+          const rows = Array.isArray(ws.data) ? ws.data : [];
+          apiSlot = rows.find((s) => s.id === opts.scheduleSlotId) ?? null;
+          slotOk = apiSlot ? isTerminalSlotStatus(apiSlot.status) : false;
+        }
+      } catch {
+        slotOk = false;
+      }
+
+      if (jobOk && slotOk) {
+        return { startTimeIso: apiSlot?.startTime ?? null, apiSlot };
+      }
+      await sleep(delayMs);
+    }
+
+    return { startTimeIso: null, apiSlot: null };
+  } finally {
+    if (inspectionSyncSession) {
+      popInspectionFlowDebugSession();
+    }
+  }
 }

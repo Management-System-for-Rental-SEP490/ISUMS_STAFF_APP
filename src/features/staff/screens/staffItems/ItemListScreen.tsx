@@ -25,6 +25,7 @@ import {
   useHouses,
   useRefreshControlGate,
   refreshControlAndroidGateProps,
+  asAssetItemArray,
 } from "../../../../shared/hooks";
 import { getHouses } from "../../../../shared/services/houseApi";
 import { useAuthStore } from "../../../../store/useAuthStore";
@@ -96,7 +97,7 @@ export default function ItemListScreen() {
     refetch,
     isRefetching: itemsRefetching,
   } = useAssetItems({});
-  const rawItems: AssetItemFromApi[] = itemsData?.data ?? [];
+  const rawItems: AssetItemFromApi[] = asAssetItemArray(itemsData?.data);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   /** Mỗi lần vào màn (focus) tăng để DropdownBox luôn mở panel danh sách — kể cả khi tab giữ component mounted. */

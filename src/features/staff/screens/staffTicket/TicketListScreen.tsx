@@ -6,6 +6,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useQueries } from "@tanstack/react-query";
 import type { IssueTicketListItemFromApi } from "../../../../shared/types/api";
 import { MainTabParamList, RootStackParamList } from "../../../../shared/types";
 import Header from "../../../../shared/components/header";
@@ -13,7 +14,8 @@ import { ticketListStyles } from "./ticketListStyles";
 import { brandPrimary, brandSecondary, neutral } from "../../../../shared/theme/color";
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
 import { formatStaffTicketListCreatedAt, getTotalPages, slicePage } from "../../../../shared/utils";
-import { useAssetItems } from "../../../../shared/hooks/useAssetItems";
+import { ASSET_ITEM_KEYS, useAssetItems } from "../../../../shared/hooks/useAssetItems";
+import { getAssetItemById } from "../../../../shared/services/assetItemApi";
 import { useHouses } from "../../../../shared/hooks/useHouses";
 import { useStaffIssueTickets } from "../../../../shared/hooks/useUserProfile";
 import { useRefreshControlGate, refreshControlAndroidGateProps } from "../../../../shared/hooks";
@@ -54,19 +56,50 @@ export default function TicketListScreen() {
 
   const houseNameById = useMemo(() => {
     const map = new Map<string, string>();
-    (housesRes?.data ?? []).forEach((house) => {
+    const houses = Array.isArray(housesRes?.data) ? housesRes.data : [];
+    houses.forEach((house) => {
       map.set(house.id, house.name);
     });
     return map;
   }, [housesRes?.data]);
 
-  const assetNameById = useMemo(() => {
+  const assetNameByIdFromList = useMemo(() => {
     const map = new Map<string, string>();
-    (assetsRes?.data ?? []).forEach((asset) => {
+    const assets = Array.isArray(assetsRes?.data) ? assetsRes.data : [];
+    assets.forEach((asset) => {
       map.set(asset.id, asset.displayName);
     });
     return map;
   }, [assetsRes?.data]);
+
+  const assetIdsNeedingDetailFetch = useMemo(() => {
+    const ids = new Set<string>();
+    const tickets = Array.isArray(ticketsData) ? ticketsData : [];
+    tickets.forEach((ticket) => {
+      const id = String(ticket.assetId ?? "").trim();
+      if (id && !assetNameByIdFromList.has(id)) ids.add(id);
+    });
+    return Array.from(ids);
+  }, [ticketsData, assetNameByIdFromList]);
+
+  const assetDetailQueries = useQueries({
+    queries: assetIdsNeedingDetailFetch.map((assetId) => ({
+      queryKey: ASSET_ITEM_KEYS.byId(assetId),
+      queryFn: () => getAssetItemById(assetId),
+      enabled: Boolean(assetId),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+
+  const assetNameById = useMemo(() => {
+    const map = new Map(assetNameByIdFromList);
+    assetIdsNeedingDetailFetch.forEach((id, index) => {
+      const row = assetDetailQueries[index]?.data;
+      const name = row?.displayName?.trim();
+      if (name) map.set(id, name);
+    });
+    return map;
+  }, [assetNameByIdFromList, assetIdsNeedingDetailFetch, assetDetailQueries]);
 
   const sortedTickets = useMemo(() => {
     return [...ticketsData].sort((a, b) => {

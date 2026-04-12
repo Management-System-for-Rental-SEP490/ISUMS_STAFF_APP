@@ -62,8 +62,6 @@ export type WorkSlotMaintenanceModalFlowProps = {
   editorImageUploading: boolean;
   editorDeletingImageId: string | null;
   onOpenMaintenanceImageCapture: () => void;
-  /** Số ảnh đã chụp (camera) trong phiên cho asset đang sửa — dùng giới hạn 5 cho lượt chụp. */
-  cameraSessionCountForEditor: number;
   onSaveMaintenanceAssetDraft: () => void;
   imageCaptureVisible: boolean;
   setImageCaptureVisible: (v: boolean) => void;
@@ -71,6 +69,8 @@ export type WorkSlotMaintenanceModalFlowProps = {
   activeImageUrl: string | null;
   setActiveImageUrl: (url: string | null) => void;
   hasFloorAreas: boolean;
+  /** Số ảnh đã thêm trong lần mở modal (giới hạn MAX / phiên; không tính ảnh cũ trên asset). */
+  maintenanceSessionImageCount: number;
 };
 
 export function WorkSlotMaintenanceModalFlow(props: WorkSlotMaintenanceModalFlowProps) {
@@ -109,7 +109,6 @@ export function WorkSlotMaintenanceModalFlow(props: WorkSlotMaintenanceModalFlow
     editorImageUploading,
     editorDeletingImageId,
     onOpenMaintenanceImageCapture,
-    cameraSessionCountForEditor,
     onSaveMaintenanceAssetDraft,
     imageCaptureVisible,
     setImageCaptureVisible,
@@ -117,6 +116,7 @@ export function WorkSlotMaintenanceModalFlow(props: WorkSlotMaintenanceModalFlow
     activeImageUrl,
     setActiveImageUrl,
     hasFloorAreas,
+    maintenanceSessionImageCount,
   } = props;
 
   const keyboardInset = useKeyboardBottomInset();
@@ -382,7 +382,7 @@ export function WorkSlotMaintenanceModalFlow(props: WorkSlotMaintenanceModalFlow
                 </Text>
                 {editorServerImages.length === 0 ? (
                   <Text style={[M.maintenanceHintText, M.baselineHintMargin]}>
-                    {t("staff_ticket_detail.images_empty")}
+                    {t("staff_work_slot_detail.maintenance_images_empty")}
                   </Text>
                 ) : (
                   <ScrollView
@@ -429,11 +429,17 @@ export function WorkSlotMaintenanceModalFlow(props: WorkSlotMaintenanceModalFlow
                   style={[M.editAssetCameraBtn]}
                   onPress={onOpenMaintenanceImageCapture}
                   activeOpacity={0.85}
-                  disabled={maintenanceEditorLoading || editorImageUploading || editorDeletingImageId != null}
+                  disabled={maintenanceEditorLoading || editorDeletingImageId != null}
                 >
                   <Icons.camera size={22} color={brandPrimary} />
                   <Text style={M.editAssetCameraBtnText}>{t("staff_item_create.images_camera")}</Text>
                 </TouchableOpacity>
+                <Text style={[M.maintenanceHintText, { marginTop: 6 }]}>
+                  {t("common.images_count_of_max", {
+                    current: maintenanceSessionImageCount,
+                    max: MAX_MAINTENANCE_ASSET_IMAGES,
+                  })}
+                </Text>
 
                 <View style={M.maintenanceActionsRow}>
                   <TouchableOpacity
@@ -501,7 +507,15 @@ export function WorkSlotMaintenanceModalFlow(props: WorkSlotMaintenanceModalFlow
         onClose={() => setImageCaptureVisible(false)}
         onPicked={onEditorImagesPicked}
         libraryLabel={t("staff_item_create.images_library")}
-        cameraShotsRemaining={Math.max(0, MAX_MAINTENANCE_ASSET_IMAGES - cameraSessionCountForEditor)}
+        cameraShotsRemaining={Math.max(
+          0,
+          MAX_MAINTENANCE_ASSET_IMAGES - maintenanceSessionImageCount
+        )}
+        librarySelectionLimit={Math.max(
+          0,
+          MAX_MAINTENANCE_ASSET_IMAGES - maintenanceSessionImageCount
+        )}
+        maxImagesForAlert={MAX_MAINTENANCE_ASSET_IMAGES}
       />
     </>
   );

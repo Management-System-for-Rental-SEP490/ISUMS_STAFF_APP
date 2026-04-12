@@ -340,13 +340,16 @@ export const staffTicketDetailStyles = StyleSheet.create({
     color: neutral.textSecondary,
     fontStyle: "italic",
   },
-  /** Không dùng ScrollView ngang lồng trong ScrollView dọc (tránh giật gesture / nested scroll). */
-  ticketImagesWrap: {
+  /** Dải ảnh cuộn ngang (đồng bộ item / màn chi tiết thiết bị). */
+  ticketImageStripScroll: {
+    maxHeight: 170,
+  },
+  ticketImageStrip: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 10,
     paddingVertical: 6,
     paddingHorizontal: 2,
+    paddingRight: 4,
   },
   ticketImageThumb: {
     borderRadius: 12,
@@ -368,6 +371,10 @@ export const staffTicketDetailStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 16,
+    position: "relative",
+  },
+  imageModalBackdropDismiss: {
+    ...StyleSheet.absoluteFillObject,
   },
   imageModalContent: {
     width: "100%",
@@ -377,6 +384,11 @@ export const staffTicketDetailStyles = StyleSheet.create({
     borderColor: neutral.slate200,
     backgroundColor: neutral.surface,
     borderCurve: "continuous",
+    zIndex: 1,
+  },
+  imageModalPager: {
+    width: "100%",
+    height: 320,
   },
   imageModalClose: {
     position: "absolute",

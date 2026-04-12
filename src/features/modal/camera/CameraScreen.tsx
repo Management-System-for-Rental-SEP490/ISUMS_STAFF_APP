@@ -8,6 +8,7 @@ import {
   Animated,
   StatusBar,
 } from "react-native";
+import { GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CustomAlert as Alert } from "../../../shared/components/alert";
 import { useEffect, useMemo, useState, useRef } from "react";
@@ -27,6 +28,7 @@ import { AssignNfcModal } from "../../staff/modal/assignNFC/AssignNfcModal";
 import Icons from "../../../shared/theme/icon";
 import { brandPrimary, brandSecondary, neutral } from "../../../shared/theme/color";
 import { useAndroidKeycloakWebViewSystemUi } from "../../../shared/hooks/useAndroidKeycloakWebViewSystemUi";
+import { useCameraPinchZoom } from "../../../shared/hooks/useCameraPinchZoom";
 
 
 const CameraScreen = () => {
@@ -55,7 +57,8 @@ const CameraScreen = () => {
     return "qr";
   };
 
-  const [permission, requestPermission] = useCameraPermissions(); 
+  const [permission, requestPermission] = useCameraPermissions();
+  const { zoom, pinchGesture } = useCameraPinchZoom();
   const [scanned, setScanned] = useState(false);
   const [scanMode, setScanMode] = useState<ScanMode>(() => resolveInitialScanMode());
   const [modeSwitchW, setModeSwitchW] = useState(0);
@@ -608,14 +611,19 @@ const CameraScreen = () => {
       {scanMode === "qr" ? (
         // Chế độ scan QR Code
         <>
-          <CameraView
-            style={{ flex: 1 }}
-            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned} //nếu đã scan → undefined (tắt), nếu chưa → handleBarCodeScanned
-            barcodeScannerSettings={{
-              barcodeTypes: ["qr"],
-            }}
-          />
-          <View style={cameraStyles.overlay}>
+          <GestureDetector gesture={pinchGesture}>
+            <View style={{ flex: 1 }}>
+              <CameraView
+                style={{ flex: 1 }}
+                zoom={zoom}
+                onBarcodeScanned={scanned ? undefined : handleBarCodeScanned} //nếu đã scan → undefined (tắt), nếu chưa → handleBarCodeScanned
+                barcodeScannerSettings={{
+                  barcodeTypes: ["qr"],
+                }}
+              />
+            </View>
+          </GestureDetector>
+          <View style={cameraStyles.overlay} pointerEvents="none">
             <View style={cameraStyles.unfocusedContainer}></View>
             <View style={cameraStyles.middleContainer}>
               <View style={cameraStyles.unfocusedContainer}></View>

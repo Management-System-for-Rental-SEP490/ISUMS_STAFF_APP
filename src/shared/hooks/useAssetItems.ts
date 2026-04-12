@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/rea
 import {
   getAssetItems,
   getAssetItemsByHouseId,
+  asAssetItemArray,
+  getAssetItemById,
   getIotDevicesByHouseId,
   deprovisionIotControllerByHouseId,
   provisionIotControllerByHouseId,
@@ -52,6 +54,8 @@ export const ASSET_ITEM_KEYS = {
    */
   byHouse: (houseId: string, categoryId?: string | null) =>
     [...ASSET_ITEM_KEYS.base, "byHouse", houseId, categoryId ?? null] as const,
+  /** Chi tiết một item (GET /api/assets/items/:id). */
+  byId: (assetId: string) => [...ASSET_ITEM_KEYS.base, "byId", assetId] as const,
 };
 
 /**
@@ -87,8 +91,11 @@ export const useAssetItems = (params: UseAssetItemsParams = {}) => {
     queryFn: async () => {
       if (houseId) {
         const res = await getAssetItemsByHouseId(houseId);
-        if (categoryId && res.data) {
-          res.data = res.data.filter((item) => item.categoryId === categoryId);
+        if (categoryId && Array.isArray(res.data)) {
+          return {
+            ...res,
+            data: res.data.filter((item) => item.categoryId === categoryId),
+          };
         }
         return res;
       }
@@ -96,6 +103,19 @@ export const useAssetItems = (params: UseAssetItemsParams = {}) => {
         categoryId: (categoryId ?? undefined) as AssetItemsParams["categoryId"],
       });
     },
+  });
+};
+
+/**
+ * Chi tiết một thiết bị theo id (GET /api/assets/items/:id).
+ * Dùng khi cần tên hiển thị mà danh sách `useAssetItems` không chắc đã chứa item (vd. ticket chỉ có assetId).
+ */
+export const useAssetItemById = (assetId: string | null | undefined) => {
+  const id = typeof assetId === "string" ? assetId.trim() : "";
+  return useQuery({
+    queryKey: ASSET_ITEM_KEYS.byId(id || "__none__"),
+    queryFn: () => getAssetItemById(id),
+    enabled: Boolean(id),
   });
 };
 
@@ -193,19 +213,26 @@ export const useAssetItemsAllHouses = (
   const queries = useQueries({
     queries: houseIds.map((houseId) => ({
       queryKey: ASSET_ITEM_KEYS.byHouse(houseId, categoryId),
-      queryFn: () =>
-        getAssetItems({
-          houseId,
-          categoryId: (categoryId ?? undefined) as AssetItemsParams["categoryId"],
-        }),
+      /** Cùng endpoint với `useAssetItems({ houseId })` — tránh cùng queryKey nhưng queryFn khác (GET ?houseId= vs /house/:id) làm cache TanStack Query sai / trống. */
+      queryFn: async () => {
+        const res = await getAssetItemsByHouseId(houseId);
+        if (categoryId && Array.isArray(res.data)) {
+          return {
+            ...res,
+            data: res.data.filter((item) => item.categoryId === categoryId),
+          };
+        }
+        return res;
+      },
     })),
   });
 
   const merged: AssetItemFromApi[] = (() => {
     const byId = new Map<string, AssetItemFromApi>();
     for (const q of queries) {
-      const list = q.data?.data ?? [];
-      for (const item of list) byId.set(item.id, item);
+      for (const item of asAssetItemArray(q.data?.data)) {
+        byId.set(item.id, item);
+      }
     }
     return Array.from(byId.values());
   })();
@@ -290,4 +317,6 @@ export const useDetachAssetTag = () => {
     onSuccess: () => invalidateAllAssetItems(queryClient),
   });
 };
+
+export { asAssetItemArray };
 

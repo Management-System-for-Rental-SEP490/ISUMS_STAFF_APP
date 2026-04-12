@@ -46,7 +46,12 @@ import { staffFormShape } from "../../../../shared/styles/staffFormShape";
 import Icons from "../../../../shared/theme/icon";
 import { SCHEDULE_DATA_KEYS } from "../../hooks/useStaffScheduleData";
 import { isoLocalDateToYmd, waitForWorkSlotCompletionSync } from "../../utils/workSlotCompletionSync";
-import { logInspectionDebug, logInspectionError } from "../../../../shared/utils/inspectionDebugLog";
+import {
+  logInspectionDebug,
+  logInspectionError,
+  popInspectionFlowDebugSession,
+  pushInspectionFlowDebugSession,
+} from "../../../../shared/utils/inspectionDebugLog";
 import { useKeyboardBottomInset } from "../../../../shared/hooks/useKeyboardBottomInset";
 import { staffWorkSlotModalStyles as slotModalStyles } from "./staffWorkSlotModalStyles";
 
@@ -95,6 +100,13 @@ export default function InspectionConfirmScreen() {
   const lastAndroidScrollOptsRef = useRef<AndroidScrollOpts>({});
   const keyboardInsetRef = useRef(0);
   const androidScrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    pushInspectionFlowDebugSession();
+    return () => {
+      popInspectionFlowDebugSession();
+    };
+  }, []);
 
   useEffect(() => {
     keyboardInsetRef.current = keyboardInset;

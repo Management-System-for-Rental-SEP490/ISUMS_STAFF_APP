@@ -10,6 +10,7 @@ import { useAuthStore } from "../../store/useAuthStore";
 import {
   normalizeAssetItemStatusFromApi,
   type AssetItemFromApi,
+  type AssetItemImageFromApi,
   type AssetItemsApiResponse,
   type AssetItemsParams,
   type CreateAssetItemRequest,
@@ -32,6 +33,8 @@ import {
   type AssetMaintenanceBatchUpdateRequest,
   type AssetMaintenanceBatchUpdateApiResponse,
 } from "../types/api";
+
+export type { AssetItemImageFromApi };
 
 /**
  * Chuẩn hóa tagValue trước khi gửi lên BE.
@@ -57,7 +60,7 @@ function pickActiveTagValueFromTags(
   tags: AssetItemFromApi["tags"],
   tagType: "NFC" | "QR_CODE"
 ): string | null {
-  if (!tags?.length) return null;
+  if (!Array.isArray(tags) || tags.length === 0) return null;
   for (const t of tags) {
     if (t.tagType !== tagType) continue;
     if (t.isActive === false) continue;
@@ -108,6 +111,62 @@ function normalizeAssetItemFromResponse(
 }
 
 /**
+ * BE có thể trả `data` là mảng hoặc gói paginated / lồng nhau.
+ * Chuẩn hóa về mảng để hook/UI không gọi `.filter` trên non-array
+ * (object truthy làm `?? []` không chạy → lỗi "filter is not a function").
+ */
+function coerceAssetItemsArray(raw: unknown): AssetItemFromApi[] {
+  if (raw === null || raw === undefined) return [];
+  if (Array.isArray(raw)) return raw as AssetItemFromApi[];
+  if (typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    const pick = (v: unknown) => (Array.isArray(v) ? (v as AssetItemFromApi[]) : null);
+    for (const k of ["items", "results", "data", "content", "assetItems", "records", "value"] as const) {
+      const arr = pick(o[k]);
+      if (arr) return arr;
+    }
+    if (o.data && typeof o.data === "object" && !Array.isArray(o.data)) {
+      return coerceAssetItemsArray(o.data);
+    }
+    for (const v of Object.values(o)) {
+      if (Array.isArray(v)) return v as AssetItemFromApi[];
+    }
+  }
+  return [];
+}
+
+/**
+ * Dùng tại màn/hook khi đọc `itemsData?.data` từ cache — luôn được mảng (có thể rỗng).
+ */
+export function asAssetItemArray(raw: unknown): AssetItemFromApi[] {
+  return coerceAssetItemsArray(raw);
+}
+
+function assetItemsFromAxiosBody(
+  body: unknown,
+  finalize: (items: AssetItemFromApi[]) => AssetItemFromApi[]
+): AssetItemsApiResponse {
+  if (Array.isArray(body)) {
+    const rawList = coerceAssetItemsArray(body);
+    return { data: finalize(rawList as AssetItemFromApi[]) };
+  }
+  if (body && typeof body === "object" && "data" in body) {
+    const envelope = body as AssetItemsApiResponse;
+    const rawList = coerceAssetItemsArray(envelope.data);
+    return {
+      ...envelope,
+      data: finalize(rawList as AssetItemFromApi[]),
+    };
+  }
+  return { data: finalize([]) };
+}
+
+const mapNormalizeAssetItemRow = (i: AssetItemFromApi) =>
+  normalizeAssetItemFromResponse(
+    i as AssetItemFromApi & { nfc_tag?: string | null; qr_tag?: string | null }
+  );
+
+/**
  * Lấy danh sách thiết bị (GET /api/asset/items), có thể lọc theo houseId và/hoặc categoryId.
  * @param params - houseId, categoryId (optional); không truyền = lấy tất cả.
  * @returns Promise<AssetItemsApiResponse> - data là mảng AssetItemFromApi.
@@ -125,17 +184,8 @@ export const getAssetItems = async (
     ? `${BACKEND_API_BASE}/assets/items?${query}`
     : `${BACKEND_API_BASE}/assets/items`;
 
-  const response = await axiosClient.get<AssetItemsApiResponse>(url);
-  const data = response.data;
-  if (Array.isArray(data.data)) {
-    return {
-      ...data,
-      data: data.data.map((i) =>
-        normalizeAssetItemFromResponse(i as AssetItemFromApi & { nfc_tag?: string | null; qr_tag?: string | null })
-      ),
-    };
-  }
-  return data;
+  const response = await axiosClient.get<unknown>(url);
+  return assetItemsFromAxiosBody(response.data, (items) => items.map(mapNormalizeAssetItemRow));
 };
 
 /**
@@ -147,19 +197,10 @@ export const getAssetItems = async (
 export const getAssetItemsByHouseId = async (
   houseId: string
 ): Promise<AssetItemsApiResponse> => {
-  const response = await axiosClient.get<AssetItemsApiResponse>(
+  const response = await axiosClient.get<unknown>(
     `${BACKEND_API_BASE}/assets/items/house/${encodeURIComponent(houseId)}`
   );
-  const data = response.data;
-  if (Array.isArray(data.data)) {
-    return {
-      ...data,
-      data: data.data.map((i) =>
-        normalizeAssetItemFromResponse(i as AssetItemFromApi & { nfc_tag?: string | null; qr_tag?: string | null })
-      ),
-    };
-  }
-  return data;
+  return assetItemsFromAxiosBody(response.data, (items) => items.map(mapNormalizeAssetItemRow));
 };
 
 /**
@@ -266,8 +307,9 @@ export const getAssetItemByTag = async (
           }
         );
         if (tagMatchesScanned(item.nfcTag) || tagMatchesScanned(item.qrTag)) return true;
-        return item.tags?.some(
-          (t) => t.isActive !== false && tagMatchesScanned(t.tagValue)
+        return (
+          Array.isArray(item.tags) &&
+          item.tags.some((t) => t.isActive !== false && tagMatchesScanned(t.tagValue))
         );
       });
       return found ? normalizeAssetItemFromResponse(found as AssetItemFromApi & { nfc_tag?: string | null; qr_tag?: string | null }) : undefined;
@@ -435,24 +477,90 @@ export const updateAssetItem = async (
 /**
  * Batch cập nhật thông tin bảo trì cho nhiều thiết bị.
  * API: PUT /api/assets/items/maintenance/batch
- * Body: `{ jobId, updates: [{ assetId, conditionPercent, note }] }`
+ *
+ * BE mới: `multipart/form-data` (hỗ trợ gửi ảnh kèm; JSON raw không còn dùng).
+ * Postman: `jobId`, `updates[0].assetId`, `updates[0].conditionPercent`, `updates[0].note`, `updates[0].status`, …
  */
 export const updateAssetItemsMaintenanceBatch = async (
   payload: AssetMaintenanceBatchUpdateRequest
 ): Promise<AssetMaintenanceBatchUpdateApiResponse> => {
-  const url = `${BACKEND_API_BASE}/assets/items/maintenance/batch`;
-  //const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/maintenance/batch`;
+  //const url = `${BACKEND_API_BASE}/assets/items/maintenance/batch`;
+  const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/maintenance/batch`;
+  /** Bật khi test cục bộ cùng BE (ngrok). */
+  // const url = `${FALLBACK_BACKEND_URL}/assets/items/maintenance/batch`;
+
   try {
     logInspectionDebug("[AssetBatch]", "updateAssetItemsMaintenanceBatch", {
       jobId: payload.jobId,
       updateCount: payload.updates?.length ?? 0,
     });
-    const response = await axiosClient.put<AssetMaintenanceBatchUpdateApiResponse>(url, payload);
+
+    const token = useAuthStore.getState().token;
+    if (!token) {
+      throw new Error("Missing auth token for maintenance batch update");
+    }
+
+    const formData = new FormData();
+    formData.append("jobId", payload.jobId);
+
+    payload.updates.forEach((u, i) => {
+      const prefix = `updates[${i}]`;
+      formData.append(`${prefix}.assetId`, u.assetId);
+      formData.append(`${prefix}.conditionPercent`, String(u.conditionPercent));
+      formData.append(`${prefix}.note`, u.note);
+      if (u.status != null && String(u.status).trim() !== "") {
+        formData.append(`${prefix}.status`, u.status);
+      }
+      const imgs = u.localImages;
+      if (imgs && imgs.length > 0) {
+        imgs.forEach((img, j) => {
+          const name = img.fileName ?? `maintenance-${i}-${j}.jpg`;
+          const type = img.mimeType ?? "image/jpeg";
+          formData.append(
+            `${prefix}.images`,
+            { uri: img.uri, name, type } as any
+          );
+        });
+      }
+    });
+
+    // --- Cũ: JSON body (axios) — BE đổi sang form-data để gắn file sau này ---
+    // const response = await axiosClient.put<AssetMaintenanceBatchUpdateApiResponse>(url, payload);
+    // return response.data;
+
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Accept-Language": i18n.language || "vi",
+      },
+      body: formData,
+    });
+
+    const rawText = await response.text();
+    let parsed: AssetMaintenanceBatchUpdateApiResponse | null = null;
+    try {
+      parsed = rawText ? (JSON.parse(rawText) as AssetMaintenanceBatchUpdateApiResponse) : null;
+    } catch {
+      parsed = null;
+    }
+
+    if (!response.ok || !parsed) {
+      const msg =
+        parsed && typeof parsed === "object" && "message" in parsed
+          ? (parsed as { message?: string }).message
+          : undefined;
+      throw new Error(msg || `Maintenance batch failed (HTTP ${response.status})`);
+    }
+    if (parsed.success === false) {
+      throw new Error(parsed.message || "Maintenance batch failed");
+    }
+
     logInspectionDebug("[AssetBatch]", "batch ok", {
       status: response.status,
-      success: response.data?.success,
+      success: parsed.success,
     });
-    return response.data;
+    return parsed;
   } catch (e: unknown) {
     logInspectionError("[AssetBatch]", "batch failed", e);
     throw e;
@@ -605,12 +713,6 @@ export type AssetItemImageToUpload = {
   mimeType?: string;
 };
 
-export type AssetItemImageFromApi = {
-  id: string;
-  url: string;
-  createdAt?: string | null;
-};
-
 /** Gom nhiều lần gọi liên tiếp (cùng asset) trong cửa sổ ngắn → một request / kết quả tái sử dụng. */
 const ASSET_ITEM_IMAGES_DEDUP_MS = 350;
 const assetItemImagesInflight = new Map<string, Promise<AssetItemImageFromApi[]>>();
@@ -618,6 +720,45 @@ const assetItemImagesMicroCache = new Map<
   string,
   { at: number; data: AssetItemImageFromApi[] }
 >();
+
+/** Sau upload/xóa ảnh phải gọi để GET sau không trả micro-cache cũ (trùng itemId trong <350ms). */
+export const invalidateAssetItemImagesCache = (itemId: string) => {
+  const key = String(itemId ?? "").trim();
+  if (!key) return;
+  assetItemImagesMicroCache.delete(key);
+  assetItemImagesInflight.delete(key);
+};
+
+/** BE có thể trả camelCase hoặc snake_case — map về AssetItemImageFromApi. */
+function normalizeAssetItemImageRow(raw: unknown): AssetItemImageFromApi | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const id = String(o.id ?? o.imageId ?? "").trim();
+  const url = String(o.url ?? o.imageUrl ?? o.image_url ?? "").trim();
+  if (!id || !url) return null;
+  const createdRaw = o.createdAt ?? o.created_at;
+  return {
+    id,
+    url,
+    createdAt:
+      createdRaw != null && String(createdRaw).trim() !== ""
+        ? String(createdRaw)
+        : null,
+  };
+}
+
+/**
+ * Ảnh từ GET /api/assets/items/:id (trường `images` trên payload item).
+ * Dùng khi BE nhúng ảnh trong response asset thay vì gọi GET .../images riêng.
+ */
+export function getImagesFromAssetItem(
+  asset: AssetItemFromApi | undefined | null,
+): AssetItemImageFromApi[] {
+  if (!asset?.images || !Array.isArray(asset.images)) return [];
+  return asset.images
+    .map((raw) => normalizeAssetItemImageRow(raw))
+    .filter((row): row is AssetItemImageFromApi => row != null);
+}
 
 /**
  * Lấy danh sách ảnh của asset item.
@@ -637,12 +778,19 @@ export const getAssetItemImages = (
   const inflight = assetItemImagesInflight.get(key);
   if (inflight) return inflight;
 
+  // Có cacheBust = caller muốn dữ liệu mới (sau mutation / tránh cache HTTP) — không dùng micro-cache theo itemId.
   const cached = assetItemImagesMicroCache.get(key);
-  if (cached && now - cached.at < ASSET_ITEM_IMAGES_DEDUP_MS) {
+  if (
+    cacheBust === undefined &&
+    cached &&
+    now - cached.at < ASSET_ITEM_IMAGES_DEDUP_MS
+  ) {
     return Promise.resolve(cached.data);
   }
 
-  const baseUrl = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(key)}/images`;
+  // Cùng ASSETS_API_BASE với upload/delete — tránh GET primary trong khi POST lên fallback/ngrok.
+  //const baseUrl = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(key)}/images`;
+  const baseUrl = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/${encodeURIComponent(key)}/images`;
   const url = cacheBust ? `${baseUrl}?t=${encodeURIComponent(String(cacheBust))}` : baseUrl;
 
   const run = (async (): Promise<AssetItemImageFromApi[]> => {
@@ -651,7 +799,9 @@ export const getAssetItemImages = (
       const ok = Boolean(response?.data?.success);
       let data: AssetItemImageFromApi[] = [];
       if (ok && Array.isArray(response.data.data)) {
-        data = response.data.data;
+        data = response.data.data
+          .map(normalizeAssetItemImageRow)
+          .filter((row): row is AssetItemImageFromApi => row != null);
       }
       assetItemImagesMicroCache.set(key, { at: Date.now(), data });
       return data;
@@ -682,7 +832,8 @@ export const uploadAssetItemImages = async (
     throw new Error("Missing auth token for asset item image upload");
   }
 
-  const url = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
+  //const url = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
+  const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/${encodeURIComponent(itemId)}/images`;
   const formData = new FormData();
 
   images.forEach((img, idx) => {
@@ -722,6 +873,8 @@ export const uploadAssetItemImages = async (
   if (!response.ok || success === false) {
     throw new Error(message || `Upload asset item images failed (HTTP ${response.status})`);
   }
+
+  invalidateAssetItemImagesCache(itemId);
 };
 
 /**
@@ -738,7 +891,8 @@ export const deleteAssetItemImage = async (
     throw new Error("Missing itemId or imageId for deleting asset item image");
   }
 
-  const url = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(normalizedItemId)}/image/${encodeURIComponent(normalizedImageId)}`;
+  //const url = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(normalizedItemId)}/image/${encodeURIComponent(normalizedImageId)}`;
+  const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/${encodeURIComponent(normalizedItemId)}/image/${encodeURIComponent(normalizedImageId)}`;
   const response = await axiosClient.delete<ApiResponse<null>>(url);
   const ok = Boolean(response?.data?.success);
   if (!ok) {
@@ -746,5 +900,7 @@ export const deleteAssetItemImage = async (
       response?.data?.message || "Delete asset item image failed",
     );
   }
+
+  invalidateAssetItemImagesCache(normalizedItemId);
 };
 

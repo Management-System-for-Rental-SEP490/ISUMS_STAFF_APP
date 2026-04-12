@@ -4,6 +4,7 @@ import {
   ColorValue,
   Dimensions,
   Image,
+  Platform,
   Text,
   TextInput,
   TouchableOpacity,
@@ -101,6 +102,11 @@ const Header = ({
 }: HeaderProps) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  /** Android edge-to-edge: insets.top có thể = 0; bù bằng StatusBar (fallback ~24 nếu API không trả). */
+  const topInset = Math.max(
+    insets.top,
+    Platform.OS === "android" ? StatusBar.currentHeight ?? 24 : 0
+  );
   const navigation = useNavigation();
   const { data: userProfile, isPending: isProfilePending } = useUserProfile();
 
@@ -139,7 +145,7 @@ const Header = ({
           headerStyles.gradient,
           staffTabWelcome && headerStyles.gradientStaffWelcome,
           {
-            paddingTop: insets.top + (staffTabWelcome ? 4 : 12),
+            paddingTop: topInset + (staffTabWelcome ? 14 : 12),
             paddingBottom: staffTabWelcome ? 8 : undefined,
           },
           isSmallScreen && { paddingHorizontal: 12 },
@@ -211,7 +217,14 @@ const Header = ({
                 <Icons.chevronBack size={22} color={neutral.surface} />
               </Pressable>
             ) : null}
-            <View style={headerStyles.staffTabWelcomeBody}>
+            <View
+              style={[
+                headerStyles.staffTabWelcomeBody,
+                showHeaderAction && actionIcon === "notification"
+                  ? headerStyles.staffTabWelcomeBodyBellDock
+                  : null,
+              ]}
+            >
               <Pressable
                 style={headerStyles.staffTabWelcomeTextCol}
                 onPress={() => navigateToStaffHome(navigation as NavigationProp<ParamListBase>)}
@@ -237,6 +250,9 @@ const Header = ({
                       ? headerStyles.staffTabWelcomeIconPlain
                       : headerStyles.staffTabWelcomeActionBtn,
                     headerStyles.staffTabWelcomeActionAbsolute,
+                    actionIcon === "notification"
+                      ? headerStyles.staffTabWelcomeBellAbsoluteBottom
+                      : null,
                   ]}
                   onPress={onActionPress}
                   activeOpacity={0.75}

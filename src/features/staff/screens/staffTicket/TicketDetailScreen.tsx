@@ -3,7 +3,7 @@
  * Hiển thị thông tin ticket (tiêu đề, mô tả, thiết bị, người thuê, trạng thái, ưu tiên...).
  * Nếu ticket chưa được nhận (status = pending): hiển thị nút "Nhận ticket" → mở modal chọn khung giờ từ lịch tuần này → xác nhận.
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import {
   RefreshControl,
   Image,
   TouchableOpacity,
+  FlatList,
+  useWindowDimensions,
 } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -47,13 +49,16 @@ import {
 } from "../../../../shared/components/StackScreenTitleBadge";
 import { ISSUE_TICKET_KEYS, useIssueTicketById } from "../../../../shared/hooks/useUserProfile";
 import { useHouses } from "../../../../shared/hooks/useHouses";
-import { useAssetItems } from "../../../../shared/hooks/useAssetItems";
+import { useAssetItemById } from "../../../../shared/hooks/useAssetItems";
 import { SCHEDULE_DATA_KEYS } from "../../hooks/useStaffScheduleData";
 import {
   confirmStaffWorkSlotForJob,
   getStaffIdForSchedule,
 } from "../../../../shared/services/scheduleApi";
-import { getIssueTicketImages } from "../../../../shared/services/issuesApi";
+import {
+  getIssueTicketImages,
+  type IssueTicketImageFromApi,
+} from "../../../../shared/services/issuesApi";
 import ChooseScheduleSlotModal from "./ChooseScheduleSlotModal";
 
 type TicketDetailRouteProp = RouteProp<RootStackParamList, "TicketDetail">;
@@ -149,9 +154,14 @@ export default function TicketDetailScreen() {
     queryFn: () => getIssueTicketImages(ticketId),
     enabled: Boolean(ticketId?.trim()),
   });
-  const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
+  /** Index ảnh đang xem fullscreen; null = đóng modal. */
+  const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
+  const flatListRef = useRef<FlatList<IssueTicketImageFromApi>>(null);
+  const { width: windowWidth } = useWindowDimensions();
+  /** Khớp padding ngang backdrop (16 + 16) — độ rộng mỗi trang pager. */
+  const imageModalPageWidth = Math.max(0, windowWidth - 32);
   const { data: housesRes } = useHouses();
-  const { data: assetsRes } = useAssetItems();
+  const { data: assetDetail, refetch: refetchAssetDetail } = useAssetItemById(ticket?.assetId);
   const [slotModalVisible, setSlotModalVisible] = useState(false);
   /** Sau khi gọi API confirm slot thành công (phiên hiện tại); reset khi đổi ticket. */
   const [slotRegistrationSubmitted, setSlotRegistrationSubmitted] = useState(false);
@@ -160,6 +170,15 @@ export default function TicketDetailScreen() {
   useEffect(() => {
     setSlotRegistrationSubmitted(false);
   }, [ticketId]);
+
+  useEffect(() => {
+    if (activeImageIndex == null || ticketImages.length === 0) return;
+    const index = Math.min(Math.max(0, activeImageIndex), ticketImages.length - 1);
+    const timer = setTimeout(() => {
+      flatListRef.current?.scrollToIndex({ index, animated: false });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [activeImageIndex, ticketImages]);
 
   // Đồng bộ trạng thái khi user quay lại từ màn list.
   useFocusEffect(
@@ -238,8 +257,9 @@ export default function TicketDetailScreen() {
     },
   });
 
-  const houseNameById = new Map((housesRes?.data ?? []).map((house) => [house.id, house.name]));
-  const assetNameById = new Map((assetsRes?.data ?? []).map((asset) => [asset.id, asset.displayName]));
+  const houseNameById = new Map(
+    (Array.isArray(housesRes?.data) ? housesRes.data : []).map((house) => [house.id, house.name])
+  );
 
   if (isLoading) {
     return (
@@ -280,7 +300,8 @@ export default function TicketDetailScreen() {
     ? ticket.createdAt
     : formatDdMmYyyy(createdAt);
   const houseName = houseNameById.get(ticket.houseId) ?? ticket.houseId;
-  const assetName = assetNameById.get(ticket.assetId) ?? ticket.assetId;
+  const assetName =
+    assetDetail?.displayName?.trim() || ticket.assetId;
   const tenantPhone = ticket.tenantPhone ? ticket.tenantPhone : t("staff_ticket_list.phone_unavailable");
 
   const handleRegisterTime = () => {
@@ -291,7 +312,7 @@ export default function TicketDetailScreen() {
   const onPullRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refetch(), refetchTicketImages()]);
+      await Promise.all([refetch(), refetchTicketImages(), refetchAssetDetail()]);
     } finally {
       setRefreshing(false);
     }
@@ -397,12 +418,18 @@ export default function TicketDetailScreen() {
               <Text style={staffTicketDetailStyles.fieldValueMuted}>{t("common.loading")}</Text>
             </View>
           ) : ticketImages.length > 0 ? (
-            <View style={staffTicketDetailStyles.ticketImagesWrap}>
-              {ticketImages.map((img) => (
+            <ScrollView
+              horizontal
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              style={staffTicketDetailStyles.ticketImageStripScroll}
+              contentContainerStyle={staffTicketDetailStyles.ticketImageStrip}
+            >
+              {ticketImages.map((img, index) => (
                 <Pressable
                   key={img.id}
                   style={staffTicketDetailStyles.ticketImageThumb}
-                  onPress={() => setActiveImageUrl(img.url)}
+                  onPress={() => setActiveImageIndex(index)}
                 >
                   <Image
                     source={{ uri: img.url }}
@@ -411,7 +438,7 @@ export default function TicketDetailScreen() {
                   />
                 </Pressable>
               ))}
-            </View>
+            </ScrollView>
           ) : (
             <Text style={staffTicketDetailStyles.fieldValueMuted}>{t("staff_ticket_detail.images_empty")}</Text>
           )}
@@ -427,39 +454,62 @@ export default function TicketDetailScreen() {
       </ScrollView>
 
       <Modal
-        visible={activeImageUrl != null}
+        visible={activeImageIndex !== null}
         transparent
         animationType="fade"
-        onRequestClose={() => setActiveImageUrl(null)}
+        onRequestClose={() => setActiveImageIndex(null)}
       >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={staffTicketDetailStyles.imageModalBackdrop}
-          onPress={() => setActiveImageUrl(null)}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => {
-              e.stopPropagation();
-            }}
-            style={staffTicketDetailStyles.imageModalContent}
-          >
+        <View style={staffTicketDetailStyles.imageModalBackdrop}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("common.close")}
+            style={staffTicketDetailStyles.imageModalBackdropDismiss}
+            onPress={() => setActiveImageIndex(null)}
+          />
+          <View style={staffTicketDetailStyles.imageModalContent}>
             <TouchableOpacity
               activeOpacity={0.8}
               style={staffTicketDetailStyles.imageModalClose}
-              onPress={() => setActiveImageUrl(null)}
+              onPress={() => setActiveImageIndex(null)}
             >
               <Text style={staffTicketDetailStyles.imageModalCloseText}>×</Text>
             </TouchableOpacity>
-            {activeImageUrl ? (
-              <Image
-                source={{ uri: activeImageUrl }}
-                style={staffTicketDetailStyles.imageModalImage}
-                resizeMode="contain"
+            {activeImageIndex !== null && ticketImages.length > 0 ? (
+              <FlatList
+                ref={flatListRef}
+                data={ticketImages}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled
+                style={staffTicketDetailStyles.imageModalPager}
+                keyExtractor={(item) => item.id}
+                getItemLayout={(_, index) => ({
+                  length: imageModalPageWidth,
+                  offset: imageModalPageWidth * index,
+                  index,
+                })}
+                renderItem={({ item }) => (
+                  <View style={{ width: imageModalPageWidth }}>
+                    <Image
+                      source={{ uri: item.url }}
+                      style={staffTicketDetailStyles.imageModalImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                )}
+                onScrollToIndexFailed={(info) => {
+                  setTimeout(() => {
+                    flatListRef.current?.scrollToIndex({
+                      index: info.index,
+                      animated: false,
+                    });
+                  }, 100);
+                }}
               />
             ) : null}
-          </TouchableOpacity>
-        </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       <ChooseScheduleSlotModal 

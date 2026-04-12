@@ -11,7 +11,7 @@ export type MaintenanceDraft = {
 };
 
 /**
- * Tối đa ảnh chụp (camera) trong một phiên cho mỗi asset — luồng bảo trì & kiểm định.
- * Ảnh chọn từ thư viện không bị trần này; tổng ảnh lưu trên asset phụ thuộc BE.
+ * Tối đa ảnh thêm trong một lần mở modal cập nhật thiết bị (bảo trì / kiểm định),
+ * không tính ảnh đã có sẵn trên asset.
  */
 export const MAX_MAINTENANCE_ASSET_IMAGES = 5;

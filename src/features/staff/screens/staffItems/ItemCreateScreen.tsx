@@ -563,6 +563,9 @@ export default function ItemCreateScreen() {
           addPickedImages(assets);
         }}
         libraryLabel={t("staff_item_create.images_library")}
+        cameraShotsRemaining={Math.max(0, MAX_ASSET_ATTACHMENT_IMAGES - selectedImages.length)}
+        librarySelectionLimit={Math.max(0, MAX_ASSET_ATTACHMENT_IMAGES - selectedImages.length)}
+        maxImagesForAlert={MAX_ASSET_ATTACHMENT_IMAGES}
       />
     </View>
   );

@@ -30,6 +30,7 @@ import { staffBuildingDetailStyles } from "./staffBuildingDetailStyles";
 import { FloorPlanView } from "../../houseStructure";
 import {
   useAssetItems,
+  asAssetItemArray,
   useAssetCategories,
   useFunctionalAreasByHouseId,
   useRefreshControlGate,
@@ -209,7 +210,7 @@ export default function BuildingDetailScreen() {
   });
   /** Thiết bị đúng nhà (trước lọc khu vực). */
   const rawItemsAll: AssetItemFromApi[] = useMemo(
-    () => (itemsData?.data ?? []).filter((item) => item.houseId === buildingId),
+    () => asAssetItemArray(itemsData?.data).filter((item) => item.houseId === buildingId),
     [itemsData?.data, buildingId]
   );
 

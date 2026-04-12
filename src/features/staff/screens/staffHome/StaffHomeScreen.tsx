@@ -36,7 +36,12 @@ import { DropdownBox, type DropdownBoxSection } from "../../../../shared/compone
 import { WorkSlot } from "../../data/mockStaffData"; // kiểu WorkSlot dùng chung cho lịch
 import { getWorkSlotVisual } from "../../data/workSlotTheme";
 import { useStaffSchedule } from "../../context/StaffScheduleContext"; // context lịch đã lấy dữ liệu thật từ BE
-import { useHouses, useAssetItemsAllHouses, useRefreshControlGate } from "../../../../shared/hooks";
+import {
+  useHouses,
+  useAssetItemsAllHouses,
+  useRefreshControlGate,
+  asAssetItemArray,
+} from "../../../../shared/hooks";
 import { useInvalidateScheduleRelatedQueries } from "../../hooks/useStaffScheduleData";
 import Icons from "../../../../shared/theme/icon";
 import { brandPrimary, neutral } from "../../../../shared/theme/color";
@@ -319,7 +324,7 @@ export default function StaffHomeScreen() {
     refetch: refetchAllItems,
     isRefetching: itemsRefetching,
   } = useAssetItemsAllHouses(houseIds, null);
-  const rawItems: AssetItemFromApi[] = itemsData?.data ?? [];
+  const rawItems: AssetItemFromApi[] = asAssetItemArray(itemsData?.data);
 
   const itemCountByHouseId = useMemo(() => {
     const m = new Map<string, number>();

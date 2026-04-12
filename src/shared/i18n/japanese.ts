@@ -22,6 +22,7 @@ export default {
         "images_limit_max_message": "添付できる写真は最大{{max}}枚です。追加するには削除してください。",
         "images_limit_truncated_message": "上限{{max}}枚のため、{{added}}枚のみ追加しました。",
         "camera_no_more_shots": "これ以上撮影できません",
+        "images_count_of_max": "{{current}}/{{max}}",
         "a11y_brand_go_home": "ISUMS — スタッフのホームへ",
         "currency_vnd_unit": "VND",
         "currency_not_available": "—"
@@ -728,7 +729,8 @@ export default {
         "maintenance_note_placeholder": "保全メモを入力...",
         "maintenance_update_at_label": "最終更新日時",
         "maintenance_update_at_empty": "データなし",
-        "maintenance_images_label": "画像 (URL)",
+        "maintenance_images_label": "画像",
+        "maintenance_images_empty": "写真はまだありません",
         "maintenance_image_input_placeholder": "画像URLを貼り付け",
         "maintenance_add_image_btn": "画像URLを追加",
         "open_item_edit_for_images": "画像編集を開く (削除/カメラ/ライブラリ)",

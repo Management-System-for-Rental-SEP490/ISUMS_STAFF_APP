@@ -22,6 +22,7 @@ export default {
         "images_limit_max_message": "Chỉ được đính kèm tối đa {{max}} ảnh. Hãy xóa bớt ảnh để thêm mới.",
         "images_limit_truncated_message": "Chỉ thêm được {{added}} ảnh (tối đa {{max}} ảnh).",
         "camera_no_more_shots": "Không được phép chụp nữa",
+        "images_count_of_max": "{{current}}/{{max}}",
         "a11y_brand_go_home": "ISUMS — về trang chủ staff",
         "currency_vnd_unit": "VNĐ",
         "currency_not_available": "—"
@@ -728,7 +729,8 @@ export default {
         "maintenance_note_placeholder": "Nhập ghi chú bảo trì...",
         "maintenance_update_at_label": "Lần cập nhật gần nhất",
         "maintenance_update_at_empty": "Chưa có dữ liệu",
-        "maintenance_images_label": "Hình ảnh (URL)",
+        "maintenance_images_label": "Hình ảnh",
+        "maintenance_images_empty": "Chưa có ảnh",
         "maintenance_image_input_placeholder": "Dán URL hình ảnh",
         "maintenance_add_image_btn": "Thêm URL ảnh",
         "open_item_edit_for_images": "Mở trang cập nhật ảnh (xóa/chụp/thư viện)",

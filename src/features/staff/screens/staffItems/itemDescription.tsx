@@ -35,6 +35,19 @@ import {
   getAssetItemImages,
   type AssetItemImageFromApi,
 } from "../../../../shared/services/assetItemApi";
+
+function normalizeEmbeddedImages(
+  images: AssetItemImageFromApi[] | undefined
+): AssetItemImageFromApi[] {
+  if (!images?.length) return [];
+  return images
+    .map((img) => ({
+      id: String(img.id ?? "").trim(),
+      url: String(img.url ?? ""),
+      createdAt: img.createdAt ?? null,
+    }))
+    .filter((x) => x.id.length > 0 && x.url.length > 0);
+}
 import { brandPrimary } from "../../../../shared/theme/color";
 import {
   StackScreenTitleBadge,
@@ -67,7 +80,9 @@ export default function ItemDescriptionScreen() {
   const [item, setItem] = useState<AssetItemFromApi>(initialItem);
   const [loading, setLoading] = useState(false);
   const [imagesLoading, setImagesLoading] = useState(false);
-  const [itemImages, setItemImages] = useState<AssetItemImageFromApi[]>([]);
+  const [itemImages, setItemImages] = useState<AssetItemImageFromApi[]>(() =>
+    normalizeEmbeddedImages(initialItem.images)
+  );
   const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
 
   const isPendingManagerApproval = useMemo(
@@ -91,17 +106,17 @@ export default function ItemDescriptionScreen() {
 
   const detachNfcMutation = useDetachAssetTag();
 
-  // Refetch data mỗi khi màn hình được focus
+  // Refetch data mỗi khi màn hình được focus — ưu tiên `images` trong GET item, fallback GET .../images
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
-      const fetchLatestItem = async () => {
+      void (async () => {
         try {
           setLoading(true);
+          setImagesLoading(true);
           const latest = await getAssetItemById(initialItem.id);
-          if (isActive && latest) {
-            // Nếu API trả về nfcTag/qrTag null (do BE chưa sync) nhưng item ban đầu (từ params) có,
-            // thì ưu tiên hiển thị mã thẻ vừa quét (giống logic đang dùng cho NFC).
+          if (!isActive) return;
+          if (latest) {
             if (!latest.nfcTag && initialItem.nfcTag) {
               latest.nfcTag = initialItem.nfcTag;
             }
@@ -109,33 +124,39 @@ export default function ItemDescriptionScreen() {
               latest.qrTag = initialItem.qrTag;
             }
             setItem(latest);
+            const embedded = normalizeEmbeddedImages(latest.images);
+            if (embedded.length > 0) {
+              setItemImages(embedded);
+            } else {
+              try {
+                const imgs = await getAssetItemImages(initialItem.id);
+                if (isActive) setItemImages(imgs);
+              } catch {
+                if (isActive) setItemImages([]);
+              }
+            }
+          } else {
+            try {
+              const imgs = await getAssetItemImages(initialItem.id);
+              if (isActive) setItemImages(imgs);
+            } catch {
+              if (isActive) setItemImages([]);
+            }
           }
         } catch {
           /* giữ dữ liệu initialItem */
         } finally {
-          if (isActive) setLoading(false);
+          if (isActive) {
+            setLoading(false);
+            setImagesLoading(false);
+          }
         }
-      };
-
-      const fetchImages = async () => {
-        try {
-          setImagesLoading(true);
-          const imgs = await getAssetItemImages(initialItem.id);
-          if (isActive) setItemImages(imgs);
-        } catch {
-          if (isActive) setItemImages([]);
-        } finally {
-          if (isActive) setImagesLoading(false);
-        }
-      };
-
-      fetchLatestItem();
-      fetchImages();
+      })();
 
       return () => {
         isActive = false;
       };
-    }, [initialItem.id])
+    }, [initialItem.id, initialItem.nfcTag, initialItem.qrTag])
   );
 
   const handleDetachNfc = () => {
@@ -236,7 +257,7 @@ export default function ItemDescriptionScreen() {
   let qrValue = (item.qrTag || "").trim();
 
   // Fallback nếu nfcTag/qrTag rỗng nhưng có trong mảng tags (nếu BE trả về)
-  if (!nfcValue && !qrValue && item.tags && item.tags.length > 0) {
+  if (!nfcValue && !qrValue && Array.isArray(item.tags) && item.tags.length > 0) {
     const nfcObj = item.tags.find((t) => t.tagType === "NFC");
     const qrObj = item.tags.find((t) => t.tagType === "QR_CODE");
     if (nfcObj) nfcValue = nfcObj.tagValue;

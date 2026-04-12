@@ -14,7 +14,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { assignNfcModalStyles } from "./assignNfcModalStyles";
-import { useHouses, useAssetCategories, useAssetItems } from "../../../../shared/hooks";
+import {
+  useHouses,
+  useAssetCategories,
+  useAssetItems,
+  asAssetItemArray,
+} from "../../../../shared/hooks";
 import { useKeyboardBottomInset } from "../../../../shared/hooks/useKeyboardBottomInset";
 import type {
   AssetItemFromApi,
@@ -138,7 +143,7 @@ export const AssignNfcModal: React.FC<AssignNfcModalProps> = ({
   const categories: AssetCategoryFromApi[] = categoriesData?.data ?? [];
 
   const { data: itemsData, isLoading: loadingItems } = useAssetItems({});
-  const allItems: AssetItemFromApi[] = itemsData?.data ?? [];
+  const allItems: AssetItemFromApi[] = asAssetItemArray(itemsData?.data);
 
   const [selectedHouseId, setSelectedHouseId] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);

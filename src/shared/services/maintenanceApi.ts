@@ -13,17 +13,17 @@ import type {
   InspectionListApiResponse,
   JobApiResponse,
 } from "../types/api";
-import { logInspectionDebug, logInspectionError } from "../utils/inspectionDebugLog";
+import { logInspectionFlowDebug, logInspectionError } from "../utils/inspectionDebugLog";
 
 /**
  * Lấy thông tin job theo jobId.
  */
 export const getJobById = async (jobId: string): Promise<JobApiResponse> => {
   const path = `${BACKEND_API_BASE}/maintenances/jobs/${encodeURIComponent(jobId)}`;
-  logInspectionDebug("[Inspection]", "getJobById", { path });
+  logInspectionFlowDebug("[Inspection]", "getJobById", { path });
   try {
     const response = await axiosClient.get<JobApiResponse>(path);
-    logInspectionDebug("[Inspection]", "getJobById ok", {
+    logInspectionFlowDebug("[Inspection]", "getJobById ok", {
       status: response.status,
       success: response.data?.success,
     });
@@ -42,11 +42,11 @@ export const getInspectionById = async (
 ): Promise<InspectionApiResponse> => {
   const path = `${BACKEND_API_BASE}/maintenances/inspections/${encodeURIComponent(inspectionId)}`;
   //const path = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/maintenances/inspections/${encodeURIComponent(inspectionId)}`;
-  logInspectionDebug("[Inspection]", "getInspectionById", { path });
+  logInspectionFlowDebug("[Inspection]", "getInspectionById", { path });
   try {
     const response = await axiosClient.get<InspectionApiResponse>(path);
     const d = response.data?.data;
-    logInspectionDebug("[Inspection]", "getInspectionById ok", {
+    logInspectionFlowDebug("[Inspection]", "getInspectionById ok", {
       status: response.status,
       success: response.data?.success,
       contractId: d && "contractId" in d ? (d as { contractId?: string }).contractId : undefined,
@@ -73,12 +73,12 @@ export const listInspections = async (
   query?: ListInspectionsQuery
 ): Promise<InspectionListApiResponse> => {
   const path = `${BACKEND_API_BASE}/maintenances/inspections`;
-  logInspectionDebug("[Inspection]", "listInspections", { path, query });
+  logInspectionFlowDebug("[Inspection]", "listInspections", { path, query });
   try {
     const response = await axiosClient.get<InspectionListApiResponse>(path, {
       params: query,
     });
-    logInspectionDebug("[Inspection]", "listInspections ok", {
+    logInspectionFlowDebug("[Inspection]", "listInspections ok", {
       status: response.status,
       count: Array.isArray(response.data?.data) ? response.data.data.length : 0,
     });
@@ -97,12 +97,12 @@ export const getAssetEventsByJobId = async (
   jobId: string
 ): Promise<AssetEventsApiResponse> => {
   const path = `${BACKEND_API_BASE}/assets/events`;
-  logInspectionDebug("[AssetEvents]", "getAssetEventsByJobId", { path, jobId });
+  logInspectionFlowDebug("[AssetEvents]", "getAssetEventsByJobId", { path, jobId });
   try {
     const response = await axiosClient.get<AssetEventsApiResponse>(path, {
       params: { jobId },
     });
-    logInspectionDebug("[AssetEvents]", "getAssetEventsByJobId ok", {
+    logInspectionFlowDebug("[AssetEvents]", "getAssetEventsByJobId ok", {
       status: response.status,
       count: Array.isArray(response.data?.data) ? response.data.data.length : 0,
     });
@@ -142,13 +142,13 @@ export const updateInspectionStatus = async (
     if (done.deductionAmount !== undefined) body.deductionAmount = done.deductionAmount;
     if (done.photoUrls !== undefined) body.photoUrls = done.photoUrls;
   }
-  logInspectionDebug("[Inspection]", "updateInspectionStatus", {
+  logInspectionFlowDebug("[Inspection]", "updateInspectionStatus", {
     path,
     body: { ...body, photoUrls: body.photoUrls ? `(len ${(body.photoUrls as string[]).length})` : undefined },
   });
   try {
     const response = await axiosClient.put<InspectionApiResponse>(path, body);
-    logInspectionDebug("[Inspection]", "updateInspectionStatus ok", {
+    logInspectionFlowDebug("[Inspection]", "updateInspectionStatus ok", {
       status: response.status,
       success: response.data?.success,
     });
@@ -168,7 +168,7 @@ export const updateJobStatus = async (
   status: JobStatusUpdate
 ): Promise<{ success: boolean; message?: string }> => {
   const path = `${BACKEND_API_BASE}/maintenances/jobs/${encodeURIComponent(jobId)}/status`;
-  logInspectionDebug("[Inspection]", "updateJobStatus", { path, status });
+  logInspectionFlowDebug("[Inspection]", "updateJobStatus", { path, status });
   try {
     const response = await axiosClient.put<{ success: boolean; message?: string }>(
       path,
