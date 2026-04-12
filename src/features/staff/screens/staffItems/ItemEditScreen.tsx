@@ -71,7 +71,11 @@ import type {
 import type { HouseFromApi } from "../../../../shared/types/api";
 import type { UpdateAssetItemRequest } from "../../../../shared/types/api";
 import { normalizeAssetItemStatusFromApi } from "../../../../shared/types/api";
-import { mergeFunctionalAreasForHouse, sortFunctionalAreasForDisplay } from "../../../../shared/utils";
+import {
+  formatDdMmYyyyHms24,
+  mergeFunctionalAreasForHouse,
+  sortFunctionalAreasForDisplay,
+} from "../../../../shared/utils";
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemEdit">;
 type ItemEditRouteProp = RouteProp<RootStackParamList, "ItemEdit">;
@@ -377,7 +381,7 @@ export default function ItemEditScreen() {
     if (!latestItem.updateAt) return t("staff_item_description.update_at_empty");
     const d = new Date(latestItem.updateAt);
     if (Number.isNaN(d.getTime())) return latestItem.updateAt;
-    return d.toLocaleString();
+    return formatDdMmYyyyHms24(d);
   }, [latestItem.updateAt, t]);
 
   const onItemEditDropdownSelect = useCallback((sectionId: string, itemId: string | null) => {

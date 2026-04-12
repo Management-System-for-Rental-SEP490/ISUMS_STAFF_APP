@@ -26,6 +26,17 @@ export function formatHmAmPmDdMmYyyy(d: Date): string {
 }
 
 /**
+ * Thời điểm đầy đủ: dd/mm/yyyy HH:mm:ss (24h, có giây) — dùng cho cập nhật thiết bị / bảo trì
+ * (tránh hậu tố `p` của {@link formatHmAmPmDdMmYyyy} gây nhầm với định dạng giờ).
+ */
+export function formatDdMmYyyyHms24(d: Date): string {
+  const pad2 = (n: number) => n.toString().padStart(2, "0");
+  const date = `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+  const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+  return `${date} ${time}`;
+}
+
+/**
  * Chuỗi bắt đầu bằng YYYY-MM-DD (vd. periodStartDate từ BE) → dd/mm/yyyy.
  * Không parse qua `Date` để tránh lệch ngày theo múi giờ.
  */

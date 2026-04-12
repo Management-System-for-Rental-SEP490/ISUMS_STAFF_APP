@@ -32,6 +32,7 @@ export { mapLabelForFunctionalArea } from "./functionalAreaMapLabel";
 export {
   formatDateRangeDdMmYyyy,
   formatDdMmYyyy,
+  formatDdMmYyyyHms24,
   formatHmAmPmDdMmYyyy,
   formatYmdStringToDdMmYyyy,
   formatIsoDueDateVi,

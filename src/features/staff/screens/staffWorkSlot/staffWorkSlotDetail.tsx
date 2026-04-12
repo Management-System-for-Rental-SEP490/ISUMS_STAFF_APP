@@ -54,7 +54,7 @@ import { staffWorkSlotStyles, STATUS_COLORS } from "./staffWorkSlotStyles";
 import { brandPrimary, brandTintBg, neutral } from "../../../../shared/theme/color";
 import {
   formatDdMmYyyy,
-  formatHmAmPmDdMmYyyy,
+  formatDdMmYyyyHms24,
   formatYmdStringToDdMmYyyy,
 } from "../../../../shared/utils";
 import { SCHEDULE_DATA_KEYS } from "../../hooks/useStaffScheduleData";
@@ -668,7 +668,7 @@ export default function WorkSlotDetailScreen() {
             setEditorUpdateAt(
               Number.isNaN(parsed.getTime())
                 ? t("staff_work_slot_detail.maintenance_update_at_empty")
-                : formatHmAmPmDdMmYyyy(parsed)
+                : formatDdMmYyyyHms24(parsed)
             );
           }
         }

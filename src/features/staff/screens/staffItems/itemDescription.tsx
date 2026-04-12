@@ -35,6 +35,7 @@ import {
   getAssetItemImages,
   type AssetItemImageFromApi,
 } from "../../../../shared/services/assetItemApi";
+import { formatDdMmYyyyHms24 } from "../../../../shared/utils";
 
 function normalizeEmbeddedImages(
   images: AssetItemImageFromApi[] | undefined
@@ -241,7 +242,7 @@ export default function ItemDescriptionScreen() {
     if (!item.updateAt) return t("staff_item_description.update_at_empty");
     const d = new Date(item.updateAt);
     if (Number.isNaN(d.getTime())) return item.updateAt;
-    return d.toLocaleString();
+    return formatDdMmYyyyHms24(d);
   }, [item.updateAt, t]);
 
   // Helper to detect if string is likely a QR code (not pure Hex)
