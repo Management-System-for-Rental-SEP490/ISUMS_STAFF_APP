@@ -9,11 +9,11 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   Image,
   Modal,
 } from "react-native";
 import { CustomAlert as Alert } from "../../../../shared/components/alert";
+import { RefreshLogoInline, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
@@ -48,7 +48,6 @@ function normalizeEmbeddedImages(
     }))
     .filter((x) => x.id.length > 0 && x.url.length > 0);
 }
-import { brandPrimary } from "../../../../shared/theme/color";
 import {
   StackScreenTitleBadge,
   StackScreenTitleBarBalance,
@@ -316,8 +315,8 @@ export default function ItemDescriptionScreen() {
       </StackScreenTitleHeaderStrip>
 
       {loading ? (
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={brandPrimary} />
+        <View style={{ flex: 1, position: "relative" }}>
+          <RefreshLogoOverlay visible mode="page" />
         </View>
       ) : (
         <ScrollView
@@ -350,9 +349,8 @@ export default function ItemDescriptionScreen() {
             <View style={{ marginTop: 14 }}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.images_label")}</Text>
               {imagesLoading ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 }}>
-                  <ActivityIndicator size="small" color={brandPrimary} />
-                  <Text style={itemScreenStyles.imagesHint}>{t("common.loading")}</Text>
+                <View style={{ alignItems: "flex-start", paddingVertical: 8 }}>
+                  <RefreshLogoInline logoPx={18} showLabel />
                 </View>
               ) : itemImages.length > 0 ? (
                 <>

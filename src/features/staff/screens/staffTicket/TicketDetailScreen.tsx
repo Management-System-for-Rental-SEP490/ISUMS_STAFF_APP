@@ -10,8 +10,6 @@ import {
   ScrollView,
   Pressable,
   Modal,
-  ActivityIndicator,
-  RefreshControl,
   Image,
   TouchableOpacity,
   FlatList,
@@ -24,6 +22,11 @@ import { useRoute, useNavigation, RouteProp, useFocusEffect } from "@react-navig
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
+import {
+  PullToRefreshControl,
+  RefreshLogoInline,
+  RefreshLogoOverlay,
+} from "@shared/components/RefreshLogoOverlay";
 import { CustomAlert } from "../../../../shared/components/alert";
 import { staffTicketDetailStyles } from "./staffTicketDetailStyles";
 import {
@@ -266,10 +269,10 @@ export default function TicketDetailScreen() {
       <View
         style={[
           staffTicketDetailStyles.container,
-          { justifyContent: "center", alignItems: "center", paddingTop: insets.top },
+          { paddingTop: insets.top, position: "relative" },
         ]}
       >
-        <Text style={{ color: neutral.textSecondary }}>{t("common.loading")}</Text>
+        <RefreshLogoOverlay visible mode="page" />
       </View>
     );
   }
@@ -339,16 +342,19 @@ export default function TicketDetailScreen() {
         </View>
       </StackScreenTitleHeaderStrip>
 
-      <ScrollView
-        contentContainerStyle={[
-          staffTicketDetailStyles.scrollContent,
-          { paddingBottom: 24 + insets.bottom },
-        ]}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onPullRefresh} tintColor={brandPrimary} />
-        }
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={{ flex: 1, position: "relative" }}>
+        <RefreshLogoOverlay visible={refreshing} />
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            staffTicketDetailStyles.scrollContent,
+            { paddingBottom: 24 + insets.bottom },
+          ]}
+          refreshControl={
+            <PullToRefreshControl refreshing={refreshing} onRefresh={onPullRefresh} />
+          }
+          showsVerticalScrollIndicator={false}
+        >
         <View style={staffTicketDetailStyles.heroCard}>
           <Text style={staffTicketDetailStyles.heroTitle}>{ticket.title}</Text>
           <View style={staffTicketDetailStyles.badgeRow}>
@@ -413,9 +419,8 @@ export default function TicketDetailScreen() {
           headerIcon={<Icons.photoLibrary size={22} color={brandPrimary} />}
         >
           {ticketImagesLoading ? (
-            <View style={staffTicketDetailStyles.assetLoadingRow}>
-              <ActivityIndicator size="small" color={brandSecondary} />
-              <Text style={staffTicketDetailStyles.fieldValueMuted}>{t("common.loading")}</Text>
+            <View style={[staffTicketDetailStyles.assetLoadingRow, { flexDirection: "column", alignItems: "flex-start" }]}>
+              <RefreshLogoInline logoPx={22} showLabel />
             </View>
           ) : ticketImages.length > 0 ? (
             <ScrollView
@@ -452,6 +457,7 @@ export default function TicketDetailScreen() {
           </Pressable>
         ) : null}
       </ScrollView>
+      </View>
 
       <Modal
         visible={activeImageIndex !== null}

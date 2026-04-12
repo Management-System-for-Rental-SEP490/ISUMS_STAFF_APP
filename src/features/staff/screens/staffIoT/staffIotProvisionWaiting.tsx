@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, PermissionsAndroid, Platform, Text, TouchableOpacity, View } from "react-native";
+import { PermissionsAndroid, Platform, Text, TouchableOpacity, View } from "react-native";
 import { RouteProp, StackActions, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTranslation } from "react-i18next";
@@ -15,6 +15,7 @@ import {
 import { CustomAlert } from "../../../../shared/components/alert";
 import { staffIotStyles as s } from "./staffIotStyles";
 import { StaffIotFlowScreenHeader } from "./staffIotFlowScreenHeader";
+import { RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import { brandPrimary } from "../../../../shared/theme/color";
 import { iotProvSeqFail, iotProvSeqLog } from "./iotProvisionSequenceLog";
 
@@ -473,7 +474,9 @@ export default function StaffIotProvisionWaitingScreen() {
       </View>
 
       <View style={s.waitWrap}>
-        <ActivityIndicator size="large" color={brandPrimary} />
+        <View style={{ height: 160, width: "100%", position: "relative" }}>
+          <RefreshLogoOverlay visible mode="page" />
+        </View>
         <Text style={s.waitTitle}>{getPhaseUi(phase).title}</Text>
         <Text style={s.waitSub}>{getPhaseUi(phase).sub}</Text>
 

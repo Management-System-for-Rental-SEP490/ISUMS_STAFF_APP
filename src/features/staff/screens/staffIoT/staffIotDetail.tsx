@@ -8,7 +8,6 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
@@ -17,8 +16,9 @@ import { useTranslation } from "react-i18next";
 import { RootStackParamList } from "../../../../shared/types";
 import type { IotControllerHouseDataFromApi, IotNodeDeviceFromApi } from "../../../../shared/types/api";
 import { useIotDevicesByHouseId } from "../../../../shared/hooks";
+import { RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import Icons from "../../../../shared/theme/icon";
-import { brandPrimary, neutral } from "../../../../shared/theme/color";
+import { neutral } from "../../../../shared/theme/color";
 import { staffIotStyles as s } from "./staffIotStyles";
 import { formatLocaleIsoDateTime } from "../../../../shared/utils";
 import {
@@ -121,8 +121,8 @@ export default function StaffIotDetailScreen() {
     return (
       <View style={s.container}>
         {headerRow}
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={brandPrimary} />
+        <View style={{ flex: 1, position: "relative" }}>
+          <RefreshLogoOverlay visible mode="page" />
         </View>
       </View>
     );

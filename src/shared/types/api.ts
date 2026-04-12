@@ -484,10 +484,19 @@ export interface AssetMaintenanceBatchUpdateRequest {
   updates: AssetMaintenanceBatchUpdatePayload[];
 }
 
+/** Một cặp asset ↔ event sau batch bảo trì — dùng để gắn ảnh vào đúng sự kiện. */
+export interface AssetMaintenanceBatchEventRef {
+  assetId: string;
+  eventId: string;
+}
+
 export interface AssetMaintenanceBatchUpdateData {
   total: number;
   success: number;
-  assets: AssetItemFromApi[];
+  /** Một số BE trả danh sách item đã cập nhật. */
+  assets?: AssetItemFromApi[];
+  /** BE trả kèm để FE upload ảnh vào từng sự kiện bảo trì (POST /assets/events/:eventId/images). */
+  events?: AssetMaintenanceBatchEventRef[];
 }
 
 /** Response của API batch cập nhật thiết bị bảo trì. */

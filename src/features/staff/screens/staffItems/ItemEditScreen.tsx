@@ -14,12 +14,12 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Image,
   Modal,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { CustomAlert as Alert } from "../../../../shared/components/alert";
+import { RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
@@ -971,7 +971,7 @@ export default function ItemEditScreen() {
                         activeOpacity={0.8}
                       >
                         {detachNfcMutation.isPending ? (
-                          <ActivityIndicator size="small" color={neutral.text} />
+                          <RefreshLogoInline logoPx={18} />
                         ) : (
                           <Text style={itemScreenStyles.detachNfcBtnText}>
                             {t("staff_item_edit.remove_nfc_btn")}
@@ -1024,7 +1024,7 @@ export default function ItemEditScreen() {
                         activeOpacity={0.8}
                       >
                         {detachNfcMutation.isPending ? (
-                          <ActivityIndicator size="small" color={neutral.text} />
+                          <RefreshLogoInline logoPx={18} />
                         ) : (
                           <Text style={itemScreenStyles.detachNfcBtnText}>
                             {t("staff_item_edit.remove_qr_btn")}
@@ -1184,7 +1184,7 @@ export default function ItemEditScreen() {
                             accessibilityLabel={t("staff_item_edit.delete_image_btn")}
                           >
                             {deletingImageId === card.serverImageId ? (
-                              <ActivityIndicator size="small" color="#fff" />
+                              <RefreshLogoInline logoPx={18} />
                             ) : (
                               <Text style={itemScreenStyles.removeImageBtnText}>×</Text>
                             )}
@@ -1195,9 +1195,8 @@ export default function ItemEditScreen() {
                   </ScrollView>
                 </>
               ) : imagesLoading ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 }}>
-                  <ActivityIndicator size="small" color={brandPrimary} />
-                  <Text style={itemScreenStyles.imagesHint}>{t("common.loading")}</Text>
+                <View style={{ alignItems: "flex-start", paddingVertical: 8 }}>
+                  <RefreshLogoInline logoPx={22} showLabel />
                 </View>
               ) : null}
 
@@ -1217,7 +1216,7 @@ export default function ItemEditScreen() {
                   activeOpacity={0.8}
                 >
                   {isPending ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <RefreshLogoInline logoPx={20} />
                   ) : (
                     <Text style={itemScreenStyles.submitBtnText}>{t("staff_item_edit.submit")}</Text>
                   )}
@@ -1234,7 +1233,7 @@ export default function ItemEditScreen() {
                   activeOpacity={0.8}
                 >
                   {isPending && !canSubmit ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <RefreshLogoInline logoPx={20} />
                   ) : (
                     <Text style={itemScreenStyles.deleteBtnText}>{t("staff_item_edit.delete_btn")}</Text>
                   )}

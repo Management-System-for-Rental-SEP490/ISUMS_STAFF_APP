@@ -8,10 +8,8 @@ import {
   Text,
   FlatList,
   ScrollView,
-  ActivityIndicator,
   TouchableOpacity,
   Pressable,
-  RefreshControl,
   KeyboardAvoidingView,
   Keyboard,
   Platform,
@@ -31,6 +29,7 @@ import { MainTabParamList } from "../../../../shared/types";
 import { RootStackParamList } from "../../../../shared/types";
 import { staffFooterLinks } from "../../../../shared/constants/staffFooterLinks";
 import type { HouseFromApi, AssetItemFromApi } from "../../../../shared/types/api";
+import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import Header from "../../../../shared/components/header";
 import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
 import { WorkSlot } from "../../data/mockStaffData"; // kiểu WorkSlot dùng chung cho lịch
@@ -699,11 +698,8 @@ export default function StaffHomeScreen() {
           onActionPress={openStaffNotifications}
           actionAccessibilityLabel={t("profile.notifications")}
         />
-        <View style={staffHomeStyles.loadingContainer}>
-          <ActivityIndicator size="large" color={brandPrimary} />
-          <Text style={{ marginTop: 10, color: neutral.textSecondary }}>
-            {t("home.loading_data")}
-          </Text>
+        <View style={[staffHomeStyles.loadingContainer, { position: "relative" }]}>
+          <RefreshLogoOverlay visible mode="page" labelKey="home.loading_data" />
         </View>
       </View>
     );
@@ -750,30 +746,30 @@ export default function StaffHomeScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={insets.top + 64}
       >
-        <FlatList
-          ref={listRef}
-          data={[] as HouseFromApi[]}
-          keyExtractor={(_, index) => `empty-${index}`}
-          ListHeaderComponent={listHeader}
-          renderItem={() => null}
-          contentContainerStyle={staffHomeStyles.listContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-          onScroll={onScrollForRefreshGate}
-          scrollEventThrottle={16}
-          refreshControl={
-            <RefreshControl
-              refreshing={listRefreshing}
-              onRefresh={onPullRefresh}
-              tintColor={brandPrimary}
-              colors={[brandPrimary]}
-              {...(Platform.OS === "android"
-                ? { enabled: scrollAtTop || listRefreshing }
-                : {})}
-            />
-          }
-        />
+        <View style={{ flex: 1, position: "relative" }}>
+          <RefreshLogoOverlay visible={listRefreshing} />
+          <FlatList
+            ref={listRef}
+            style={{ flex: 1 }}
+            data={[] as HouseFromApi[]}
+            keyExtractor={(_, index) => `empty-${index}`}
+            ListHeaderComponent={listHeader}
+            renderItem={() => null}
+            contentContainerStyle={staffHomeStyles.listContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            onScroll={onScrollForRefreshGate}
+            scrollEventThrottle={16}
+            refreshControl={
+              <PullToRefreshControl
+                refreshing={listRefreshing}
+                onRefresh={onPullRefresh}
+                scrollAtTop={scrollAtTop}
+              />
+            }
+          />
+        </View>
       </KeyboardAvoidingView>
     </View>
   );

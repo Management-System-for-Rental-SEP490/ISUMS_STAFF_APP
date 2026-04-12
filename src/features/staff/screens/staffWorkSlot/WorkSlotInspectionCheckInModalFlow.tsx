@@ -3,7 +3,6 @@
  */
 import React from "react";
 import {
-  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -18,6 +17,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import type { TFunction } from "i18next";
 import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
+import { RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
 import type { AssetItemFromApi } from "../../../../shared/types/api";
 import type { AssetItemImageFromApi } from "../../../../shared/services/assetItemApi";
 import { useKeyboardBottomInset } from "../../../../shared/hooks/useKeyboardBottomInset";
@@ -200,10 +200,7 @@ export function WorkSlotInspectionCheckInModalFlow(props: WorkSlotInspectionChec
 
               {maintenanceAssetsLoading ? (
                 <View style={M.modalLoadingCenter}>
-                  <ActivityIndicator size="small" color={brandPrimary} />
-                  <Text style={[M.maintenanceHintText, M.modalLoadingTextMargin]}>
-                    {t("common.loading")}
-                  </Text>
+                  <RefreshLogoInline logoPx={22} showLabel />
                 </View>
               ) : maintenanceAssetSection ? (
                 <DropdownBox
@@ -271,7 +268,7 @@ export function WorkSlotInspectionCheckInModalFlow(props: WorkSlotInspectionChec
                 disabled={maintenanceSubmitting || draftValues.length === 0}
               >
                 {maintenanceSubmitting ? (
-                  <ActivityIndicator size="small" color={neutral.surface} />
+                  <RefreshLogoInline logoPx={20} />
                 ) : (
                   <Text style={M.maintenanceSubmitBtnText}>
                     {t("staff_work_slot_detail.maintenance_submit_btn")}
@@ -311,10 +308,7 @@ export function WorkSlotInspectionCheckInModalFlow(props: WorkSlotInspectionChec
 
               {maintenanceEditorLoading ? (
                 <View style={M.modalEditorLoadingCenter}>
-                  <ActivityIndicator size="small" color={brandPrimary} />
-                  <Text style={[M.maintenanceHintText, M.modalLoadingTextMargin]}>
-                    {t("common.loading")}
-                  </Text>
+                  <RefreshLogoInline logoPx={22} showLabel />
                 </View>
               ) : (
                 <ScrollView
@@ -415,7 +409,7 @@ export function WorkSlotInspectionCheckInModalFlow(props: WorkSlotInspectionChec
                           disabled={editorImageUploading || editorDeletingImageId === img.id}
                         >
                           {editorDeletingImageId === img.id ? (
-                            <ActivityIndicator size="small" color="#fff" />
+                            <RefreshLogoInline logoPx={16} />
                           ) : (
                             <Text style={M.maintenanceImageDeleteBtnText}>×</Text>
                           )}

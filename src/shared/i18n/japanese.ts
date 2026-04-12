@@ -8,6 +8,7 @@ export default {
         "back": "戻る",
         "no_data": "データなし",
         "loading": "読み込み中...",
+        "pull_to_refresh": "引っ張って更新",
         "error": "エラー",
         "success": "成功",
         "close": "閉じる",
@@ -741,6 +742,8 @@ export default {
         "maintenance_confirm_message": "{{count}}件の更新デバイスを送信しますか？",
         "maintenance_batch_success": "デバイス更新に成功しました。",
         "maintenance_batch_error": "デバイス更新の送信に失敗しました。",
+        "maintenance_event_images_partial":
+          "更新は保存されましたが、一部の写真をメンテナンスイベントに添付できませんでした。後でもう一度お試しください。",
         "btn_confirm_inspection": "検査の確認",
         "toggle_broken_label": "破損",
         "baseline_checkin": "チェックイン: {{percent}}% · {{note}}",

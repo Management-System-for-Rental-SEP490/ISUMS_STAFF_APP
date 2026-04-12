@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   Linking,
   Image,
-  ActivityIndicator,
   BackHandler,
   Platform,
   Keyboard,
@@ -30,7 +29,8 @@ import {
   KEYCLOAK_WEBVIEW_HITBOX_REPAINT_JS,
   KEYCLOAK_WEBVIEW_VIEWPORT_HEIGHT_RESET_JS,
 } from "../../../shared/services/keycloakAuth";
-import { brandGradient, brandPrimary } from "../../../shared/theme/color";
+import { brandGradient } from "../../../shared/theme/color";
+import { RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import { useTranslation } from "react-i18next";
 import { useAndroidKeycloakWebViewSystemUi } from "../../../shared/hooks/useAndroidKeycloakWebViewSystemUi";
 
@@ -262,11 +262,8 @@ const LoginScreen = () => {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
-        <ActivityIndicator size="large" color={brandPrimary} />
-        <Text style={{ color: "#666", textAlign: "center", marginTop: 10 }}>
-          {t("common.loading")}
-        </Text>
+      <View style={{ flex: 1, position: "relative", backgroundColor: "#fff" }}>
+        <RefreshLogoOverlay visible mode="page" />
       </View>
     );
   }
@@ -361,8 +358,7 @@ const LoginScreen = () => {
             />
             {webViewPageLoading ? (
               <View style={loginStyles.webViewLoadingOverlay} pointerEvents="none">
-                <ActivityIndicator size="large" color={brandPrimary} />
-                <Text style={{ color: "#666", textAlign: "center", marginTop: 10 }}>{t("common.loading")}</Text>
+                <RefreshLogoOverlay visible mode="page" />
               </View>
             ) : null}
           </View>

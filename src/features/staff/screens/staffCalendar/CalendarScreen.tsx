@@ -9,8 +9,6 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  RefreshControl,
-  Platform,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import {
@@ -25,9 +23,9 @@ import {
   SCHEDULE_DATA_KEYS,
 } from "../../hooks/useStaffScheduleData";
 import { useQueryClient } from "@tanstack/react-query";
-import { brandPrimary } from "../../../../shared/theme/color";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { MainTabParamList, RootStackParamList } from "../../../../shared/types";
+import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import Header from "../../../../shared/components/header";
 import { StaffScreenActionFab } from "../../../../shared/components/StaffScreenActionFab";
 import { getWorkingDaysFromTemplate } from "../../data/mockStaffData";
@@ -312,24 +310,22 @@ export default function CalendarScreen() {
       </View>
 
       {/* Chỉ bảng lịch scroll - danh sách ngày luôn cố định phía trên */}
-      <ScrollView
-        style={staffCalendarStyles.timetableScroll}
-        contentContainerStyle={staffCalendarStyles.timetableScrollContent}
-        showsVerticalScrollIndicator={false}
-        onScroll={onScrollForRefreshGate}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={timetableRefreshing}
-            onRefresh={onTimetableRefresh}
-            tintColor={brandPrimary}
-            colors={[brandPrimary]}
-            {...(Platform.OS === "android"
-              ? { enabled: scrollAtTop || timetableRefreshing }
-              : {})}
-          />
-        }
-      >
+      <View style={{ flex: 1, position: "relative" }}>
+        <RefreshLogoOverlay visible={timetableRefreshing} />
+        <ScrollView
+          style={staffCalendarStyles.timetableScroll}
+          contentContainerStyle={staffCalendarStyles.timetableScrollContent}
+          showsVerticalScrollIndicator={false}
+          onScroll={onScrollForRefreshGate}
+          scrollEventThrottle={16}
+          refreshControl={
+            <PullToRefreshControl
+              refreshing={timetableRefreshing}
+              onRefresh={onTimetableRefresh}
+              scrollAtTop={scrollAtTop}
+            />
+          }
+        >
         <View style={staffCalendarStyles.timetableFrame}>
           {(effectiveSelected
             ? weekDays.filter((d) => d.dateYMD === effectiveSelected)
@@ -397,7 +393,8 @@ export default function CalendarScreen() {
             );
           })}
         </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       <StaffScreenActionFab
         insetAboveTabBar

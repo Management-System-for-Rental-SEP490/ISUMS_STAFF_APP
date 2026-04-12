@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   Linking,
   PermissionsAndroid,
   Platform,
@@ -21,6 +20,7 @@ import { staffIotStyles as s } from "./staffIotStyles";
 import { StaffIotFlowScreenHeader } from "./staffIotFlowScreenHeader";
 import { brandPrimary } from "../../../../shared/theme/color";
 import { CustomAlert } from "../../../../shared/components/alert";
+import { RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
 
 type RouteT = RouteProp<RootStackParamList, "StaffIotWifi">;
 type NavT = NativeStackNavigationProp<RootStackParamList, "StaffIotWifi">;
@@ -362,7 +362,7 @@ export default function StaffIotWifiScreen() {
 
           {loading ? (
             <View style={s.flowLoadingRow}>
-              <ActivityIndicator size="small" color={brandPrimary} />
+              <RefreshLogoInline logoPx={20} />
               <Text style={s.flowLoadingText}>{t("staff_iot.wifi_scanning")}</Text>
             </View>
           ) : (

@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   View,
   Text,
-  ActivityIndicator,
   BackHandler,
   Platform,
   Keyboard,
@@ -21,7 +20,7 @@ import {
   finalizeChangePasswordOAuthRedirect,
   finalizeChangePasswordFromInfoPageSuccess,
 } from "../services/keycloakAuth";
-import { brandPrimary } from "../theme/color";
+import { RefreshLogoOverlay } from "./RefreshLogoOverlay";
 import { useAndroidKeycloakWebViewSystemUi } from "../hooks/useAndroidKeycloakWebViewSystemUi";
 
 function normalizeAuthCallbackUrl(rawUrl: string): string {
@@ -229,8 +228,7 @@ const KeycloakChangePasswordWebViewOverlay = () => {
         />
         {webViewPageLoading ? (
           <View style={loginStyles.webViewLoadingOverlay} pointerEvents="none">
-            <ActivityIndicator size="large" color={brandPrimary} />
-            <Text style={{ color: "#666", textAlign: "center", marginTop: 10 }}>{t("common.loading")}</Text>
+            <RefreshLogoOverlay visible mode="page" />
           </View>
         ) : null}
       </View>

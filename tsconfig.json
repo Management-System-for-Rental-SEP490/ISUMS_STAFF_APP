@@ -5,7 +5,12 @@
     "jsx": "react-jsx",
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
-    "noErrorTruncation": false
+    "noErrorTruncation": false,
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["src/shared/*"]
+    }
   },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "App.tsx", "index.ts"],
   "exclude": ["node_modules", "**/node_modules/**"]
 }

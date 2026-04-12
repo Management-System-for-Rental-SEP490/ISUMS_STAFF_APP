@@ -9,7 +9,6 @@ import {
   TextInput,
   TouchableOpacity,
   Switch,
-  ActivityIndicator,
   Image,
   StyleSheet,
   KeyboardAvoidingView,
@@ -24,6 +23,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQueryClient } from "@tanstack/react-query";
 import { RootStackParamList } from "../../../../shared/types";
 import { CustomAlert } from "../../../../shared/components/alert";
+import { RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
 import {
   StackScreenTitleBadge,
   StackScreenTitleBarBalance,
@@ -412,7 +412,9 @@ export default function InspectionConfirmScreen() {
               </View>
 
               {hasDamage && bannerLoading ? (
-                <ActivityIndicator color={brandPrimary} style={styles.bannerLoading} />
+                <View style={styles.bannerLoading}>
+                  <RefreshLogoInline logoPx={22} />
+                </View>
               ) : null}
 
               {hasDamage && !bannerLoading ? (
@@ -459,7 +461,7 @@ export default function InspectionConfirmScreen() {
             activeOpacity={0.85}
           >
             {submitting ? (
-              <ActivityIndicator color={neutral.surface} />
+              <RefreshLogoInline logoPx={20} />
             ) : (
               <Text style={styles.submitBtnText}>{t("staff_inspection_confirm.submit")}</Text>
             )}

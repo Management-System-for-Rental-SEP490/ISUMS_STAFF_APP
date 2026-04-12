@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { CustomAlert as Alert } from "../../../shared/components/alert";
+import { RefreshLogoInline, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import userProfileStyles from "./UserProfileScreenStyles";
@@ -125,8 +126,8 @@ const UserProfileScreen = () => {
 
         <View style={userProfileStyles.profileCard}>
           {!profileLoaded ? (
-            <View style={{ paddingVertical: 32, alignItems: "center", justifyContent: "center" }}>
-              <ActivityIndicator size="large" color={brandPrimary} accessibilityLabel={t("common.loading")} />
+            <View style={{ paddingVertical: 32, alignItems: "center", justifyContent: "center", minHeight: 160, width: "100%", position: "relative" }}>
+              <RefreshLogoOverlay visible mode="page" />
             </View>
           ) : (
             <>
@@ -146,7 +147,7 @@ const UserProfileScreen = () => {
 
           {!profileLoaded ? (
             <View style={{ paddingVertical: 24, alignItems: "center" }}>
-              <ActivityIndicator color={brandPrimary} accessibilityLabel={t("common.loading")} />
+              <RefreshLogoInline logoPx={22} showLabel />
             </View>
           ) : (
             <>

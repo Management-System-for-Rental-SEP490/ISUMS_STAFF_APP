@@ -10,18 +10,18 @@ import {
   FlatList,
   TouchableOpacity,
   ListRenderItem,
-  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
+import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import Header from "../../../../shared/components/header";
 import Icons from "../../../../shared/theme/icon";
 import { staffNotificationStyles } from "./staffNotificationStyles";
 import { brandPrimary } from "../../../../shared/theme/color";
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
 import { formatTimeAgoI18n, getTotalPages, slicePage } from "../../../../shared/utils";
-import { useRefreshControlGate, refreshControlAndroidGateProps } from "../../../../shared/hooks";
+import { useRefreshControlGate } from "../../../../shared/hooks";
 import type { StaffNotificationItem } from "../../../../shared/types/api";
 
 export default function StaffNotificationScreen() {
@@ -181,38 +181,40 @@ export default function StaffNotificationScreen() {
         onStaffTabBackPress={() => navigation.goBack()}
         staffTabBackAccessibilityLabel={t("common.back")}
       />
-      <FlatList
-        data={pagedNotifications}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={listHeader}
-        ListEmptyComponent={listEmpty}
-        ListFooterComponent={() => (
-          <PaginationBar
-            currentPage={listPage}
-            totalPages={notifTotalPages}
-            onPageChange={setListPage}
-            style={{ paddingBottom: Math.max(8, insets.bottom) }}
-          />
-        )}
-        contentContainerStyle={
-          notifications.length === 0
-            ? [staffNotificationStyles.listContent, { flex: 1 }]
-            : staffNotificationStyles.listContent
-        }
-        showsVerticalScrollIndicator={false}
-        onScroll={onScrollForRefreshGate}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={brandPrimary}
-            colors={[brandPrimary]}
-            {...refreshControlAndroidGateProps(scrollAtTop, refreshing)}
-          />
-        }
-      />
+      <View style={{ flex: 1, position: "relative" }}>
+        <RefreshLogoOverlay visible={refreshing} />
+        <FlatList
+          style={{ flex: 1 }}
+          data={pagedNotifications}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={listEmpty}
+          ListFooterComponent={() => (
+            <PaginationBar
+              currentPage={listPage}
+              totalPages={notifTotalPages}
+              onPageChange={setListPage}
+              style={{ paddingBottom: Math.max(8, insets.bottom) }}
+            />
+          )}
+          contentContainerStyle={
+            notifications.length === 0
+              ? [staffNotificationStyles.listContent, { flex: 1 }]
+              : staffNotificationStyles.listContent
+          }
+          showsVerticalScrollIndicator={false}
+          onScroll={onScrollForRefreshGate}
+          scrollEventThrottle={16}
+          refreshControl={
+            <PullToRefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              scrollAtTop={scrollAtTop}
+            />
+          }
+        />
+      </View>
     </View>
   );
 }

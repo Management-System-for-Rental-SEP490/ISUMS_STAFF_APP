@@ -9,7 +9,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
@@ -18,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
 import Header from "../../../../shared/components/header";
 import { CustomAlert } from "../../../../shared/components/alert";
+import { RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
 import { useCreateLeaveRequest } from "../../../../shared/hooks";
 import { staffDayOffStyles } from "./staffDayOffStyles";
 import { neutral } from "../../../../shared/theme/color";
@@ -221,7 +221,7 @@ export default function StaffRequestDayOffScreen() {
             activeOpacity={0.8}
           >
             {submitting ? (
-              <ActivityIndicator size="small" color={neutral.surface} />
+              <RefreshLogoInline logoPx={20} />
             ) : (
               <Text style={staffDayOffStyles.formSubmitBtnText}>
                 {t("staff_day_off.form_submit")}

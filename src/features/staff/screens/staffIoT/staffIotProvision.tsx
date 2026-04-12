@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,6 +8,7 @@ import type { RootStackParamList } from "../../../../shared/types";
 import type { FunctionalAreaFromApi } from "../../../../shared/types/api";
 import { useFunctionalAreasByHouseId, useIotDevicesByHouseId } from "../../../../shared/hooks";
 import { CustomAlert } from "../../../../shared/components/alert";
+import { RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
 import { staffIotStyles as s } from "./staffIotStyles";
 import { StaffIotFlowScreenHeader } from "./staffIotFlowScreenHeader";
 import { brandPrimary } from "../../../../shared/theme/color";
@@ -86,9 +87,8 @@ export default function StaffIotProvisionScreen() {
           {/* <Text style={s.flowSectionSub}>{t("staff_iot.provision_step_area_sub")}</Text> */}
 
           {areasLoading ? (
-            <View style={s.flowLoadingRow}>
-              <ActivityIndicator size="small" color={brandPrimary} />
-              <Text style={s.flowLoadingText}>{t("common.loading")}</Text>
+            <View style={[s.flowLoadingRow, { alignItems: "center" }]}>
+              <RefreshLogoInline logoPx={22} showLabel />
             </View>
           ) : sortedAreas.length === 0 ? (
             <View style={s.flowEmptyCard}>

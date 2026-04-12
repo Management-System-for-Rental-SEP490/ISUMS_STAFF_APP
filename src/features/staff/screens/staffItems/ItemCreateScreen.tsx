@@ -11,7 +11,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Image,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -28,6 +27,7 @@ import {
   useFunctionalAreasByHouseId,
 } from "../../../../shared/hooks";
 import { CustomAlert as Alert } from "../../../../shared/components/alert";
+import { RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
 import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
 import { mergeFunctionalAreasForHouse, sortFunctionalAreasForDisplay } from "../../../../shared/utils";
 import { itemScreenStyles } from "./itemScreenStyles";
@@ -539,7 +539,7 @@ export default function ItemCreateScreen() {
               activeOpacity={0.8}
             >
               {isPending || uploadingImages ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <RefreshLogoInline logoPx={20} />
               ) : (
                 <Text style={itemScreenStyles.submitBtnText}>{t("staff_item_create.submit")}</Text>
               )}

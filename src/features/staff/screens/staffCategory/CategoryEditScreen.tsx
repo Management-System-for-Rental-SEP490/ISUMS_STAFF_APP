@@ -12,7 +12,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -21,6 +20,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
+import { RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
 import { useUpdateAssetCategory } from "../../../../shared/hooks";
 import { categoryScreenStyles } from "./categoryScreenStyles";
 import {
@@ -185,7 +185,7 @@ export default function CategoryEditScreen() {
               activeOpacity={0.8}
             >
               {isPending ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <RefreshLogoInline logoPx={20} />
               ) : (
                 <Text style={categoryScreenStyles.submitBtnText}>
                   {t("staff_category_edit.submit")}

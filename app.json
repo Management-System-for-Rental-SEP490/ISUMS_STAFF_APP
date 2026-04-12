@@ -1,5 +1,8 @@
 {
   "expo": {
+    "experiments": {
+      "tsconfigPaths": true
+    },
     "name": "ISUMS Staff",
     "slug": "isums-staff-app",
     "scheme": "isumsstaff",

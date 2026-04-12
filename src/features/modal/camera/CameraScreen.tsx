@@ -3,7 +3,6 @@ import {
   Text,
   TouchableOpacity,
   View,
-  ActivityIndicator,
   Pressable,
   Animated,
   StatusBar,

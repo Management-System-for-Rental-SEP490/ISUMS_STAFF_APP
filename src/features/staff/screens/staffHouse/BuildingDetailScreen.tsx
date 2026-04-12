@@ -8,8 +8,6 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
   Keyboard,
   Platform,
   type KeyboardEvent,
@@ -25,6 +23,7 @@ import type {
   FunctionalAreaFromApi,
   HouseFromApi,
 } from "../../../../shared/types/api";
+import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import Icons from "../../../../shared/theme/icon";
 import { staffBuildingDetailStyles } from "./staffBuildingDetailStyles";
 import { FloorPlanView } from "../../houseStructure";
@@ -415,9 +414,8 @@ export default function BuildingDetailScreen() {
         ]}
       >
         {headerRow}
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 40 }}>
-          <ActivityIndicator size="large" color={brandPrimary} />
-          <Text style={{ marginTop: 10, color: neutral.textSecondary }}>{t("home.loading_data")}</Text>
+        <View style={{ flex: 1, position: "relative", padding: 40 }}>
+          <RefreshLogoOverlay visible mode="page" labelKey="home.loading_data" />
         </View>
       </View>
     );
@@ -426,31 +424,29 @@ export default function BuildingDetailScreen() {
   return (
     <View style={staffBuildingDetailStyles.container}>
       {headerRow}
-      <ScrollView
-        ref={mainScrollRef}
-        style={{ flex: 1 }}
-        contentContainerStyle={[
-          staffBuildingDetailStyles.scrollContent,
-          {
-            paddingBottom: 24 + insets.bottom + keyboardBottomInset,
-          },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        onScroll={onScrollForRefreshGate}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={listRefreshing}
-            onRefresh={onPullRefresh}
-            tintColor={brandPrimary}
-            colors={[brandPrimary]}
-            {...(Platform.OS === "android"
-              ? { enabled: scrollAtTop || listRefreshing }
-              : {})}
-          />
-        }
-      >
+      <View style={{ flex: 1, position: "relative" }}>
+        <RefreshLogoOverlay visible={listRefreshing} />
+        <ScrollView
+          ref={mainScrollRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            staffBuildingDetailStyles.scrollContent,
+            {
+              paddingBottom: 24 + insets.bottom + keyboardBottomInset,
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          onScroll={onScrollForRefreshGate}
+          scrollEventThrottle={16}
+          refreshControl={
+            <PullToRefreshControl
+              refreshing={listRefreshing}
+              onRefresh={onPullRefresh}
+              scrollAtTop={scrollAtTop}
+            />
+          }
+        >
         <View style={staffBuildingDetailStyles.headerCard}>
           <Text style={staffBuildingDetailStyles.buildingName}>{buildingName}</Text>
           <ExpandableLongText
@@ -670,6 +666,7 @@ export default function BuildingDetailScreen() {
           </View>
         ) : null}
       </ScrollView>
+      </View>
     </View>
   );
 }

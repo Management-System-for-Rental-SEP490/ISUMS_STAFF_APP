@@ -6,13 +6,16 @@ import {
   View,
   Text,
   FlatList,
-  ActivityIndicator,
-  RefreshControl,
   TouchableOpacity,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  PullToRefreshControl,
+  RefreshLogoInline,
+  RefreshLogoOverlay,
+} from "@shared/components/RefreshLogoOverlay";
 import Header from "../../../../shared/components/header";
 import { CustomAlert } from "../../../../shared/components/alert";
 import { getStaffIdForSchedule } from "../../../../shared/services/scheduleApi";
@@ -21,7 +24,6 @@ import {
   useLeaveRequests,
   useUpdateLeaveRequestStatus,
   useRefreshControlGate,
-  refreshControlAndroidGateProps,
 } from "../../../../shared/hooks";
 import { staffDayOffStyles } from "./staffDayOffStyles";
 import { brandPrimary } from "../../../../shared/theme/color";
@@ -168,8 +170,8 @@ export default function StaffDayOffListScreen() {
     return (
       <View style={staffDayOffStyles.container}>
         <Header variant="default" />
-        <View style={staffDayOffStyles.loadingContainer}>
-          <ActivityIndicator size="large" color={brandPrimary} />
+        <View style={[staffDayOffStyles.loadingContainer, { position: "relative" }]}>
+          <RefreshLogoOverlay visible mode="page" />
         </View>
       </View>
     );
@@ -178,32 +180,34 @@ export default function StaffDayOffListScreen() {
   return (
     <View style={staffDayOffStyles.container}>
       <Header variant="default" />
-      <FlatList
-        data={pagedItems}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={[
-          staffDayOffStyles.list,
-          items.length === 0 && { flex: 1 },
-        ]}
-        ListFooterComponent={() => (
-          <PaginationBar
-            currentPage={listPage}
-            totalPages={leaveTotalPages}
-            onPageChange={setListPage}
-            style={{ paddingBottom: Math.max(8, insets.bottom) }}
-          />
-        )}
-        onScroll={onScrollForRefreshGate}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[brandPrimary]}
-            {...refreshControlAndroidGateProps(scrollAtTop, refreshing)}
-          />
-        }
-        ListEmptyComponent={
+      <View style={{ flex: 1, position: "relative" }}>
+        <RefreshLogoOverlay visible={refreshing} />
+        <FlatList
+          style={{ flex: 1 }}
+          data={pagedItems}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[
+            staffDayOffStyles.list,
+            items.length === 0 && { flex: 1 },
+          ]}
+          ListFooterComponent={() => (
+            <PaginationBar
+              currentPage={listPage}
+              totalPages={leaveTotalPages}
+              onPageChange={setListPage}
+              style={{ paddingBottom: Math.max(8, insets.bottom) }}
+            />
+          )}
+          onScroll={onScrollForRefreshGate}
+          scrollEventThrottle={16}
+          refreshControl={
+            <PullToRefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              scrollAtTop={scrollAtTop}
+            />
+          }
+          ListEmptyComponent={
           error ? (
             <View style={staffDayOffStyles.emptyContainer}>
               <Text style={staffDayOffStyles.errorText}>{error}</Text>
@@ -272,7 +276,7 @@ export default function StaffDayOffListScreen() {
                   activeOpacity={0.8}
                 >
                   {cancellingId === item.id ? (
-                    <ActivityIndicator size="small" color="#dc2626" />
+                    <RefreshLogoInline logoPx={18} />
                   ) : (
                     <Text style={staffDayOffStyles.cancelBtnText}>
                       {t("staff_day_off.cancel_btn")}
@@ -284,6 +288,7 @@ export default function StaffDayOffListScreen() {
           );
         }}
       />
+      </View>
     </View>
   );
 }

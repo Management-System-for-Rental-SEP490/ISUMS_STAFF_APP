@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 import { CustomAlert } from "../shared/components/alert";
@@ -10,7 +10,7 @@ import OnBoarding from "../features/screens/onBoarding/onBoarding";
 import { useAuthStore } from "../store/useAuthStore";
 import { RootStackParamList } from "../shared/types";
 import { StaffTabs } from "../shared/components/footerNavigator";
-import { brandPrimary } from "../shared/theme/color";
+import { RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import CameraScreen from "../features/modal/camera/CameraScreen";
 import BuildingDetailScreen from "../features/staff/screens/staffHouse/BuildingDetailScreen";
 import TicketDetailScreen from "../features/staff/screens/staffTicket/TicketDetailScreen";
@@ -98,9 +98,9 @@ const Navigation = () => {
 
   if (!isReady) {
       return (
-          <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-            {/* Hiển thị loading khi đang đọc state từ AsyncStorage vào store(cái vòng tròn xoay */}
-              <ActivityIndicator size="large" color={brandPrimary} /> 
+          <View style={{ flex: 1, position: "relative" }}>
+            {/* Hiển thị loading khi đang đọc state từ AsyncStorage vào store */}
+            <RefreshLogoOverlay visible mode="page" />
           </View>
       );
   }

@@ -8,6 +8,7 @@ export default {
         "back": "Back",
         "no_data": "No data",
         "loading": "Loading...",
+        "pull_to_refresh": "Pull to refresh",
         "error": "Error",
         "success": "Success",
         "close": "Close",
@@ -740,6 +741,8 @@ export default {
         "maintenance_confirm_message": "Send {{count}} updated assets to the system?",
         "maintenance_batch_success": "Asset updates submitted successfully.",
         "maintenance_batch_error": "Could not submit asset updates.",
+        "maintenance_event_images_partial":
+          "Updates were saved but some photos could not be attached to the maintenance event. Please try again later.",
         "btn_confirm_inspection": "Confirm inspection",
         "toggle_broken_label": "Broken",
         "baseline_checkin": "Check-in: {{percent}}% · {{note}}",

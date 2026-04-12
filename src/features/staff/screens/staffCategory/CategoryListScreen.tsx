@@ -8,23 +8,20 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
-  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
+import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import Icons from "../../../../shared/theme/icon";
 import {
   useAssetCategories,
   useRefreshControlGate,
-  refreshControlAndroidGateProps,
 } from "../../../../shared/hooks";
 import { itemScreenStyles } from "../staffItems/itemScreenStyles";
 import type { AssetCategoryFromApi } from "../../../../shared/types/api";
-import { brandPrimary } from "../../../../shared/theme/color";
 import {
   StackScreenTitleBadge,
   StackScreenTitleBarBalance,
@@ -126,8 +123,8 @@ export default function CategoryListScreen() {
     return (
       <View style={itemScreenStyles.container}>
         {categoryListTopBar}
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={brandPrimary} />
+        <View style={{ flex: 1, position: "relative" }}>
+          <RefreshLogoOverlay visible mode="page" labelKey="home.loading_data" />
         </View>
         <StaffScreenActionFab
           onPress={openCreateCategoryForm}
@@ -141,33 +138,35 @@ export default function CategoryListScreen() {
     return (
       <View style={itemScreenStyles.container}>
         {categoryListTopBar}
-        <ScrollView
-          contentContainerStyle={[
-            itemScreenStyles.scrollContent,
-            {
-              flexGrow: 1,
-              justifyContent: "center",
-              alignItems: "center",
-              paddingBottom: 24 + insets.bottom + 72,
-            },
-          ]}
-          onScroll={onScrollForRefreshGate}
-          scrollEventThrottle={16}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={() => refetch()}
-              tintColor={brandPrimary}
-              colors={[brandPrimary]}
-              {...refreshControlAndroidGateProps(scrollAtTop, isRefetching)}
-            />
-          }
-        >
-          <Text style={itemScreenStyles.errorMessage}>{t("staff_category_list.error")}</Text>
+        <View style={{ flex: 1, position: "relative" }}>
+          <RefreshLogoOverlay visible={isRefetching} />
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={[
+              itemScreenStyles.scrollContent,
+              {
+                flexGrow: 1,
+                justifyContent: "center",
+                alignItems: "center",
+                paddingBottom: 24 + insets.bottom + 72,
+              },
+            ]}
+            onScroll={onScrollForRefreshGate}
+            scrollEventThrottle={16}
+            refreshControl={
+              <PullToRefreshControl
+                refreshing={isRefetching}
+                onRefresh={() => refetch()}
+                scrollAtTop={scrollAtTop}
+              />
+            }
+          >
+            <Text style={itemScreenStyles.errorMessage}>{t("staff_category_list.error")}</Text>
           <TouchableOpacity onPress={() => refetch()} style={itemScreenStyles.tryAgainBtn}>
             <Text style={itemScreenStyles.tryAgainBtnText}>{t("common.try_again")}</Text>
           </TouchableOpacity>
-        </ScrollView>
+          </ScrollView>
+        </View>
         <StaffScreenActionFab
           onPress={openCreateCategoryForm}
           accessibilityLabel={t("staff_home.add_menu_create_category")}
@@ -180,25 +179,26 @@ export default function CategoryListScreen() {
     <View style={itemScreenStyles.container}>
       {categoryListTopBar}
 
-      <ScrollView
-        contentContainerStyle={[
-          itemScreenStyles.scrollContent,
-          { paddingBottom: 24 + insets.bottom + 72 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        onScroll={onScrollForRefreshGate}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={() => refetch()}
-            tintColor={brandPrimary}
-            colors={[brandPrimary]}
-            {...refreshControlAndroidGateProps(scrollAtTop, isRefetching)}
-          />
-        }
-      >
-        <View style={itemScreenStyles.filterWrap}>
+      <View style={{ flex: 1, position: "relative" }}>
+        <RefreshLogoOverlay visible={isRefetching} />
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            itemScreenStyles.scrollContent,
+            { paddingBottom: 24 + insets.bottom + 72 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          onScroll={onScrollForRefreshGate}
+          scrollEventThrottle={16}
+          refreshControl={
+            <PullToRefreshControl
+              refreshing={isRefetching}
+              onRefresh={() => refetch()}
+              scrollAtTop={scrollAtTop}
+            />
+          }
+        >
+          <View style={itemScreenStyles.filterWrap}>
           <DropdownBox
             sections={categoryOnlySections}
             summary={t("staff_category_list.dropdown_summary")}
@@ -216,7 +216,8 @@ export default function CategoryListScreen() {
         {categories.length === 0 ? (
           <Text style={itemScreenStyles.emptyText}>{t("staff_category_list.empty")}</Text>
         ) : null}
-      </ScrollView>
+        </ScrollView>
+      </View>
       <StaffScreenActionFab
         onPress={openCreateCategoryForm}
         accessibilityLabel={t("staff_home.add_menu_create_category")}

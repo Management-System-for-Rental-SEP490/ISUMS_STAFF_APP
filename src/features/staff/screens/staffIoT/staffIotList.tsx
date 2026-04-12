@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Text, TouchableOpacity, View, ScrollView, RefreshControl } from "react-native";
+import { Text, TouchableOpacity, View, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -9,13 +9,17 @@ import type {
   IotControllerHouseDataFromApi,
   IotNodeDeviceFromApi,
 } from "../../../../shared/types/api";
+import {
+  PullToRefreshControl,
+  RefreshLogoInline,
+  RefreshLogoOverlay,
+} from "@shared/components/RefreshLogoOverlay";
 import Icons from "../../../../shared/theme/icon";
 import {
   useFunctionalAreasByHouseId,
   useIotDevicesByHouseId,
   useDeprovisionIotControllerByHouseId,
   useRefreshControlGate,
-  refreshControlAndroidGateProps,
 } from "../../../../shared/hooks";
 import { useTranslation } from "react-i18next";
 import { staffIotStyles as s } from "./staffIotStyles";
@@ -326,24 +330,25 @@ export default function StaffIotListScreen() {
         </View>
       </StackScreenTitleHeaderStrip>
 
-      <ScrollView
-        contentContainerStyle={[
-          s.scroll,
-          { paddingBottom: Math.max(insets.bottom, 16) + 16 + 72 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        onScroll={onScrollForRefreshGate}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={listRefreshing}
-            onRefresh={onPullRefresh}
-            tintColor={brandPrimary}
-            colors={[brandPrimary]}
-            {...refreshControlAndroidGateProps(scrollAtTop, listRefreshing)}
-          />
-        }
-      >
+      <View style={{ flex: 1, position: "relative" }}>
+        <RefreshLogoOverlay visible={listRefreshing} />
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            s.scroll,
+            { paddingBottom: Math.max(insets.bottom, 16) + 16 + 72 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          onScroll={onScrollForRefreshGate}
+          scrollEventThrottle={16}
+          refreshControl={
+            <PullToRefreshControl
+              refreshing={listRefreshing}
+              onRefresh={onPullRefresh}
+              scrollAtTop={scrollAtTop}
+            />
+          }
+        >
         <View style={s.houseCard}>
           <Text style={s.houseName} numberOfLines={2}>
             {houseName}
@@ -389,8 +394,8 @@ export default function StaffIotListScreen() {
         </View>
 
         {iotLoading ? (
-          <View style={s.loadingRow}>
-            <Text style={s.loadingText}>{t("common.loading")}</Text>
+          <View style={[s.loadingRow, { alignItems: "center", paddingVertical: 18 }]}>
+            <RefreshLogoInline logoPx={28} showLabel />
           </View>
         ) : activeKind === "all" ? (
           <>
@@ -513,6 +518,7 @@ export default function StaffIotListScreen() {
           ))
         )}
       </ScrollView>
+      </View>
 
       <StaffScreenActionFab
         onPress={() => setAddMenuOpen(true)}

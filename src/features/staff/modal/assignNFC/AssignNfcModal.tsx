@@ -5,7 +5,6 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   Platform,
   Dimensions,
   KeyboardAvoidingView,
@@ -14,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { assignNfcModalStyles } from "./assignNfcModalStyles";
+import { RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
 import {
   useHouses,
   useAssetCategories,
@@ -382,7 +382,7 @@ export const AssignNfcModal: React.FC<AssignNfcModalProps> = ({
               </Text>
               {isLoadingAny ? (
                 <View style={assignNfcModalStyles.validDevicesLoading}>
-                  <ActivityIndicator size="small" color={brandPrimary} />
+                  <RefreshLogoInline logoPx={22} />
                 </View>
               ) : (
                 <DropdownBox

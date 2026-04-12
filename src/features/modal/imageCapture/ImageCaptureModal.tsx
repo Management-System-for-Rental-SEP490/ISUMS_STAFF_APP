@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Image, Modal, Platform, Text, TouchableOpacity, View } from "react-native";
+import { Image, Modal, Platform, Text, TouchableOpacity, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { CustomAlert as Alert } from "../../../shared/components/alert";
+import { RefreshLogoInline, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import { useCameraPinchZoom } from "../../../shared/hooks/useCameraPinchZoom";
 import { brandPrimary, neutral } from "../../../shared/theme/color";
 import Icons from "../../../shared/theme/icon";
@@ -192,10 +193,9 @@ export function ImageCaptureModal({
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: neutral.black }}>
         {!cameraAllowed ? (
           <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 16 }}>
-            <ActivityIndicator size="large" color={brandPrimary} />
-            <Text style={{ marginTop: 12, color: neutral.textOnDarkSoft, textAlign: "center" }}>
-              {t("common.loading")}
-            </Text>
+            <View style={{ height: 160, width: "100%", position: "relative" }}>
+              <RefreshLogoOverlay visible mode="page" />
+            </View>
             <TouchableOpacity
               onPress={onClose}
               style={{ marginTop: 18, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, backgroundColor: "#111827" }}
@@ -267,7 +267,7 @@ export function ImageCaptureModal({
                   }}
                 >
                   {capturing ? (
-                    <ActivityIndicator color={neutral.surface} />
+                    <RefreshLogoInline logoPx={22} />
                   ) : (
                     <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: neutral.surface }} />
                   )}

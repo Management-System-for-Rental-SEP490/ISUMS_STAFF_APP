@@ -12,7 +12,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   useWindowDimensions,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -36,6 +35,7 @@ import {
   updateJobStatus,
 } from "../../../../shared/services/maintenanceApi";
 import { CustomAlert } from "../../../../shared/components/alert";
+import { RefreshLogoInline, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import {
   mapInspectionToJobFromApi,
   type AssetItemFromApi,
@@ -74,6 +74,7 @@ import {
   getImagesFromAssetItem,
   deleteAssetItemImage,
   uploadAssetItemImages,
+  uploadAssetEventImages,
   type AssetItemImageFromApi,
   type AssetItemImageToUpload,
   updateAssetItemsMaintenanceBatch,
@@ -233,6 +234,38 @@ export default function WorkSlotDetailScreen() {
   /** Chuỗi xử lý pick ảnh tuần tự — tránh bỏ qua lần chụp khi upload trước chưa xong. */
   const editorImagePickQueueRef = useRef(Promise.resolve());
   const maintenanceSessionImageCountRef = useRef(0);
+  /**
+   * Ảnh đã upload lên asset trong phiên bảo trì, map theo `serverImageId` để xóa khỏi danh sách
+   * khi user xóa ảnh; sau batch BE trả `eventId` thì POST cùng file local lên sự kiện tương ứng.
+   */
+  const maintenanceEventImagesByAssetRef = useRef<
+    Record<string, Array<AssetItemImageToUpload & { serverImageId: string }>>
+  >({});
+  /** Cặp assetId/eventId từ response batch — POST ảnh lên event khi Hoàn thành / Xác nhận kiểm định. */
+  const pendingMaintenanceBatchEventsRef = useRef<Array<{ assetId: string; eventId: string }>>([]);
+
+  /** Gắn ảnh theo từng asset vào đúng `eventId` (sau khi batch đã trả events). Trả về true nếu có lần POST lỗi. */
+  const uploadPendingMaintenanceEventImages = useCallback(async (): Promise<boolean> => {
+    const events = pendingMaintenanceBatchEventsRef.current;
+    if (!events.length) return false;
+    const byAsset = maintenanceEventImagesByAssetRef.current;
+    let failed = false;
+    const remaining: Array<{ assetId: string; eventId: string }> = [];
+    for (const ev of events) {
+      const rows = byAsset[ev.assetId];
+      if (!rows?.length) continue;
+      const files: AssetItemImageToUpload[] = rows.map(({ serverImageId: _sid, ...rest }) => rest);
+      try {
+        await uploadAssetEventImages(ev.eventId, files);
+        delete byAsset[ev.assetId];
+      } catch {
+        failed = true;
+        remaining.push(ev);
+      }
+    }
+    pendingMaintenanceBatchEventsRef.current = remaining;
+    return failed;
+  }, []);
 
   const currentHouseId = isIssueSlot ? ticket?.houseId : job?.houseId;
   const { data: houseByIdResp } = useHouseById(currentHouseId);
@@ -453,6 +486,10 @@ export default function WorkSlotDetailScreen() {
 
     setUpdateLoading(true);
     try {
+      let maintenanceEventUploadFailed = false;
+      if (!isInspectionSlot && maintenanceNext === "COMPLETED") {
+        maintenanceEventUploadFailed = await uploadPendingMaintenanceEventImages();
+      }
       if (isInspectionSlot) {
         const res = await updateInspectionStatus(job.id, inspectionNext!);
         if (!res?.success) {
@@ -466,6 +503,8 @@ export default function WorkSlotDetailScreen() {
       if (startedNow) {
         setMaintenanceSubmitted(false);
         setMaintenanceDrafts({});
+        maintenanceEventImagesByAssetRef.current = {};
+        pendingMaintenanceBatchEventsRef.current = [];
         submittedMaintenanceJobIdsInSession.delete(job.id);
         setInspectionSessionPhotoUrls([]);
         maintenanceSessionImageCountRef.current = 0;
@@ -485,7 +524,9 @@ export default function WorkSlotDetailScreen() {
         refetchItem();
         CustomAlert.alert(
           t("staff_work_slot_detail.completion_alert_title"),
-          "",
+          maintenanceEventUploadFailed
+            ? t("staff_work_slot_detail.maintenance_event_images_partial")
+            : "",
           [
             {
               text: t("common.close"),
@@ -504,18 +545,33 @@ export default function WorkSlotDetailScreen() {
     }
   };
 
-  const navigateToInspectionConfirm = useCallback(() => {
+  const navigateToInspectionConfirm = useCallback(async () => {
     if (!job?.id) return;
-    const typ = (inspectionType ?? "").trim().toUpperCase();
-    const inspectionTypeParam: "CHECK_IN" | "CHECK_OUT" = typ === "CHECK_OUT" ? "CHECK_OUT" : "CHECK_IN";
-    navigation.navigate("InspectionConfirm", {
-      inspectionId: job.id,
-      inspectionType: inspectionTypeParam,
-      photoUrls: inspectionSessionPhotoUrls,
-      scheduleSlotId: slot.id,
-      slotDate: slot.date,
-      houseName: currentHouseName || undefined,
-    });
+    setUpdateLoading(true);
+    try {
+      const uploadFailed = await uploadPendingMaintenanceEventImages();
+      const typ = (inspectionType ?? "").trim().toUpperCase();
+      const inspectionTypeParam: "CHECK_IN" | "CHECK_OUT" = typ === "CHECK_OUT" ? "CHECK_OUT" : "CHECK_IN";
+      const params = {
+        inspectionId: job.id,
+        inspectionType: inspectionTypeParam,
+        photoUrls: inspectionSessionPhotoUrls,
+        scheduleSlotId: slot.id,
+        slotDate: slot.date,
+        houseName: currentHouseName || undefined,
+      };
+      if (uploadFailed) {
+        CustomAlert.alert(
+          t("common.success"),
+          t("staff_work_slot_detail.maintenance_event_images_partial"),
+          [{ text: t("common.close"), onPress: () => navigation.navigate("InspectionConfirm", params) }]
+        );
+      } else {
+        navigation.navigate("InspectionConfirm", params);
+      }
+    } finally {
+      setUpdateLoading(false);
+    }
   }, [
     currentHouseName,
     inspectionSessionPhotoUrls,
@@ -524,6 +580,8 @@ export default function WorkSlotDetailScreen() {
     navigation,
     slot.date,
     slot.id,
+    t,
+    uploadPendingMaintenanceEventImages,
   ]);
 
   const openMaintenanceModal = useCallback(() => {
@@ -680,6 +738,7 @@ export default function WorkSlotDetailScreen() {
               if (!res?.success) {
                 throw new Error(res?.message || t("staff_work_slot_detail.maintenance_batch_error"));
               }
+              pendingMaintenanceBatchEventsRef.current = res.data?.events ?? [];
               // Ghi nhớ trong phiên để quay lại màn vẫn hiện nút "Hoàn thành".
               submittedMaintenanceJobIdsInSession.add(job.id);
               setMaintenanceSubmitted(true);
@@ -942,8 +1001,24 @@ export default function WorkSlotDetailScreen() {
         maintenanceSessionImageCountRef.current += added;
         setMaintenanceEditorSessionImageCount((c) => c + added);
         const afterImages = await refreshEditorImages(assetId);
-        const newUrls = afterImages
-          .filter((i) => !beforeIds.has(i.id))
+        const newImages = afterImages.filter((i) => !beforeIds.has(i.id));
+        const n = Math.min(newImages.length, files.length);
+        if (n > 0) {
+          const prev = maintenanceEventImagesByAssetRef.current[assetId] ?? [];
+          const merged = [...prev];
+          for (let i = 0; i < n; i++) {
+            const img = newImages[i];
+            const f = files[i];
+            merged.push({
+              serverImageId: img.id,
+              uri: f.uri,
+              fileName: f.fileName,
+              mimeType: f.mimeType,
+            });
+          }
+          maintenanceEventImagesByAssetRef.current[assetId] = merged;
+        }
+        const newUrls = newImages
           .map((i) => i.url)
           .filter((u) => u.trim().length > 0);
         if (isInspectionSlot && newUrls.length > 0) {
@@ -1035,6 +1110,12 @@ export default function WorkSlotDetailScreen() {
       setEditorDeletingImageId(imageId);
       try {
         await deleteAssetItemImage(selectedMaintenanceAssetId, imageId);
+        const list = maintenanceEventImagesByAssetRef.current[selectedMaintenanceAssetId];
+        if (list?.length) {
+          maintenanceEventImagesByAssetRef.current[selectedMaintenanceAssetId] = list.filter(
+            (x) => x.serverImageId !== imageId
+          );
+        }
         await refreshEditorImages(selectedMaintenanceAssetId);
       } catch (err) {
         CustomAlert.alert(
@@ -1197,9 +1278,8 @@ export default function WorkSlotDetailScreen() {
             <Text style={staffWorkSlotStyles.sectionTitle}>{t("staff_work_slot_detail.job_section")}</Text>
           </View>
           {loading ? (
-            <View style={staffWorkSlotStyles.loadingWrap}>
-              <ActivityIndicator size="large" color={brandPrimary} />
-              <Text style={staffWorkSlotStyles.loadingText}>{t("common.loading")}</Text>
+            <View style={[staffWorkSlotStyles.loadingWrap, { position: "relative", minHeight: 200 }]}>
+              <RefreshLogoOverlay visible mode="page" />
             </View>
           ) : error ? (
             <View style={staffWorkSlotStyles.errorCard}>
@@ -1240,9 +1320,13 @@ export default function WorkSlotDetailScreen() {
                       {t("staff_ticket_detail.images_label")}
                     </Text>
                     {ticketImagesLoading ? (
-                      <View style={staffWorkSlotStyles.imageLoadingRow}>
-                        <ActivityIndicator size="small" color={neutral.iconMuted} />
-                        <Text style={staffWorkSlotStyles.imageEmptyText}>{t("common.loading")}</Text>
+                      <View
+                        style={[
+                          staffWorkSlotStyles.imageLoadingRow,
+                          { flexDirection: "column", alignItems: "flex-start" },
+                        ]}
+                      >
+                        <RefreshLogoInline logoPx={18} showLabel />
                       </View>
                     ) : ticketImages.length > 0 ? (
                       <>
@@ -1316,7 +1400,7 @@ export default function WorkSlotDetailScreen() {
                       disabled={updateLoading}
                     >
                       {updateLoading ? (
-                        <ActivityIndicator size="small" color={neutral.surface} />
+                        <RefreshLogoInline logoPx={18} />
                       ) : (
                         <Text style={staffWorkSlotStyles.actionBtnText}>
                           {isIssueSlot
@@ -1334,7 +1418,7 @@ export default function WorkSlotDetailScreen() {
                         disabled={updateLoading}
                       >
                         {updateLoading ? (
-                          <ActivityIndicator size="small" color={neutral.surface} />
+                          <RefreshLogoInline logoPx={18} />
                         ) : (
                           <Text style={staffWorkSlotStyles.actionBtnText}>
                             {t("staff_work_slot_detail.btn_complete")}
@@ -1375,7 +1459,7 @@ export default function WorkSlotDetailScreen() {
                       disabled={updateLoading}
                     >
                       {updateLoading ? (
-                        <ActivityIndicator size="small" color={neutral.surface} />
+                        <RefreshLogoInline logoPx={18} />
                       ) : (
                         <Text style={staffWorkSlotStyles.actionBtnText}>
                           {t(
@@ -1401,7 +1485,7 @@ export default function WorkSlotDetailScreen() {
                       disabled={updateLoading}
                     >
                       {updateLoading ? (
-                        <ActivityIndicator size="small" color={neutral.surface} />
+                        <RefreshLogoInline logoPx={18} />
                       ) : (
                         <Text style={staffWorkSlotStyles.actionBtnText}>
                           {maintenanceSubmitted

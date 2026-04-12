@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, FlatList, ListRenderItem, Pressable, RefreshControl } from "react-native";
+import { View, Text, FlatList, ListRenderItem, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
@@ -18,7 +18,8 @@ import { ASSET_ITEM_KEYS, useAssetItems } from "../../../../shared/hooks/useAsse
 import { getAssetItemById } from "../../../../shared/services/assetItemApi";
 import { useHouses } from "../../../../shared/hooks/useHouses";
 import { useStaffIssueTickets } from "../../../../shared/hooks/useUserProfile";
-import { useRefreshControlGate, refreshControlAndroidGateProps } from "../../../../shared/hooks";
+import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
+import { useRefreshControlGate } from "../../../../shared/hooks";
 import Icons from "../../../../shared/theme/icon";
 
 type TicketListNavProp = CompositeNavigationProp<
@@ -212,8 +213,8 @@ export default function TicketListScreen() {
     return (
       <View style={ticketListStyles.container}>
         {staffTabHeader}
-        <View style={ticketListStyles.stateWrapper}>
-          <Text style={ticketListStyles.stateText}>{t("common.loading")}</Text>
+        <View style={[ticketListStyles.stateWrapper, { position: "relative" }]}>
+          <RefreshLogoOverlay visible mode="page" />
         </View>
       </View>
     );
@@ -236,38 +237,40 @@ export default function TicketListScreen() {
   return (
     <View style={ticketListStyles.container}>
       {staffTabHeader}
-      <FlatList
-        data={pagedTickets}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={listHeader}
-        ListEmptyComponent={listEmpty}
-        ListFooterComponent={() => (
-          <PaginationBar
-            currentPage={listPage}
-            totalPages={ticketTotalPages}
-            onPageChange={setListPage}
-            style={{ paddingBottom: Math.max(8, insets.bottom) }}
-          />
-        )}
-        contentContainerStyle={
-          sortedTickets.length === 0
-            ? [ticketListStyles.listContent, { flex: 1 }]
-            : ticketListStyles.listContent
-        }
-        showsVerticalScrollIndicator={false}
-        onScroll={onScrollForRefreshGate}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={onRefresh}
-            tintColor={brandPrimary}
-            colors={[brandPrimary]}
-            {...refreshControlAndroidGateProps(scrollAtTop, isRefetching)}
-          />
-        }
-      />
+      <View style={{ flex: 1, position: "relative" }}>
+        <RefreshLogoOverlay visible={isRefetching} />
+        <FlatList
+          style={{ flex: 1 }}
+          data={pagedTickets}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={listEmpty}
+          ListFooterComponent={() => (
+            <PaginationBar
+              currentPage={listPage}
+              totalPages={ticketTotalPages}
+              onPageChange={setListPage}
+              style={{ paddingBottom: Math.max(8, insets.bottom) }}
+            />
+          )}
+          contentContainerStyle={
+            sortedTickets.length === 0
+              ? [ticketListStyles.listContent, { flex: 1 }]
+              : ticketListStyles.listContent
+          }
+          showsVerticalScrollIndicator={false}
+          onScroll={onScrollForRefreshGate}
+          scrollEventThrottle={16}
+          refreshControl={
+            <PullToRefreshControl
+              refreshing={isRefetching}
+              onRefresh={onRefresh}
+              scrollAtTop={scrollAtTop}
+            />
+          }
+        />
+      </View>
     </View>
   );
 }

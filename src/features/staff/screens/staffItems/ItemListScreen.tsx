@@ -9,8 +9,6 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
-  RefreshControl,
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,13 +22,12 @@ import {
   useAssetItems,
   useHouses,
   useRefreshControlGate,
-  refreshControlAndroidGateProps,
   asAssetItemArray,
 } from "../../../../shared/hooks";
 import { getHouses } from "../../../../shared/services/houseApi";
 import { useAuthStore } from "../../../../store/useAuthStore";
 import { itemScreenStyles } from "./itemScreenStyles";
-import { brandPrimary } from "../../../../shared/theme/color";
+import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import Header from "../../../../shared/components/header";
 import { StaffScreenActionFab } from "../../../../shared/components/StaffScreenActionFab";
 import type { AssetItemFromApi, HouseFromApi } from "../../../../shared/types/api";
@@ -287,8 +284,8 @@ export default function ItemListScreen() {
     return (
       <View style={itemScreenStyles.container}>
         {staffTabHeader}
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={brandPrimary} />
+        <View style={{ flex: 1, position: "relative" }}>
+          <RefreshLogoOverlay visible mode="page" labelKey="home.loading_data" />
         </View>
         <StaffScreenActionFab
           insetAboveTabBar
@@ -303,33 +300,35 @@ export default function ItemListScreen() {
     return (
       <View style={itemScreenStyles.container}>
         {staffTabHeader}
-        <ScrollView
-          contentContainerStyle={[
-            itemScreenStyles.scrollContent,
-            {
-              flexGrow: 1,
-              justifyContent: "center",
-              alignItems: "center",
-              paddingBottom: 24 + insets.bottom + 72,
-            },
-          ]}
-          onScroll={onScrollForRefreshGate}
-          scrollEventThrottle={16}
-          refreshControl={
-            <RefreshControl
-              refreshing={listRefreshing}
-              onRefresh={onPullRefresh}
-              tintColor={brandPrimary}
-              colors={[brandPrimary]}
-              {...refreshControlAndroidGateProps(scrollAtTop, listRefreshing)}
-            />
-          }
-        >
-          <Text style={itemScreenStyles.errorMessage}>{t("staff_item_list.error")}</Text>
+        <View style={{ flex: 1, position: "relative" }}>
+          <RefreshLogoOverlay visible={listRefreshing} />
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={[
+              itemScreenStyles.scrollContent,
+              {
+                flexGrow: 1,
+                justifyContent: "center",
+                alignItems: "center",
+                paddingBottom: 24 + insets.bottom + 72,
+              },
+            ]}
+            onScroll={onScrollForRefreshGate}
+            scrollEventThrottle={16}
+            refreshControl={
+              <PullToRefreshControl
+                refreshing={listRefreshing}
+                onRefresh={onPullRefresh}
+                scrollAtTop={scrollAtTop}
+              />
+            }
+          >
+            <Text style={itemScreenStyles.errorMessage}>{t("staff_item_list.error")}</Text>
           <TouchableOpacity onPress={() => refetch()} style={itemScreenStyles.tryAgainBtn}>
             <Text style={itemScreenStyles.tryAgainBtnText}>{t("common.try_again")}</Text>
           </TouchableOpacity>
-        </ScrollView>
+          </ScrollView>
+        </View>
         <StaffScreenActionFab
           insetAboveTabBar
           onPress={openCreateItem}
@@ -343,25 +342,26 @@ export default function ItemListScreen() {
     <View style={itemScreenStyles.container}>
       {staffTabHeader}
 
-      <ScrollView
-        contentContainerStyle={[
-          itemScreenStyles.scrollContent,
-          { paddingBottom: 24 + insets.bottom + 72 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        onScroll={onScrollForRefreshGate}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={listRefreshing}
-            onRefresh={onPullRefresh}
-            tintColor={brandPrimary}
-            colors={[brandPrimary]}
-            {...refreshControlAndroidGateProps(scrollAtTop, listRefreshing)}
-          />
-        }
-      >
-        <View style={itemScreenStyles.filterWrap}>
+      <View style={{ flex: 1, position: "relative" }}>
+        <RefreshLogoOverlay visible={listRefreshing} />
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            itemScreenStyles.scrollContent,
+            { paddingBottom: 24 + insets.bottom + 72 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          onScroll={onScrollForRefreshGate}
+          scrollEventThrottle={16}
+          refreshControl={
+            <PullToRefreshControl
+              refreshing={listRefreshing}
+              onRefresh={onPullRefresh}
+              scrollAtTop={scrollAtTop}
+            />
+          }
+        >
+          <View style={itemScreenStyles.filterWrap}>
           <DropdownBox
             sections={listCombinedSections}
             summary={`${t("staff_item_list.filter_category_label")}: ${selectedCategoryName}`}
@@ -381,7 +381,8 @@ export default function ItemListScreen() {
         {categoryFilteredRows.length === 0 ? (
           <Text style={itemScreenStyles.emptyText}>{t("staff_item_list.empty")}</Text>
         ) : null}
-      </ScrollView>
+        </ScrollView>
+      </View>
       <StaffScreenActionFab
         insetAboveTabBar
         onPress={openCreateItem}

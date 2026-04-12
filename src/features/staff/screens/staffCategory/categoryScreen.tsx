@@ -12,7 +12,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -30,6 +29,7 @@ import {
   stackScreenTitleRowStyle,
   stackScreenTitleSideSlotStyle,
 } from "../../../../shared/components/StackScreenTitleBadge";
+import { RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
 import { useCreateAssetCategory } from "../../../../shared/hooks";
 import { categoryScreenStyles } from "./categoryScreenStyles";
 
@@ -174,7 +174,7 @@ export default function CategoryScreen() {
               activeOpacity={0.8}
             >
               {isPending ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <RefreshLogoInline logoPx={20} />
               ) : (
                 <Text style={categoryScreenStyles.submitBtnText}>
                   {t("staff_category.submit")}

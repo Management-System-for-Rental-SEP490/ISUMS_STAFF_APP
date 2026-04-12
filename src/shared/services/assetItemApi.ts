@@ -4,7 +4,7 @@
  */
 import axiosClient from "../api/axiosClient";
 import { logInspectionDebug, logInspectionError } from "../utils/inspectionDebugLog";
-import { ASSETS_API_BASE, BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
+import { ASSETS_API_BASE, BACKEND_API_BASE } from "../api/config";
 import i18n from "../i18n";
 import { useAuthStore } from "../../store/useAuthStore";
 import {
@@ -478,16 +478,13 @@ export const updateAssetItem = async (
  * Batch cập nhật thông tin bảo trì cho nhiều thiết bị.
  * API: PUT /api/assets/items/maintenance/batch
  *
- * BE mới: `multipart/form-data` (hỗ trợ gửi ảnh kèm; JSON raw không còn dùng).
- * Postman: `jobId`, `updates[0].assetId`, `updates[0].conditionPercent`, `updates[0].note`, `updates[0].status`, …
+ * Body: **một object** `BatchUpdateAssetRequest` — `{ jobId, updates: [...] }` (BE Java không nhận mảng bọc ngoài).
+ * Ảnh gắn sự kiện: POST /assets/events/:eventId/images sau khi có `data.events` (thường khi hoàn tất công việc).
  */
 export const updateAssetItemsMaintenanceBatch = async (
   payload: AssetMaintenanceBatchUpdateRequest
 ): Promise<AssetMaintenanceBatchUpdateApiResponse> => {
-  //const url = `${BACKEND_API_BASE}/assets/items/maintenance/batch`;
-  const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/maintenance/batch`;
-  /** Bật khi test cục bộ cùng BE (ngrok). */
-  // const url = `${FALLBACK_BACKEND_URL}/assets/items/maintenance/batch`;
+  const url = `${ASSETS_API_BASE}/assets/items/maintenance/batch`;
 
   try {
     logInspectionDebug("[AssetBatch]", "updateAssetItemsMaintenanceBatch", {
@@ -500,41 +497,38 @@ export const updateAssetItemsMaintenanceBatch = async (
       throw new Error("Missing auth token for maintenance batch update");
     }
 
-    const formData = new FormData();
-    formData.append("jobId", payload.jobId);
-
-    payload.updates.forEach((u, i) => {
-      const prefix = `updates[${i}]`;
-      formData.append(`${prefix}.assetId`, u.assetId);
-      formData.append(`${prefix}.conditionPercent`, String(u.conditionPercent));
-      formData.append(`${prefix}.note`, u.note);
+    const updatesJson = payload.updates.map((u) => {
+      const row: {
+        assetId: string;
+        conditionPercent: number;
+        note: string;
+        status?: string;
+      } = {
+        assetId: u.assetId,
+        conditionPercent: u.conditionPercent,
+        note: u.note,
+      };
       if (u.status != null && String(u.status).trim() !== "") {
-        formData.append(`${prefix}.status`, u.status);
+        row.status = u.status;
       }
-      const imgs = u.localImages;
-      if (imgs && imgs.length > 0) {
-        imgs.forEach((img, j) => {
-          const name = img.fileName ?? `maintenance-${i}-${j}.jpg`;
-          const type = img.mimeType ?? "image/jpeg";
-          formData.append(
-            `${prefix}.images`,
-            { uri: img.uri, name, type } as any
-          );
-        });
-      }
+      return row;
     });
 
-    // --- Cũ: JSON body (axios) — BE đổi sang form-data để gắn file sau này ---
-    // const response = await axiosClient.put<AssetMaintenanceBatchUpdateApiResponse>(url, payload);
-    // return response.data;
+    const body = JSON.stringify({ jobId: payload.jobId, updates: updatesJson });
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+      "Accept-Language": i18n.language || "vi",
+      "Content-Type": "application/json",
+    };
+    if (url.includes("ngrok")) {
+      headers["ngrok-skip-browser-warning"] = "true";
+    }
 
     const response = await fetch(url, {
       method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Accept-Language": i18n.language || "vi",
-      },
-      body: formData,
+      headers,
+      body,
     });
 
     const rawText = await response.text();
@@ -550,6 +544,16 @@ export const updateAssetItemsMaintenanceBatch = async (
         parsed && typeof parsed === "object" && "message" in parsed
           ? (parsed as { message?: string }).message
           : undefined;
+      const snippet =
+        rawText && rawText.length > 0
+          ? rawText.length > 400
+            ? `${rawText.slice(0, 400)}…`
+            : rawText
+          : "(empty body)";
+      logInspectionError("[AssetBatch]", "batch HTTP/parse", new Error(msg || `HTTP ${response.status}`), {
+        status: response.status,
+        bodySnippet: snippet,
+      });
       throw new Error(msg || `Maintenance batch failed (HTTP ${response.status})`);
     }
     if (parsed.success === false) {
@@ -875,6 +879,68 @@ export const uploadAssetItemImages = async (
   }
 
   invalidateAssetItemImagesCache(itemId);
+};
+
+/**
+ * Upload ảnh gắn với một sự kiện bảo trì (sau batch PUT maintenance).
+ * POST /api/assets/events/:eventId/images — form field `files` (lặp key, giống upload item).
+ */
+export const uploadAssetEventImages = async (
+  eventId: string,
+  images: AssetItemImageToUpload[]
+): Promise<void> => {
+  const id = String(eventId ?? "").trim();
+  if (!id || images.length === 0) return;
+
+  const token = useAuthStore.getState().token;
+  if (!token) {
+    throw new Error("Missing auth token for asset event image upload");
+  }
+
+  const url = `${ASSETS_API_BASE}/assets/events/${encodeURIComponent(id)}/images`;
+  const formData = new FormData();
+
+  images.forEach((img, idx) => {
+    const name = img.fileName ?? `event-${id}-${idx}.jpg`;
+    const type = img.mimeType ?? "image/jpeg";
+    formData.append(
+      "files",
+      {
+        uri: img.uri,
+        name,
+        type,
+      } as any
+    );
+  });
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    "Accept-Language": i18n.language || "vi",
+  };
+  if (url.includes("ngrok")) {
+    headers["ngrok-skip-browser-warning"] = "true";
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  const rawText = await response.text();
+  let parsed: { success?: boolean; message?: string } | null = null;
+  try {
+    parsed = rawText ? (JSON.parse(rawText) as { success?: boolean; message?: string }) : null;
+  } catch {
+    parsed = null;
+  }
+
+  const success = parsed && typeof parsed === "object" ? parsed.success : undefined;
+  const message = parsed?.message;
+
+  if (!response.ok || success === false) {
+    throw new Error(message || `Upload asset event images failed (HTTP ${response.status})`);
+  }
 };
 
 /**

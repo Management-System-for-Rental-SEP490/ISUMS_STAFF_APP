@@ -6,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   Switch,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -17,6 +16,7 @@ import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import { CustomAlert } from "../../../../shared/components/alert";
+import { RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
 import {
   createIssueExecution,
   createIssueQuote,
@@ -402,9 +402,8 @@ export default function StaffIssueNoteScreen() {
                 : t("staff_issue_note.banner_section_title_internal")}
             </Text>
             {bannerLoading ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator size="small" color={brandPrimary} />
-                <Text style={styles.hintText}>{t("common.loading")}</Text>
+              <View style={[styles.loadingRow, { flexDirection: "column", alignItems: "flex-start" }]}>
+                <RefreshLogoInline logoPx={22} showLabel />
               </View>
             ) : banners.length === 0 ? (
               <Text style={styles.hintText}>{t("staff_issue_note.banner_empty")}</Text>
@@ -496,7 +495,7 @@ export default function StaffIssueNoteScreen() {
             activeOpacity={0.85}
           >
             {submitting ? (
-              <ActivityIndicator size="small" color={neutral.surface} />
+              <RefreshLogoInline logoPx={20} />
             ) : (
               <Text style={styles.submitBtnText}>{t("staff_issue_note.submit_button")}</Text>
             )}

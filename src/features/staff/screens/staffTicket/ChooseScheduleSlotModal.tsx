@@ -9,7 +9,6 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  ActivityIndicator,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,6 +18,7 @@ import {
   type AvailableGeneratedSlotChoice,
 } from "../../../../shared/utils";
 import { brandPrimary } from "../../../../shared/theme/color";
+import { RefreshLogoInline, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import { staffTicketDetailStyles } from "./staffTicketDetailStyles";
 
 function parseSlotStartDate(choice: AvailableGeneratedSlotChoice): Date {
@@ -157,8 +157,7 @@ export default function ChooseScheduleSlotModal({
 
           {isLoading ? (
             <View style={staffTicketDetailStyles.slotLoadingWrap}>
-              <ActivityIndicator size="small" color={brandPrimary} />
-              <Text style={staffTicketDetailStyles.slotLoadingText}>{t("common.loading")}</Text>
+              <RefreshLogoInline logoPx={28} showLabel />
             </View>
           ) : isError ? (
             <Text style={staffTicketDetailStyles.slotErrorText}>
@@ -275,10 +274,7 @@ export default function ChooseScheduleSlotModal({
 
           {isSubmitting && (
             <View style={staffTicketDetailStyles.slotConfirmLoadingOverlay}>
-              <ActivityIndicator size="large" color={brandPrimary} />
-              <Text style={staffTicketDetailStyles.slotConfirmLoadingText}>
-                {t("common.loading")}
-              </Text>
+              <RefreshLogoOverlay visible mode="page" />
             </View>
           )}
         </View>

@@ -8,6 +8,7 @@ export default {
         "back": "Quay lại",
         "no_data": "Không có dữ liệu",
         "loading": "Đang tải...",
+        "pull_to_refresh": "Kéo để làm mới",
         "error": "Lỗi",
         "success": "Thành công",
         "close": "Đóng",
@@ -741,6 +742,8 @@ export default {
         "maintenance_confirm_message": "Bạn muốn gửi {{count}} thiết bị đã cập nhật về hệ thống?",
         "maintenance_batch_success": "Cập nhật thiết bị thành công.",
         "maintenance_batch_error": "Không thể gửi danh sách cập nhật thiết bị.",
+        "maintenance_event_images_partial":
+          "Đã lưu cập nhật thiết bị nhưng không gắn được một số ảnh vào sự kiện bảo trì. Vui lòng thử lại sau.",
         "btn_confirm_inspection": "Xác nhận kiểm định",
         "toggle_broken_label": "Bị hỏng",
         "baseline_checkin": "Check-in: {{percent}}% · {{note}}",
