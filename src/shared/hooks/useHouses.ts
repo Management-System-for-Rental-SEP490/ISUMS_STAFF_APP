@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   fetchHousesScopedToStaff,
   getFunctionalAreasByHouseId,
@@ -23,12 +24,13 @@ export const HOUSES_KEYS = {
 };
 
 export const useHouses = () => {
+  const { i18n } = useTranslation();
   const token = useAuthStore((s) => s.token);
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const username = useAuthStore((s) => s.user);
 
   return useQuery({
-    queryKey: HOUSES_KEYS.listForStaff(username),
+    queryKey: [...HOUSES_KEYS.listForStaff(username), i18n.language],
     queryFn: fetchHousesScopedToStaff,
     enabled: isLoggedIn && Boolean(token),
   });
@@ -38,12 +40,13 @@ export const useHouses = () => {
  * Chi tiết một căn nhà theo ID (GET /api/houses/{id}) — dùng khi đã có houseId từ job/ticket.
  */
 export const useHouseById = (houseId: string | undefined | null) => {
+  const { i18n } = useTranslation();
   const token = useAuthStore((s) => s.token);
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const id = String(houseId ?? "").trim();
 
   return useQuery({
-    queryKey: HOUSES_KEYS.byId(id),
+    queryKey: [...HOUSES_KEYS.byId(id), i18n.language],
     queryFn: () => getHouseById(id),
     enabled: isLoggedIn && Boolean(token) && Boolean(id),
   });
@@ -55,8 +58,9 @@ export const useHouseById = (houseId: string | undefined | null) => {
  * - Enabled khi houseId có giá trị.
  */
 export const useFunctionalAreasByHouseId = (houseId: string) => {
+  const { i18n } = useTranslation();
   return useQuery({
-    queryKey: HOUSES_KEYS.functionalAreas(houseId),
+    queryKey: [...HOUSES_KEYS.functionalAreas(houseId), i18n.language],
     queryFn: () => getFunctionalAreasByHouseId(houseId),
     enabled: Boolean(houseId),
   });

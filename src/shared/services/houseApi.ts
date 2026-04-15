@@ -5,6 +5,7 @@
  */
 import axiosClient from "../api/axiosClient";
 import { BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
+import { resolveLocalizedJsonStringFromI18n } from "../utils/resolveLocalizedJsonString";
 import { getUserProfile } from "./userApi";
 import type {
   HousesApiResponse,
@@ -14,6 +15,19 @@ import type {
   HouseRegionFromApi,
   HouseFromApi,
 } from "../types/api";
+
+function localizeHouseFromApi(h: HouseFromApi): HouseFromApi {
+  return {
+    ...h,
+    name: resolveLocalizedJsonStringFromI18n(h.name),
+    functionalAreas: Array.isArray(h.functionalAreas)
+      ? h.functionalAreas.map((fa) => ({
+          ...fa,
+          name: resolveLocalizedJsonStringFromI18n(fa.name),
+        }))
+      : h.functionalAreas,
+  };
+}
 
 /** Chuẩn hóa response từ BE — hỗ trợ nhiều format: { data: [...] } hoặc mảng trực tiếp. */
 function normalizeHousesResponse(body: unknown): HousesApiResponse {
@@ -59,7 +73,10 @@ export const getHouses = async (): Promise<HousesApiResponse> => {
   const url = `${BACKEND_API_BASE}/houses`;
   const response = await axiosClient.get(url);
   const normalized = normalizeHousesResponse(response.data);
-  return normalized;
+  return {
+    ...normalized,
+    data: normalized.data.map(localizeHouseFromApi),
+  };
 };
 
 /**
@@ -69,7 +86,11 @@ export const getHouses = async (): Promise<HousesApiResponse> => {
 export const getHousesByRegionId = async (regionId: string): Promise<HousesApiResponse> => {
   const url = `${BACKEND_API_BASE}/houses/region/${encodeURIComponent(regionId)}`;
   const response = await axiosClient.get(url);
-  return normalizeHousesResponse(response.data);
+  const normalized = normalizeHousesResponse(response.data);
+  return {
+    ...normalized,
+    data: normalized.data.map(localizeHouseFromApi),
+  };
 };
 
 /**
@@ -83,13 +104,19 @@ export const getRegionsForStaff = async (staffId: string): Promise<HouseRegionFr
   const raw = body?.data;
   if (!body?.success || !Array.isArray(raw)) return [];
 
-  return raw.filter((r): r is HouseRegionFromApi => {
-    if (!r?.id) return false;
-    if (Array.isArray(r.staffIds) && r.staffIds.length > 0) {
-      return r.staffIds.includes(staffId);
-    }
-    return true;
-  });
+  return raw
+    .filter((r): r is HouseRegionFromApi => {
+      if (!r?.id) return false;
+      if (Array.isArray(r.staffIds) && r.staffIds.length > 0) {
+        return r.staffIds.includes(staffId);
+      }
+      return true;
+    })
+    .map((r) => ({
+      ...r,
+      name: resolveLocalizedJsonStringFromI18n(r.name),
+      description: resolveLocalizedJsonStringFromI18n(r.description),
+    }));
 };
 
 /**
@@ -143,7 +170,7 @@ export const fetchHousesScopedToStaff = async (): Promise<HousesApiResponse> => 
   const allOk = perRegion.every((r) => r.success);
 
   return {
-    data: merged,
+    data: merged.map(localizeHouseFromApi),
     message: perRegion.find((r) => r.message)?.message ?? "Success",
     statusCode: 200,
     success: allOk,
@@ -158,7 +185,12 @@ export const fetchHousesScopedToStaff = async (): Promise<HousesApiResponse> => 
 export const getHouseById = async (id: string): Promise<HouseDetailApiResponse> => {
   const url = `${BACKEND_API_BASE}/houses/${encodeURIComponent(id)}`;
   const response = await axiosClient.get<HouseDetailApiResponse>(url);
-  return response.data;
+  const body = response.data;
+  if (!body?.data) return body;
+  return {
+    ...body,
+    data: localizeHouseFromApi(body.data),
+  };
 };
 
 /**
@@ -170,6 +202,14 @@ export const getFunctionalAreasByHouseId = async (
 ): Promise<ApiResponse<FunctionalAreaFromApi[]>> => {
   const url = `${BACKEND_API_BASE}/houses/functionalAreas/${encodeURIComponent(houseId)}`;
   const response = await axiosClient.get<ApiResponse<FunctionalAreaFromApi[]>>(url);
-  return response.data;
+  const body = response.data;
+  if (!body?.data || !Array.isArray(body.data)) return body;
+  return {
+    ...body,
+    data: body.data.map((fa) => ({
+      ...fa,
+      name: resolveLocalizedJsonStringFromI18n(fa.name),
+    })),
+  };
 };
 

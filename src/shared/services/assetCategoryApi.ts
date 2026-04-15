@@ -3,14 +3,24 @@
  * GET /api/assets/categories, POST, PUT /api/assets/categories/:id.
  */
 import axiosClient from "../api/axiosClient";
-import { ASSETS_API_BASE, BACKEND_API_BASE } from "../api/config";
+import { BACKEND_API_BASE } from "../api/config";
+import { resolveLocalizedJsonStringFromI18n } from "../utils/resolveLocalizedJsonString";
 import type {
   AssetCategoriesApiResponse,
+  AssetCategoryFromApi,
   CreateAssetCategoryRequest,
   CreateAssetCategoryApiResponse,
   UpdateAssetCategoryRequest,
   UpdateAssetCategoryApiResponse,
 } from "../types/api";
+
+function localizeAssetCategoryRow(c: AssetCategoryFromApi): AssetCategoryFromApi {
+  return {
+    ...c,
+    name: resolveLocalizedJsonStringFromI18n(c.name),
+    description: resolveLocalizedJsonStringFromI18n(c.description),
+  };
+}
 
 /**
  * Lấy danh sách danh mục thiết bị / loại sản phẩm (GET /api/assets/categories).
@@ -21,7 +31,12 @@ export const getAssetCategories = async (): Promise<AssetCategoriesApiResponse> 
   const response = await axiosClient.get<AssetCategoriesApiResponse>(
     `${BACKEND_API_BASE}/assets/categories`
   );
-  return response.data;
+  const body = response.data;
+  if (!body?.data || !Array.isArray(body.data)) return body;
+  return {
+    ...body,
+    data: body.data.map(localizeAssetCategoryRow),
+  };
 };
 
 /**
@@ -37,7 +52,9 @@ export const createAssetCategory = async (
     `${BACKEND_API_BASE}/assets/categories`,
     payload
   );
-  return response.data;
+  const body = response.data;
+  if (!body?.data) return body;
+  return { ...body, data: localizeAssetCategoryRow(body.data) };
 };
 
 /**
@@ -53,6 +70,8 @@ export const updateAssetCategory = async (
     `${BACKEND_API_BASE}/assets/categories/${id}`,
     payload
   );
-  return response.data;
+  const body = response.data;
+  if (!body?.data) return body;
+  return { ...body, data: localizeAssetCategoryRow(body.data) };
 };
 

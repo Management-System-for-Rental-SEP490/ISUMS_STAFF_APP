@@ -7,6 +7,7 @@ import axiosClient from "../api/axiosClient";
 import { logInspectionDebug, logInspectionError } from "../utils/inspectionDebugLog";
 import { ASSETS_API_BASE, BACKEND_API_BASE } from "../api/config";
 import i18n from "../i18n";
+import { resolveLocalizedJsonStringFromI18n } from "../utils/resolveLocalizedJsonString";
 import { useAuthStore } from "../../store/useAuthStore";
 import {
   normalizeAssetItemStatusFromApi,
@@ -18,6 +19,7 @@ import {
   type CreateAssetItemApiResponse,
   type UpdateAssetItemRequest,
   type UpdateAssetItemApiResponse,
+  type IotControllerHouseDataFromApi,
   type IotDevicesByHouseApiResponse,
   type AttachAssetTagRequest,
   type AttachAssetTagApiResponse,
@@ -113,6 +115,7 @@ function normalizeAssetItemFromResponse(
     null;
   return {
     ...raw,
+    displayName: resolveLocalizedJsonStringFromI18n(raw.displayName),
     nfcTag: nfcStr !== "" ? nfcStr : null,
     qrTag: qrStr !== "" ? qrStr : null,
     status: normalizeAssetItemStatusFromApi(raw.status),
@@ -120,6 +123,21 @@ function normalizeAssetItemFromResponse(
       functionAreaId != null && String(functionAreaId).trim() !== ""
         ? String(functionAreaId).trim()
         : null,
+  };
+}
+
+function normalizeIotControllerHouseData(
+  data: IotControllerHouseDataFromApi
+): IotControllerHouseDataFromApi {
+  return {
+    ...data,
+    houseName: resolveLocalizedJsonStringFromI18n(data.houseName),
+    areaName: data.areaName != null ? resolveLocalizedJsonStringFromI18n(data.areaName) : null,
+    devices: (data.devices ?? []).map((d) => ({
+      ...d,
+      displayName: resolveLocalizedJsonStringFromI18n(d.displayName),
+      areaName: d.areaName != null ? resolveLocalizedJsonStringFromI18n(d.areaName) : null,
+    })),
   };
 }
 
@@ -238,7 +256,12 @@ export const getIotDevicesByHouseId = async (
 ): Promise<IotDevicesByHouseApiResponse> => {
   const url = `${BACKEND_API_BASE}/assets/iot-devices/house/${encodeURIComponent(houseId)}`;
   const response = await axiosClient.get<IotDevicesByHouseApiResponse>(url);
-  return response.data;
+  const body = response.data;
+  if (!body?.data || typeof body.data !== "object") return body;
+  return {
+    ...body,
+    data: normalizeIotControllerHouseData(body.data),
+  };
 };
 
 /**

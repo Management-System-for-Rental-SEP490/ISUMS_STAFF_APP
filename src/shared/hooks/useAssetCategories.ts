@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   getAssetCategories,
   createAssetCategory,
@@ -22,8 +23,9 @@ export const ASSET_CATEGORY_KEYS = {
 };
 
 export const useAssetCategories = () => {
+  const { i18n } = useTranslation();
   return useQuery({
-    queryKey: ASSET_CATEGORY_KEYS.all,
+    queryKey: [...ASSET_CATEGORY_KEYS.all, i18n.language],
     queryFn: getAssetCategories,
     refetchOnMount: "always",
   });

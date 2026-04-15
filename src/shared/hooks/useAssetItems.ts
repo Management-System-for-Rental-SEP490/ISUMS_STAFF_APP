@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   getAssetItems,
   getAssetItemsByHouseId,
@@ -79,14 +80,15 @@ export const IOT_DEVICE_KEYS = {
  *   `useAssetItems({ houseId, categoryId })`
  */
 export const useAssetItems = (params: UseAssetItemsParams = {}) => {
+  const { i18n } = useTranslation();
   const { houseId, categoryId } = params;
 
   // Chọn queryKey phù hợp với loại filter.
   const queryKey = houseId
-    ? ASSET_ITEM_KEYS.byHouse(houseId, categoryId)
-    : ASSET_ITEM_KEYS.byCategory(categoryId);
+    ? ([...ASSET_ITEM_KEYS.byHouse(houseId, categoryId), i18n.language] as const)
+    : ([...ASSET_ITEM_KEYS.byCategory(categoryId), i18n.language] as const);
 
-  return useQuery<AssetItemsApiResponse, unknown, AssetItemsApiResponse, ReturnType<typeof ASSET_ITEM_KEYS.byCategory> | ReturnType<typeof ASSET_ITEM_KEYS.byHouse>>({
+  return useQuery<AssetItemsApiResponse, unknown, AssetItemsApiResponse, readonly unknown[]>({
     queryKey,
     queryFn: async () => {
       if (houseId) {
@@ -111,9 +113,10 @@ export const useAssetItems = (params: UseAssetItemsParams = {}) => {
  * Dùng khi cần tên hiển thị mà danh sách `useAssetItems` không chắc đã chứa item (vd. ticket chỉ có assetId).
  */
 export const useAssetItemById = (assetId: string | null | undefined) => {
+  const { i18n } = useTranslation();
   const id = typeof assetId === "string" ? assetId.trim() : "";
   return useQuery({
-    queryKey: ASSET_ITEM_KEYS.byId(id || "__none__"),
+    queryKey: [...ASSET_ITEM_KEYS.byId(id || "__none__"), i18n.language],
     queryFn: () => getAssetItemById(id),
     enabled: Boolean(id),
   });
@@ -124,8 +127,9 @@ export const useAssetItemById = (assetId: string | null | undefined) => {
  * API: GET /api/assets/iot-devices/house/{houseId}
  */
 export const useIotDevicesByHouseId = (houseId: string) => {
+  const { i18n } = useTranslation();
   return useQuery<IotDevicesByHouseApiResponse>({
-    queryKey: IOT_DEVICE_KEYS.byHouse(houseId),
+    queryKey: [...IOT_DEVICE_KEYS.byHouse(houseId), i18n.language],
     queryFn: () => getIotDevicesByHouseId(houseId),
     enabled: Boolean(houseId),
   });
@@ -210,9 +214,10 @@ export const useAssetItemsAllHouses = (
   houseIds: string[],
   categoryId: string | null | undefined
 ) => {
+  const { i18n } = useTranslation();
   const queries = useQueries({
     queries: houseIds.map((houseId) => ({
-      queryKey: ASSET_ITEM_KEYS.byHouse(houseId, categoryId),
+      queryKey: [...ASSET_ITEM_KEYS.byHouse(houseId, categoryId), i18n.language],
       /** Cùng endpoint với `useAssetItems({ houseId })` — tránh cùng queryKey nhưng queryFn khác (GET ?houseId= vs /house/:id) làm cache TanStack Query sai / trống. */
       queryFn: async () => {
         const res = await getAssetItemsByHouseId(houseId);
