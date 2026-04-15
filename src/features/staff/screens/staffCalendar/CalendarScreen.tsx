@@ -32,6 +32,7 @@ import { getWorkingDaysFromTemplate } from "../../data/mockStaffData";
 import type { WorkSlot } from "../../data/mockStaffData";
 import { useStaffSchedule } from "../../context/StaffScheduleContext";
 import DayOffActionModal from "./modals/DayOffActionModal";
+import { StaffWorkCalendarMonthModal } from "./modals/StaffWorkCalendarMonthModal";
 import {
   staffCalendarStyles,
   calendarWorkSlotCardSurface,
@@ -109,6 +110,7 @@ export default function CalendarScreen() {
   const queryClient = useQueryClient();
   const invalidateScheduleRelated = useInvalidateScheduleRelatedQueries();
   const [dayOffActionVisible, setDayOffActionVisible] = useState(false);
+  const [monthModalVisible, setMonthModalVisible] = useState(false);
   const [timetableRefreshing, setTimetableRefreshing] = useState(false);
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
   const [weekOffset, setWeekOffset] = useState(0);
@@ -203,6 +205,17 @@ export default function CalendarScreen() {
     });
   }, [route.params?.focusDateYmd, navigation]);
 
+  /** Bấm lại icon tab Lịch khi đang xem tuần khác → về tuần hiện tại (footerNavigator). */
+  useEffect(() => {
+    const token = route.params?.snapToCurrentWeek;
+    if (token == null) return;
+    if (weekOffset !== 0) {
+      setWeekOffset(0);
+      setSelectedDateYMD(null);
+    }
+    navigation.setParams({ snapToCurrentWeek: undefined });
+  }, [route.params?.snapToCurrentWeek, navigation, weekOffset]);
+
   useFocusEffect(
     useCallback(() => {
       invalidateScheduleRelated();
@@ -210,6 +223,18 @@ export default function CalendarScreen() {
   );
 
   const navigateWeek = (delta: number) => setWeekOffset((prev) => prev + delta);
+
+  const onMonthModalSelectDay = useCallback((ymd: string) => {
+    const target = parseYmdToLocalDate(ymd);
+    const today = new Date();
+    const mondayThis = getMonday(today);
+    const mondayTarget = getMonday(target);
+    const diffWeeks = Math.round(
+      (mondayTarget.getTime() - mondayThis.getTime()) / (7 * 24 * 60 * 60 * 1000)
+    );
+    setWeekOffset(diffWeeks);
+    setSelectedDateYMD(ymd);
+  }, []);
 
   const onTimetableRefresh = useCallback(async () => {
     setTimetableRefreshing(true);
@@ -246,7 +271,7 @@ export default function CalendarScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={staffCalendarStyles.weekNavMonthWrap}
-                onPress={() => setSelectedDateYMD(null)}
+                onPress={() => setMonthModalVisible(true)}
                 activeOpacity={0.7}
               >
                 <Text style={staffCalendarStyles.monthText}>{formatMonthYearSlashed(weekStart)}</Text>
@@ -400,6 +425,13 @@ export default function CalendarScreen() {
         insetAboveTabBar
         onPress={() => setDayOffActionVisible(true)}
         accessibilityLabel={t("staff_calendar.add_menu_open")}
+      />
+
+      <StaffWorkCalendarMonthModal
+        visible={monthModalVisible}
+        onClose={() => setMonthModalVisible(false)}
+        initialMonth={weekStart ?? new Date()}
+        onSelectDay={onMonthModalSelectDay}
       />
 
       <DayOffActionModal

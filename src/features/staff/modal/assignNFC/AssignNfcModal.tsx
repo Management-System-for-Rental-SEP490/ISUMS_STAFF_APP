@@ -17,9 +17,10 @@ import { RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
 import {
   useHouses,
   useAssetCategories,
-  useAssetItems,
+  useAssetItemsAllHouses,
   asAssetItemArray,
 } from "../../../../shared/hooks";
+import { getResolvedAssetItemTagValues } from "../../../../shared/services/assetItemApi";
 import { useKeyboardBottomInset } from "../../../../shared/hooks/useKeyboardBottomInset";
 import type {
   AssetItemFromApi,
@@ -139,10 +140,13 @@ export const AssignNfcModal: React.FC<AssignNfcModalProps> = ({
   const { data: housesData, isLoading: loadingHouses } = useHouses();
   const houses: HouseFromApi[] = housesData?.data ?? [];
 
+  /** Cùng cách Staff Home: gọi GET /assets/items/house/:id từng nhà rồi gộp — GET /assets/items không tham số dễ thiếu thiết bị mới / phân trang phía BE. */
+  const houseIds = useMemo(() => houses.map((h) => h.id), [houses]);
+
   const { data: categoriesData, isLoading: loadingCategories } = useAssetCategories();
   const categories: AssetCategoryFromApi[] = categoriesData?.data ?? [];
 
-  const { data: itemsData, isLoading: loadingItems } = useAssetItems({});
+  const { data: itemsData, isLoading: loadingItems } = useAssetItemsAllHouses(houseIds, null);
   const allItems: AssetItemFromApi[] = asAssetItemArray(itemsData?.data);
 
   const [selectedHouseId, setSelectedHouseId] = useState<string | null>(null);
@@ -197,24 +201,14 @@ export const AssignNfcModal: React.FC<AssignNfcModalProps> = ({
     if (sectionId === "house") setSelectedHouseId(itemId);
   }, []);
 
-  /** Thiết bị chưa có tag tương ứng (NFC hoặc QR) — dùng chung cho NFC & QR. */
+  /** Thiết bị chưa có tag tương ứng (NFC hoặc QR) — cùng quy tắc normalize như API (nfcTag/qrTag + tag active trong `tags`). */
   const devicesWithoutTag = useMemo(() => {
     return allItems.filter((i) => {
-      const tags = i.tags || [];
-
-      const hasNfc =
-        !!(i.nfcTag && i.nfcTag.trim()) ||
-        tags.some((tg) => tg.tagType === "NFC");
-
-      const hasQr =
-        !!(i.qrTag && i.qrTag.trim()) ||
-        tags.some((tg) => tg.tagType === "QR_CODE");
-
+      const { nfcTag: nfcResolved, qrTag: qrResolved } = getResolvedAssetItemTagValues(i);
       if (tagType === "QR_CODE") {
-        return !hasQr;
+        return !qrResolved;
       }
-
-      return !hasNfc;
+      return !nfcResolved;
     });
   }, [allItems, tagType]);
 

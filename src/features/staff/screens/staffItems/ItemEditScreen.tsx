@@ -16,6 +16,8 @@ import {
   Platform,
   Image,
   Modal,
+  FlatList,
+  useWindowDimensions,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { CustomAlert as Alert } from "../../../../shared/components/alert";
@@ -47,12 +49,14 @@ import {
   useDetachAssetTag,
   useFunctionalAreasByHouseId,
 } from "../../../../shared/hooks";
+import { isAxiosError } from "axios";
 import {
   getAssetItemByNfcId,
   getAssetItemById,
   getAssetItemImages,
   uploadAssetItemImages,
   deleteAssetItemImage,
+  isDuplicateTagConflictError,
   type AssetItemImageFromApi,
   type AssetItemImageToUpload,
 } from "../../../../shared/services/assetItemApi";
@@ -111,7 +115,10 @@ export default function ItemEditScreen() {
   const [pendingImagePreviews, setPendingImagePreviews] = useState<AssetItemImageToUpload[]>([]);
   /** Tăng version để bust cache (nếu BE overwrite URL cũ). */
   const [imagesVersion, setImagesVersion] = useState(0);
-  const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
+  const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
+  const imageModalListRef = useRef<FlatList<{ key: string; uri: string }>>(null);
+  const { width: windowWidth } = useWindowDimensions();
+  const imageModalPageWidth = Math.max(0, windowWidth - 32);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -125,14 +132,8 @@ export default function ItemEditScreen() {
         try {
           const newItem = await getAssetItemById(item.id);
           if (isActive && newItem) {
-            // Nếu API trả về nfcTag/qrTag null (do lỗi BE hoặc chưa sync) nhưng item ban đầu (từ params) có,
-            // thì ưu tiên hiển thị mã thẻ từ params (đặc biệt khi vừa quay lại từ Camera).
-            if (!newItem.nfcTag && item.nfcTag) {
-              newItem.nfcTag = item.nfcTag;
-            }
-            if (!newItem.qrTag && item.qrTag) {
-              newItem.qrTag = item.qrTag;
-            }
+            // Luôn tin kết quả GET — không gộp lại tag từ params khi API trả null,
+            // kẻo sau gỡ NFC/QR thành công vẫn hiển thị mã cũ.
             setLatestItem(newItem);
           }
         } catch (e) {
@@ -141,7 +142,7 @@ export default function ItemEditScreen() {
       };
       fetchLatest();
       return () => { isActive = false; };
-    }, [item.id, item.nfcTag, item.qrTag])
+    }, [item.id])
   );
 
   // Refresh ảnh khi item được load/cập nhật từ API — ưu tiên mảng `images` từ GET item, fallback GET .../images
@@ -438,7 +439,6 @@ export default function ItemEditScreen() {
           return;
         }
       } catch (e) {
-        // có thể log nếu cần; tạm thời bỏ qua để không chặn lưu khi chỉ lỗi mạng nhẹ
         console.log("Lỗi kiểm tra trùng NFC:", e);
       }
     }
@@ -531,8 +531,19 @@ export default function ItemEditScreen() {
         await finish();
       }
     } catch (e) {
-      const msg = e instanceof Error && e.message ? e.message : t("staff_item_create.error_message");
-      setUploadError(msg);
+      if (isDuplicateTagConflictError(e)) {
+        const ax = isAxiosError(e) ? e : null;
+        const body = ax?.response?.data as { message?: string } | undefined;
+        const detail = typeof body?.message === "string" ? body.message.trim() : "";
+        Alert.alert(
+          t("staff_item_edit.nfc_duplicate_title"),
+          detail || t("staff_item_edit.nfc_duplicate_message", { name: "—" })
+        );
+        setUploadError(null);
+      } else {
+        const msg = e instanceof Error && e.message ? e.message : t("staff_item_create.error_message");
+        setUploadError(msg);
+      }
       console.error("[ItemEditScreen] handleSubmit failed", e);
     } finally {
       setUploadingImages(false);
@@ -752,6 +763,15 @@ export default function ItemEditScreen() {
     ],
     [pendingImagePreviews, itemImages, imagesVersion]
   );
+
+  useEffect(() => {
+    if (activeImageIndex == null || previewCards.length === 0) return;
+    const index = Math.min(Math.max(0, activeImageIndex), previewCards.length - 1);
+    const timer = setTimeout(() => {
+      imageModalListRef.current?.scrollToIndex({ index, animated: false });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [activeImageIndex, previewCards]);
 
   return (
     <View style={itemScreenStyles.container}>
@@ -1130,7 +1150,7 @@ export default function ItemEditScreen() {
                     style={itemScreenStyles.imageStripScroll}
                     contentContainerStyle={itemScreenStyles.imageStrip}
                   >
-                    {previewCards.map((card) => (
+                    {previewCards.map((card, index) => (
                       <View
                         key={card.key}
                         style={[itemScreenStyles.imageThumb, itemScreenStyles.imageThumbHorizontal]}
@@ -1138,7 +1158,7 @@ export default function ItemEditScreen() {
                         <TouchableOpacity
                           style={{ flex: 1 }}
                           activeOpacity={0.85}
-                          onPress={() => setActiveImageUrl(card.uri)}
+                          onPress={() => setActiveImageIndex(index)}
                         >
                           <View style={itemScreenStyles.imageThumbInner}>
                             <Image
@@ -1256,37 +1276,62 @@ export default function ItemEditScreen() {
       </KeyboardAvoidingView>
 
       <Modal
-        visible={activeImageUrl != null}
+        visible={activeImageIndex !== null}
         transparent
         animationType="fade"
-        onRequestClose={() => setActiveImageUrl(null)}
+        onRequestClose={() => setActiveImageIndex(null)}
       >
-        <TouchableOpacity
-          style={itemScreenStyles.imageModalBackdrop}
-          activeOpacity={1}
-          onPress={() => setActiveImageUrl(null)}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-            style={itemScreenStyles.imageModalContent}
-          >
+        <View style={itemScreenStyles.imageModalBackdrop}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("common.close")}
+            style={itemScreenStyles.imageModalBackdropDismiss}
+            onPress={() => setActiveImageIndex(null)}
+          />
+          <View style={itemScreenStyles.imageModalContent}>
             <TouchableOpacity
               style={itemScreenStyles.imageModalClose}
               activeOpacity={0.8}
-              onPress={() => setActiveImageUrl(null)}
+              onPress={() => setActiveImageIndex(null)}
             >
               <Text style={itemScreenStyles.imageModalCloseText}>×</Text>
             </TouchableOpacity>
-            {activeImageUrl && (
-              <Image
-                source={{ uri: activeImageUrl }}
-                style={itemScreenStyles.imageModalImage}
-                resizeMode="contain" // contain: giữ nguyên tỷ lệ, cover: phủ đầy, stretch: giãn nở, repeat: lặp lại
+            {activeImageIndex !== null && previewCards.length > 0 ? (
+              <FlatList
+                ref={imageModalListRef}
+                data={previewCards}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled
+                style={itemScreenStyles.imageModalPager}
+                keyExtractor={(item) => item.key}
+                getItemLayout={(_, index) => ({
+                  length: imageModalPageWidth,
+                  offset: imageModalPageWidth * index,
+                  index,
+                })}
+                renderItem={({ item }) => (
+                  <View style={{ width: imageModalPageWidth, flex: 1 }}>
+                    <Image
+                      source={{ uri: item.uri }}
+                      style={itemScreenStyles.imageModalImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                )}
+                onScrollToIndexFailed={(info) => {
+                  setTimeout(() => {
+                    imageModalListRef.current?.scrollToIndex({
+                      index: info.index,
+                      animated: false,
+                    });
+                  }, 100);
+                }}
               />
-            )}
-          </TouchableOpacity>
-        </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
       </Modal>
 
       <ImageCaptureModal

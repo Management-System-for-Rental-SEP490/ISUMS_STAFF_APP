@@ -1,9 +1,14 @@
 import { StyleSheet } from "react-native";
 import {
+  BRAND_AMBER,
+  BRAND_BLUE,
   brandPrimary,
   brandSecondary,
   brandTintBg,
 } from "../../../../shared/theme/color";
+
+/** Hoàn thành / xác nhận — xanh success tách biệt nút brand. */
+const ACTION_SUCCESS_GREEN = "#16a34a";
 /** Màu theo trạng thái job — chỉ palette thương hiệu; lỗi/quá hạn giữ đỏ để dễ nhận biết. */
 export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   CREATED: { bg: brandTintBg, text: brandSecondary },
@@ -217,7 +222,23 @@ export const staffWorkSlotStyles = StyleSheet.create({
     backgroundColor: brandPrimary,
   },
   actionBtnSuccess: {
+    backgroundColor: ACTION_SUCCESS_GREEN,
+  },
+  /** Bắt đầu ca — brand (giữ như primary). */
+  actionBtnStart: {
     backgroundColor: brandPrimary,
+  },
+  /** Bắt đầu cập nhật (job đang IN_PROGRESS) — xanh biểu thương hiệu, tách khỏi nút “bắt đầu bảo trì” (xanh lá). */
+  actionBtnStartUpdate: {
+    backgroundColor: BRAND_BLUE,
+  },
+  /** Ghi nhận sửa chữa — cam đất. */
+  actionBtnRepairNote: {
+    backgroundColor: BRAND_AMBER,
+  },
+  /** Xác nhận kiểm định — xanh biển. */
+  actionBtnVerify: {
+    backgroundColor: BRAND_BLUE,
   },
   actionBtnDisabled: {
     backgroundColor: "#E2E8F0",

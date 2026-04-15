@@ -641,6 +641,8 @@ export default {
         "wait_error_ble_connect": "Bluetooth connection failed while connecting to the controller. Please try again and move closer to the device.",
         "wait_error_aws": "AWS device creation failed. Please check your network and try again later.",
         "wait_error_send": "Failed to send configuration to the controller. Please check Bluetooth connection and try again.",
+        "wait_error_wifi_password":
+          "The device may not connect to Wi‑Fi. Check the network name (SSID) and password — if they are wrong, the controller will stay offline.",
         "wait_error_token": "Failed to authenticate / fetch token from server. Please try again.",
         "wait_error_finalize": "Failed during finalizing & syncing. Please try again.",
         "wait_error_409":

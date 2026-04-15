@@ -642,6 +642,8 @@ export default {
         "wait_error_ble_connect": "Controller接続中にBluetooth接続に失敗しました。端末を近づけて再試行してください。",
         "wait_error_aws": "AWSでのデバイス作成に失敗しました。ネットワークを確認して、後でもう一度お試しください。",
         "wait_error_send": "Controllerへの設定送信に失敗しました。Bluetooth接続を確認して再試行してください。",
+        "wait_error_wifi_password":
+          "Wi‑Fiに接続できない可能性があります。SSIDとパスワードを確認してください。誤りがあるとコントローラーはオンラインになりません。",
         "wait_error_token": "サーバー認証/トークン取得に失敗しました。もう一度お試しください。",
         "wait_error_finalize": "最終処理と同期中に失敗しました。もう一度お試しください。",
         "wait_error_409":

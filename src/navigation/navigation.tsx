@@ -11,6 +11,7 @@ import { useAuthStore } from "../store/useAuthStore";
 import { RootStackParamList } from "../shared/types";
 import { StaffTabs } from "../shared/components/footerNavigator";
 import { RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
+import { neutral } from "../shared/theme/color";
 import CameraScreen from "../features/modal/camera/CameraScreen";
 import BuildingDetailScreen from "../features/staff/screens/staffHouse/BuildingDetailScreen";
 import TicketDetailScreen from "../features/staff/screens/staffTicket/TicketDetailScreen";
@@ -98,7 +99,13 @@ const Navigation = () => {
 
   if (!isReady) {
       return (
-          <View style={{ flex: 1, position: "relative" }}>
+          <View
+            style={{
+              flex: 1,
+              position: "relative",
+              backgroundColor: neutral.background,
+            }}
+          >
             {/* Hiển thị loading khi đang đọc state từ AsyncStorage vào store */}
             <RefreshLogoOverlay visible mode="page" />
           </View>
@@ -121,12 +128,12 @@ const Navigation = () => {
                   component={CameraScreen}
                   options={{
                     presentation: "modal",
-                    /** Nền đen phủ edge-to-edge (sau status bar / thanh điều hướng hệ thống), giống màn quét QR IoT. */
-                    statusBarTranslucent: true,
+                    /**
+                     * Edge-to-edge: không dùng statusBarTranslucent / statusBarBackgroundColor / navigationBar*
+                     * trong Native Stack (bị ignore + WARN từ react-native-edge-to-edge). Nền đen: contentStyle;
+                     * icon status bar: statusBarStyle.
+                     */
                     statusBarStyle: "light",
-                    statusBarBackgroundColor: "transparent",
-                    navigationBarTranslucent: true,
-                    navigationBarColor: "#00000000",
                     contentStyle: { backgroundColor: "#000000" },
                   }}
                 />

@@ -19,7 +19,7 @@ export function refreshControlAndroidGateProps(scrollAtTop: boolean, refreshing:
  * Gắn `onScrollForRefreshGate` + `scrollEventThrottle` vào ScrollView/FlatList,
  * kết hợp `refreshControl` luôn mount + `refreshControlAndroidGateProps` (Android).
  *
- * `onRefresh` thường gọi `refetch()` / API qua axios: **tối đa** chờ `DATA_LOAD_TIMEOUT_MS` (trần, không ép chờ đủ 8s).
+ * `onRefresh` thường gọi `refetch()` / API qua axios: **tối đa** chờ `DATA_LOAD_TIMEOUT_MS` (trần, không ép chờ đủ 4s).
  */
 export function useRefreshControlGate() {
   const [scrollAtTop, setScrollAtTop] = useState(true);

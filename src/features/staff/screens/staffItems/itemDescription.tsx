@@ -3,7 +3,7 @@
  * Nhận `item` từ route params; hiển thị đầy đủ thông tin (nhà, danh mục, tên, serial, NFC, tình trạng, trạng thái).
  * Có nút "Chỉnh sửa" để chuyển sang ItemEdit nếu cần cập nhật.
  */
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,9 @@ import {
   ScrollView,
   Image,
   Modal,
+  FlatList,
+  Pressable,
+  useWindowDimensions,
 } from "react-native";
 import { CustomAlert as Alert } from "../../../../shared/components/alert";
 import { RefreshLogoInline, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
@@ -83,7 +86,10 @@ export default function ItemDescriptionScreen() {
   const [itemImages, setItemImages] = useState<AssetItemImageFromApi[]>(() =>
     normalizeEmbeddedImages(initialItem.images)
   );
-  const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
+  const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
+  const imageModalListRef = useRef<FlatList<AssetItemImageFromApi>>(null);
+  const { width: windowWidth } = useWindowDimensions();
+  const imageModalPageWidth = Math.max(0, windowWidth - 32);
 
   const isPendingManagerApproval = useMemo(
     () => normalizeAssetItemStatusFromApi(item.status) === "WAITING_MANAGER_CONFIRM",
@@ -117,12 +123,7 @@ export default function ItemDescriptionScreen() {
           const latest = await getAssetItemById(initialItem.id);
           if (!isActive) return;
           if (latest) {
-            if (!latest.nfcTag && initialItem.nfcTag) {
-              latest.nfcTag = initialItem.nfcTag;
-            }
-            if (!latest.qrTag && initialItem.qrTag) {
-              latest.qrTag = initialItem.qrTag;
-            }
+            // Luôn tin kết quả GET — không gộp tag từ params khi API trả null (sau gỡ NFC/QR).
             setItem(latest);
             const embedded = normalizeEmbeddedImages(latest.images);
             if (embedded.length > 0) {
@@ -156,8 +157,17 @@ export default function ItemDescriptionScreen() {
       return () => {
         isActive = false;
       };
-    }, [initialItem.id, initialItem.nfcTag, initialItem.qrTag])
+    }, [initialItem.id])
   );
+
+  useEffect(() => {
+    if (activeImageIndex == null || itemImages.length === 0) return;
+    const index = Math.min(Math.max(0, activeImageIndex), itemImages.length - 1);
+    const timer = setTimeout(() => {
+      imageModalListRef.current?.scrollToIndex({ index, animated: false });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [activeImageIndex, itemImages]);
 
   const handleDetachNfc = () => {
     const trimmedNfc = (item.nfcTag || "").trim();
@@ -361,12 +371,12 @@ export default function ItemDescriptionScreen() {
                     style={itemScreenStyles.imageStripScroll}
                     contentContainerStyle={itemScreenStyles.imageStrip}
                   >
-                    {itemImages.map((img) => (
+                    {itemImages.map((img, index) => (
                       <TouchableOpacity
                         key={img.id}
                         style={[itemScreenStyles.imageThumb, itemScreenStyles.imageThumbHorizontal]}
                         activeOpacity={0.85}
-                        onPress={() => setActiveImageUrl(img.url)}
+                        onPress={() => setActiveImageIndex(index)}
                       >
                         <View style={itemScreenStyles.imageThumbInner}>
                           <Image source={{ uri: img.url }} style={itemScreenStyles.imageThumbImg} resizeMode="cover" />
@@ -426,33 +436,62 @@ export default function ItemDescriptionScreen() {
       )}
 
       <Modal
-        visible={activeImageUrl != null}
+        visible={activeImageIndex !== null}
         transparent
         animationType="fade"
-        onRequestClose={() => setActiveImageUrl(null)}
+        onRequestClose={() => setActiveImageIndex(null)}
       >
-        <TouchableOpacity
-          style={itemScreenStyles.imageModalBackdrop}
-          activeOpacity={1}
-          onPress={() => setActiveImageUrl(null)}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-            style={itemScreenStyles.imageModalContent}
-          >
+        <View style={itemScreenStyles.imageModalBackdrop}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("common.close")}
+            style={itemScreenStyles.imageModalBackdropDismiss}
+            onPress={() => setActiveImageIndex(null)}
+          />
+          <View style={itemScreenStyles.imageModalContent}>
             <TouchableOpacity
               style={itemScreenStyles.imageModalClose}
               activeOpacity={0.8}
-              onPress={() => setActiveImageUrl(null)}
+              onPress={() => setActiveImageIndex(null)}
             >
               <Text style={itemScreenStyles.imageModalCloseText}>×</Text>
             </TouchableOpacity>
-            {activeImageUrl && (
-              <Image source={{ uri: activeImageUrl }} style={itemScreenStyles.imageModalImage} resizeMode="contain" />
-            )}
-          </TouchableOpacity>
-        </TouchableOpacity>
+            {activeImageIndex !== null && itemImages.length > 0 ? (
+              <FlatList
+                ref={imageModalListRef}
+                data={itemImages}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled
+                style={itemScreenStyles.imageModalPager}
+                keyExtractor={(item) => item.id}
+                getItemLayout={(_, index) => ({
+                  length: imageModalPageWidth,
+                  offset: imageModalPageWidth * index,
+                  index,
+                })}
+                renderItem={({ item }) => (
+                  <View style={{ width: imageModalPageWidth, flex: 1 }}>
+                    <Image
+                      source={{ uri: item.url }}
+                      style={itemScreenStyles.imageModalImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                )}
+                onScrollToIndexFailed={(info) => {
+                  setTimeout(() => {
+                    imageModalListRef.current?.scrollToIndex({
+                      index: info.index,
+                      animated: false,
+                    });
+                  }, 100);
+                }}
+              />
+            ) : null}
+          </View>
+        </View>
       </Modal>
     </View>
   );

@@ -51,7 +51,7 @@ import {
   stackScreenTitleSideSlotStyle,
 } from "../../../../shared/components/StackScreenTitleBadge";
 import { ISSUE_TICKET_KEYS, useIssueTicketById } from "../../../../shared/hooks/useUserProfile";
-import { useHouses } from "../../../../shared/hooks/useHouses";
+import { useHouses, useHouseById } from "../../../../shared/hooks/useHouses";
 import { useAssetItemById } from "../../../../shared/hooks/useAssetItems";
 import { SCHEDULE_DATA_KEYS } from "../../hooks/useStaffScheduleData";
 import {
@@ -164,7 +164,12 @@ export default function TicketDetailScreen() {
   /** Khớp padding ngang backdrop (16 + 16) — độ rộng mỗi trang pager. */
   const imageModalPageWidth = Math.max(0, windowWidth - 32);
   const { data: housesRes } = useHouses();
-  const { data: assetDetail, refetch: refetchAssetDetail } = useAssetItemById(ticket?.assetId);
+  const { data: houseDetailRes, isPending: houseDetailPending } = useHouseById(ticket?.houseId);
+  const {
+    data: assetDetail,
+    refetch: refetchAssetDetail,
+    isPending: assetDetailPending,
+  } = useAssetItemById(ticket?.assetId);
   const [slotModalVisible, setSlotModalVisible] = useState(false);
   /** Sau khi gọi API confirm slot thành công (phiên hiện tại); reset khi đổi ticket. */
   const [slotRegistrationSubmitted, setSlotRegistrationSubmitted] = useState(false);
@@ -302,9 +307,17 @@ export default function TicketDetailScreen() {
   const createdAtStr = Number.isNaN(createdAt.getTime())
     ? ticket.createdAt
     : formatDdMmYyyy(createdAt);
-  const houseName = houseNameById.get(ticket.houseId) ?? ticket.houseId;
-  const assetName =
-    assetDetail?.displayName?.trim() || ticket.assetId;
+  const houseIdTrim = String(ticket.houseId ?? "").trim();
+  const houseNameFromList = houseIdTrim ? houseNameById.get(ticket.houseId)?.trim() : "";
+  const houseNameFromApi = houseDetailRes?.data?.name?.trim();
+  const houseNameResolved = houseNameFromList || houseNameFromApi || "";
+  const houseNameLoading = Boolean(houseIdTrim) && !houseNameResolved && houseDetailPending;
+  const houseName = houseNameResolved || (houseNameLoading ? "" : "—");
+
+  const assetIdTrim = String(ticket.assetId ?? "").trim();
+  const assetNameResolved = assetDetail?.displayName?.trim() || "";
+  const assetNameLoading = Boolean(assetIdTrim) && !assetNameResolved && assetDetailPending;
+  const assetName = assetNameResolved || (assetNameLoading ? "" : "—");
   const tenantPhone = ticket.tenantPhone ? ticket.tenantPhone : t("staff_ticket_list.phone_unavailable");
 
   const handleRegisterTime = () => {
@@ -381,15 +394,23 @@ export default function TicketDetailScreen() {
         >
           <View style={staffTicketDetailStyles.detailFieldRow}>
             <Text style={staffTicketDetailStyles.fieldLabel}>{t("staff_ticket_detail.device")}</Text>
-            <Text style={staffTicketDetailStyles.fieldValue} selectable>
-              {assetName}
-            </Text>
+            {assetNameLoading ? (
+              <RefreshLogoInline logoPx={16} showLabel={false} />
+            ) : (
+              <Text style={staffTicketDetailStyles.fieldValue} selectable>
+                {assetName}
+              </Text>
+            )}
           </View>
           <View style={staffTicketDetailStyles.detailFieldRow}>
             <Text style={staffTicketDetailStyles.fieldLabel}>{t("staff_ticket_detail.building")}</Text>
-            <Text style={staffTicketDetailStyles.fieldValue} selectable>
-              {houseName}
-            </Text>
+            {houseNameLoading ? (
+              <RefreshLogoInline logoPx={16} showLabel={false} />
+            ) : (
+              <Text style={staffTicketDetailStyles.fieldValue} selectable>
+                {houseName}
+              </Text>
+            )}
           </View>
           <View style={staffTicketDetailStyles.detailFieldRow}>
             <Text style={staffTicketDetailStyles.fieldLabel}>{t("staff_ticket_detail.tenant_phone")}</Text>

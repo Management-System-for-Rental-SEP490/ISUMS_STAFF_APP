@@ -286,22 +286,14 @@ export default function InspectionConfirmScreen() {
       if (!res?.success) {
         throw new Error(res?.message || t("staff_work_slot_detail.update_error"));
       }
-      const { startTimeIso } = await waitForWorkSlotCompletionSync({
+      navigateCalendarAfterCompletion(null);
+      void waitForWorkSlotCompletionSync({
         scheduleSlotId,
         jobId: inspectionId,
         kind: "inspection",
+      }).then(() => {
+        queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
       });
-      await queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
-      CustomAlert.alert(
-        t("staff_work_slot_detail.completion_alert_title"),
-        "",
-        [
-          {
-            text: t("common.close"),
-            onPress: () => navigateCalendarAfterCompletion(startTimeIso),
-          },
-        ]
-      );
     } catch (e: unknown) {
       logInspectionError("[InspectionConfirm]", "submit failed", e);
       CustomAlert.alert(

@@ -1,7 +1,7 @@
 /**
  * Màn hình danh sách thiết bị (Staff).
- * - Lọc danh mục + danh sách thiết bị trong dropdown (có tìm kiếm); ưu tiên nhà thuộc khu vực phụ trách.
- * - Xem mọi thiết bị; chỉnh sửa chỉ trong nhà được gán (ngoài khu vực → màn chỉ xem).
+ * - Chỉ thiết bị thuộc nhà phụ trách (GET /assets/items/house/:id gộp).
+ * - Lọc danh mục + dropdown có tìm kiếm; mở chỉnh sửa cho thiết bị trong khu vực phụ trách.
  */
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -19,7 +19,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MainTabParamList, RootStackParamList } from "../../../../shared/types";
 import {
   useAssetCategories,
-  useAssetItems,
+  useAssetItemsAllHouses,
   useHouses,
   useRefreshControlGate,
   asAssetItemArray,
@@ -64,6 +64,10 @@ export default function ItemListScreen() {
     () => new Set(staffHouses.map((h: HouseFromApi) => h.id).filter(Boolean)),
     [staffHouses]
   );
+  const staffHouseIds = useMemo(
+    () => staffHouses.map((h: HouseFromApi) => h.id).filter(Boolean),
+    [staffHouses]
+  );
 
   const {
     data: allHousesData,
@@ -87,18 +91,18 @@ export default function ItemListScreen() {
     return map;
   }, [allHousesCatalog, staffHouses]);
 
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  /** Mỗi lần vào màn (focus) tăng để DropdownBox luôn mở panel danh sách — kể cả khi tab giữ component mounted. */
+  const [itemListDropdownExpandSig, setItemListDropdownExpandSig] = useState(0);
+
   const {
     data: itemsData,
     isLoading,
     isError,
     refetch,
     isRefetching: itemsRefetching,
-  } = useAssetItems({});
+  } = useAssetItemsAllHouses(staffHouseIds, selectedCategoryId);
   const rawItems: AssetItemFromApi[] = asAssetItemArray(itemsData?.data);
-
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  /** Mỗi lần vào màn (focus) tăng để DropdownBox luôn mở panel danh sách — kể cả khi tab giữ component mounted. */
-  const [itemListDropdownExpandSig, setItemListDropdownExpandSig] = useState(0);
 
   const openCreateItem = () => {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate("ItemCreate");
@@ -107,18 +111,15 @@ export default function ItemListScreen() {
   const sortItemsForStaff = useCallback(
     (items: AssetItemFromApi[]) =>
       [...items].sort((a, b) => {
-        const inA = staffHouseIdSet.has(a.houseId) ? 0 : 1;
-        const inB = staffHouseIdSet.has(b.houseId) ? 0 : 1;
-        if (inA !== inB) return inA - inB;
         const nameA = houseById.get(a.houseId)?.name ?? a.houseId;
         const nameB = houseById.get(b.houseId)?.name ?? b.houseId;
         if (nameA !== nameB) return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
         return (a.displayName ?? "").localeCompare(b.displayName ?? "", undefined, { sensitivity: "base" });
       }),
-    [houseById, staffHouseIdSet]
+    [houseById]
   );
 
-  /** Nhóm thiết bị theo category; trong mỗi nhóm ưu tiên nhà thuộc khu vực staff. */
+  /** Nhóm thiết bị theo category (chỉ nhà phụ trách). */
   const itemsByCategory = useMemo(() => {
     const map = new Map<string, AssetItemFromApi[]>();
     for (const item of rawItems) {

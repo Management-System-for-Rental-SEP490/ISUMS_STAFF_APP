@@ -37,6 +37,8 @@ export type DropdownBoxItem = {
   cardCategory?: string;
   cardMeta?: string;
   cardFooter?: string;
+  /** `list` layout: tick xanh thay cho chevron (vd. thiết bị đã có nháp trong phiên). */
+  listShowDoneTick?: boolean;
   /** Khi set: render thay cho `cardFooter` (vẫn nên giữ `cardFooter` là chuỗi để lọc tìm kiếm). */
   cardFooterNode?: ReactNode;
 };
@@ -579,6 +581,8 @@ export function DropdownBox({
                                   >
                                     {selected ? "✓" : ""}
                                   </Text>
+                                ) : it.listShowDoneTick ? (
+                                  <Icons.checkCircle size={22} color={brandPrimary} />
                                 ) : (
                                   <Icons.chevronForward size={20} color={neutral.textSecondary} />
                                 )}

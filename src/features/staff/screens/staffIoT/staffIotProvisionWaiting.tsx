@@ -12,6 +12,7 @@ import {
   useProvisionIotControllerByHouseId,
   useProvisionIotNodeByHouseId,
 } from "../../../../shared/hooks";
+import { getIotDevicesByHouseId } from "../../../../shared/services/assetItemApi";
 import { CustomAlert } from "../../../../shared/components/alert";
 import { staffIotStyles as s } from "./staffIotStyles";
 import { StaffIotFlowScreenHeader } from "./staffIotFlowScreenHeader";
@@ -155,6 +156,10 @@ export default function StaffIotProvisionWaitingScreen() {
       return `${t("staff_iot.wait_error_409")}${technicalBlock}`;
     }
 
+    if (raw === "__WIFI_PASSWORD__" || String(err?.message) === "__WIFI_PASSWORD__") {
+      return t("staff_iot.wait_error_wifi_password");
+    }
+
     switch (p) {
       case "scanning_ble":
         return `${t("staff_iot.wait_error_ble_scan")}${technicalBlock}`;
@@ -205,6 +210,46 @@ export default function StaffIotProvisionWaitingScreen() {
           resolve(dev);
         }
       });
+    });
+  }
+
+  /** Firmware có thể gửi phản hồi qua cùng characteristic (base64) — bắt từ khóa lỗi WiFi. */
+  async function listenForWifiBleNack(device: Device): Promise<boolean> {
+    return new Promise((resolve) => {
+      let settled = false;
+      let sub: { remove: () => void } | undefined;
+      const done = (v: boolean) => {
+        if (settled) return;
+        settled = true;
+        try {
+          sub?.remove();
+        } catch {
+          /* ignore */
+        }
+        clearTimeout(to);
+        resolve(v);
+      };
+      try {
+        sub = device.monitorCharacteristicForService(SERVICE_UUID, CHAR_UUID, (_err, ch) => {
+          if (!ch?.value) return;
+          try {
+            const decoded = Buffer.from(ch.value, "base64").toString("utf8");
+            const u = decoded.toUpperCase();
+            if (
+              (u.includes("WIFI") || u.includes("SSID") || u.includes("AUTH")) &&
+              (u.includes("FAIL") || u.includes("ERR") || u.includes("WRONG") || u.includes("INVALID"))
+            ) {
+              done(true);
+            }
+          } catch {
+            /* ignore */
+          }
+        });
+      } catch {
+        done(false);
+        return;
+      }
+      const to = setTimeout(() => done(false), 4500);
     });
   }
 
@@ -299,6 +344,10 @@ export default function StaffIotProvisionWaitingScreen() {
           });
           await sendChunked(bleHandle, payload);
           iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 4 xong: đã gửi xong payload BLE");
+          const nack = await listenForWifiBleNack(bleHandle);
+          if (nack) {
+            throw new Error("__WIFI_PASSWORD__");
+          }
         } finally {
           await bleHandle.cancelConnection().catch(() => {});
           if (activeBleDeviceRef.current === bleHandle) activeBleDeviceRef.current = null;
@@ -308,9 +357,22 @@ export default function StaffIotProvisionWaitingScreen() {
         lastPhase = "finalizing";
         setPhase("finalizing");
         iotProvSeqLog("controller", seqStep, CTRL_STEPS, "Bước 5: hoàn tất UI / quay lại danh sách");
+
+        let wifiHint = false;
+        try {
+          await new Promise((r) => setTimeout(r, 16000));
+          const devRes = await getIotDevicesByHouseId(houseId);
+          const st = String(devRes?.data?.status ?? "").toUpperCase();
+          wifiHint = Boolean(devRes?.success) && st === "OFFLINE";
+        } catch {
+          /* ignore */
+        }
+
         CustomAlert.alert(
           t("staff_iot.provision_success_title"),
-          t("staff_iot.provision_success_message"),
+          wifiHint
+            ? `${t("staff_iot.provision_success_message")}\n\n${t("staff_iot.wait_error_wifi_password")}`
+            : t("staff_iot.provision_success_message"),
           [{ text: t("common.close") }],
           { type: "success" }
         );

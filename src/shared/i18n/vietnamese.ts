@@ -641,6 +641,8 @@ export default {
         "wait_error_ble_connect": "Không kết nối được Bluetooth ở bước kết nối controller. Vui lòng thử lại và đưa điện thoại lại gần thiết bị.",
         "wait_error_aws": "Lỗi ở bước tạo thiết bị trên AWS. Vui lòng kiểm tra mạng hoặc thử lại sau.",
         "wait_error_send": "Lỗi ở bước gửi cấu hình sang controller. Vui lòng kiểm tra kết nối Bluetooth và thử lại.",
+        "wait_error_wifi_password":
+          "Thiết bị có thể không kết nối được WiFi. Hãy kiểm tra tên mạng (SSID) và mật khẩu — nếu sai, controller sẽ không lên mạng.",
         "wait_error_token": "Lỗi khi xác thực/lấy token từ máy chủ. Vui lòng thử lại.",
         "wait_error_finalize": "Lỗi ở bước hoàn tất và đồng bộ. Vui lòng thử lại.",
         "wait_error_409":

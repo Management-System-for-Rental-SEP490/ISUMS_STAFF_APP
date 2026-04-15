@@ -4,7 +4,6 @@ import {
   Easing,
   View,
   Text,
-  Image,
   StyleSheet,
   Platform,
   processColor,
@@ -15,12 +14,17 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { neutral } from "../theme/color";
+import { LogoHomeIcon } from "../theme/LogoIcon";
 import { refreshControlAndroidGateProps } from "../hooks/useRefreshControlGate";
 
-const LOGO = require("../../../assets/logob.png");
+/** Cùng graphic với `assets/icons/logo_home.svg` (viewBox 34×30). */
+const LOGO_HOME_H = (logoW: number) => Math.round(logoW * (30 / 34));
 
-const RING_PADDING = (px: number) => Math.max(4, Math.round(px * 0.14));
-const ringSize = (logoPx: number) => logoPx + RING_PADDING(logoPx) * 2;
+/** Đệm quanh logo — đĩa tròn trơn bọc ngoài (không stroke); tăng để logo cách mép tròn rõ hơn. */
+const DISK_PADDING = (px: number) => Math.max(6, Math.round(px * 0.22));
+const diskSize = (contentMaxPx: number) => contentMaxPx + DISK_PADDING(contentMaxPx) * 2;
+/** Một nguồn nền — tránh hai lớp trắng chồng nhau (vòng ngoài nhạt hơn vòng trong). */
+const DISK_SURFACE = "#FFFFFF";
 
 const REFRESH_SLIDE_OFFSET = 56;
 
@@ -36,7 +40,7 @@ const ANDROID_GHOST_COLORS = [
   ANDROID_TRANSPARENT,
 ] as unknown as ColorValue[];
 
-export type RefreshLogoOverlayMode = "pull" | "page";
+export type RefreshLogoOverlayMode = "pull" | "page" | "embed";
 
 type RefreshPullContentProps = {
   logoPx: number;
@@ -45,9 +49,7 @@ type RefreshPullContentProps = {
   showLabel?: boolean;
 };
 
-/**
- * Logo trong khung tròn + rotateY + chữ tùy chọn (pull, page, inline).
- */
+/** Đĩa tròn trơn bọc `LogoHomeIcon` (SVG home) — rotateY + perspective. */
 function RefreshPullContent({
   logoPx,
   labelKey = "common.loading",
@@ -55,7 +57,9 @@ function RefreshPullContent({
 }: RefreshPullContentProps) {
   const { t } = useTranslation();
   const flip = useRef(new Animated.Value(0)).current;
-  const rs = ringSize(logoPx);
+  const logoW = logoPx;
+  const logoH = LOGO_HOME_H(logoPx);
+  const rs = diskSize(Math.max(logoW, logoH));
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -75,6 +79,8 @@ function RefreshPullContent({
     outputRange: ["0deg", "360deg"],
   });
 
+  const r = rs / 2;
+
   return (
     <View
       accessibilityRole="progressbar"
@@ -82,29 +88,19 @@ function RefreshPullContent({
       style={{ alignItems: "center" }}
     >
       <Animated.View
+        collapsable={false}
         style={{
           width: rs,
           height: rs,
+          borderRadius: r,
+          backgroundColor: DISK_SURFACE,
+          overflow: "hidden",
           alignItems: "center",
           justifyContent: "center",
           transform: [{ perspective: 900 }, { rotateY }],
         }}
       >
-        <View
-          style={{
-            width: rs,
-            height: rs,
-            borderRadius: rs / 2,
-            backgroundColor: "#FFFFFF",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Image
-            source={LOGO}
-            style={{ width: logoPx, height: logoPx, resizeMode: "contain" }}
-          />
-        </View>
+        <LogoHomeIcon width={logoW} height={logoH} />
       </Animated.View>
       {showLabel ? (
         <Text
@@ -122,60 +118,49 @@ function RefreshPullContent({
   );
 }
 
-const LOGO_PX_INLINE_DEFAULT = 22;
-
-export type RefreshLogoInlineProps = {
-  visible?: boolean;
-  logoPx?: number;
-  labelKey?: string;
-  showLabel?: boolean;
-};
-
-/**
- * Logo xoay cùng hệ thống với pull/page, kích thước nhỏ — dùng trong nút, hàng, ô tải lẻ.
- */
-export function RefreshLogoInline({
-  visible = true,
-  logoPx = LOGO_PX_INLINE_DEFAULT,
-  labelKey = "common.loading",
-  showLabel = false,
-}: RefreshLogoInlineProps) {
-  if (!visible) return null;
-  return <RefreshPullContent logoPx={logoPx} labelKey={labelKey} showLabel={showLabel} />;
-}
-
 const LOGO_PX_PULL = 36;
-const LOGO_PX_PAGE = 56;
+/** Cùng cỡ pull-to-refresh — overlay giữa màn không lớn hơn indicator kéo. */
+const LOGO_PX_PAGE = LOGO_PX_PULL;
+const LOGO_PX_INLINE_DEFAULT = 22;
 
 export type RefreshLogoOverlayProps = {
   visible: boolean;
   /**
    * `pull` — mép trên list (kéo làm mới), có trượt từ trên.
-   * `page` — full khối tải dữ liệu (giữa màn / vùng flex).
+   * `page` — full khối tải dữ liệu (giữa màn / vùng cha `position:'relative'`).
+   * `embed` — ô nhỏ trong hàng/card/nút (cùng animation với page, không absolute full màn).
    */
   mode?: RefreshLogoOverlayMode;
   /** Chỉ `mode === 'pull'`: khoảng cách từ mép trên vùng cuộn. */
   offsetTop?: number;
   /** Key i18n cho chữ dưới logo (mặc định `common.loading`). */
   labelKey?: string;
+  /** Ghi đè kích thước logo (mặc định: embed 22, pull & page 36). */
+  logoPx?: number;
+  /** `embed`: mặc định false. `page` / `pull`: mặc định true. */
+  showLabel?: boolean;
 };
 
 /**
- * UI tải dữ liệu thống nhất: logo khung tròn + rotateY + chữ.
+ * UI tải dữ liệu thống nhất: đĩa tròn trơn + logo rotateY (perspective) + chữ.
  * - `pull`: dùng cùng gesture pull-to-refresh (đặt absolute trên list; spinner native ẩn — dùng `PullToRefreshControl`).
  * - `page`: phủ vùng cha (`flex:1` + `position:'relative'`) — căn giữa.
+ * - `embed`: khối gọn trong một hàng (nút, field, chip) — cùng hệ thống với page.
  */
 export function RefreshLogoOverlay({
   visible,
   mode = "pull",
   offsetTop = 10,
   labelKey = "common.loading",
+  logoPx: logoPxProp,
+  showLabel: showLabelProp,
 }: RefreshLogoOverlayProps) {
   const [mounted, setMounted] = useState(false);
   const hasShownRef = useRef(false);
   const translateY = useRef(new Animated.Value(-REFRESH_SLIDE_OFFSET)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.96)).current;
+  /** `page`: hiện logo ngay (không fade từ 0) để không nháy trắng khi tải màn đầu / đồng bộ. */
+  const opacity = useRef(new Animated.Value(mode === "page" ? 1 : 0)).current;
+  const scale = useRef(new Animated.Value(mode === "page" ? 1 : 0.96)).current;
 
   useEffect(() => {
     if (visible) {
@@ -202,7 +187,10 @@ export function RefreshLogoOverlay({
             useNativeDriver: true,
           }),
         ]).start();
-      } else {
+      } else if (mode === "page") {
+        opacity.setValue(1);
+        scale.setValue(1);
+      } else if (mode === "embed") {
         opacity.setValue(0);
         scale.setValue(0.96);
         Animated.parallel([
@@ -270,16 +258,52 @@ export function RefreshLogoOverlay({
 
   if (!visible && !mounted) return null;
 
-  const logoPx = mode === "pull" ? LOGO_PX_PULL : LOGO_PX_PAGE;
+  const logoPxResolved =
+    mode === "pull"
+      ? (logoPxProp ?? LOGO_PX_PULL)
+      : mode === "embed"
+        ? (logoPxProp ?? LOGO_PX_INLINE_DEFAULT)
+        : (logoPxProp ?? LOGO_PX_PAGE);
+  const showLabelResolved =
+    mode === "embed" ? (showLabelProp ?? false) : (showLabelProp ?? true);
+
+  if (mode === "embed") {
+    return (
+      <View
+        pointerEvents="none"
+        style={{ alignItems: "center", justifyContent: "center" }}
+      >
+        <Animated.View style={{ opacity, transform: [{ scale }] }}>
+          <RefreshPullContent
+            logoPx={logoPxResolved}
+            labelKey={labelKey}
+            showLabel={showLabelResolved}
+          />
+        </Animated.View>
+      </View>
+    );
+  }
 
   if (mode === "page") {
     return (
       <View
         pointerEvents="none"
-        style={[StyleSheet.absoluteFillObject, { justifyContent: "center", alignItems: "center", zIndex: 999 }]}
+        style={[
+          StyleSheet.absoluteFillObject,
+          {
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 999,
+            backgroundColor: neutral.background,
+          },
+        ]}
       >
         <Animated.View style={{ opacity, transform: [{ scale }] }}>
-          <RefreshPullContent logoPx={logoPx} labelKey={labelKey} />
+          <RefreshPullContent
+            logoPx={logoPxResolved}
+            labelKey={labelKey}
+            showLabel={showLabelResolved}
+          />
         </Animated.View>
       </View>
     );
@@ -303,9 +327,36 @@ export function RefreshLogoOverlay({
           opacity,
         }}
       >
-        <RefreshPullContent logoPx={logoPx} labelKey={labelKey} />
+        <RefreshPullContent logoPx={logoPxResolved} labelKey={labelKey} showLabel={showLabelResolved} />
       </Animated.View>
     </View>
+  );
+}
+
+export type RefreshLogoInlineProps = {
+  visible?: boolean;
+  logoPx?: number;
+  labelKey?: string;
+  showLabel?: boolean;
+};
+
+/**
+ * Alias `embed` — dùng `RefreshLogoOverlay` trong hàng/card/nút (đồng bộ hệ thống).
+ */
+export function RefreshLogoInline({
+  visible = true,
+  logoPx = LOGO_PX_INLINE_DEFAULT,
+  labelKey = "common.loading",
+  showLabel = false,
+}: RefreshLogoInlineProps) {
+  return (
+    <RefreshLogoOverlay
+      visible={visible}
+      mode="embed"
+      logoPx={logoPx}
+      labelKey={labelKey}
+      showLabel={showLabel}
+    />
   );
 }
 

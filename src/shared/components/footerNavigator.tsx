@@ -163,6 +163,19 @@ const DashboardListener = ({ // DashboardListener là một hàm để lắng ng
   }, 
 });
 
+/** Đang ở tab Lịch + bấm lại icon Lịch → CalendarScreen nhận param và về tuần hiện tại nếu đang xem tuần khác. */
+const CalendarTabListener = ({
+  navigation,
+}: {
+  navigation: NavigationProp<MainTabParamList>;
+}) => ({
+  tabPress: (e: { preventDefault: () => void }) => {
+    if (!navigation.isFocused()) return;
+    e.preventDefault();
+    navigation.navigate("Calendar", { snapToCurrentWeek: Date.now() });
+  },
+});
+
 // Nếu bạn không truyền prop bằng function:
 // <Tab.Screen name="Dashboard">
 //   {(props) => <HomeScreen {...props} />}
@@ -210,7 +223,11 @@ export const StaffTabs = () => {
     <StaffScheduleProvider>
       <Tab.Navigator screenOptions={createScreenOptions(insets.bottom)} initialRouteName="Dashboard">
         <Tab.Screen name="Ticket" component={TicketListScreen} />
-        <Tab.Screen name="Calendar" component={CalendarScreen} />
+        <Tab.Screen
+          name="Calendar"
+          component={CalendarScreen}
+          listeners={CalendarTabListener}
+        />
         {/* Khi nhấn tab Dashboard: mở Camera (quét QR/NFC) thay vì chuyển về Dashboard, giống Tenant */}
         <Tab.Screen
           name="Dashboard"

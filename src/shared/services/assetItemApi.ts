@@ -2,6 +2,7 @@
  * API liên quan đến thiết bị (asset items).
  * GET /api/assets/items, POST, PUT, DELETE /api/assets/items/:id.
  */
+import { isAxiosError } from "axios";
 import axiosClient from "../api/axiosClient";
 import { logInspectionDebug, logInspectionError } from "../utils/inspectionDebugLog";
 import { ASSETS_API_BASE, BACKEND_API_BASE } from "../api/config";
@@ -49,8 +50,20 @@ const normalizeTagValueForApi = (raw: string) => raw.trim();
  * - Bỏ hết khoảng trắng và chuyển sang UPPERCASE.
  * - Dùng khi cần so sánh hai mã NFC bất kể đang được lưu dính liền hay có khoảng trắng.
  */
-const normalizeTagValueForCompare = (raw: string) =>
-  raw.replace(/\s+/g, "").toUpperCase();
+export function normalizeTagValueForCompare(raw: string): string {
+  return String(raw ?? "").replace(/\s+/g, "").toUpperCase();
+}
+
+/** BE trả 409 hoặc message trùng tag khi POST /assets/tags hoặc PUT item. */
+export function isDuplicateTagConflictError(error: unknown): boolean {
+  if (!isAxiosError(error)) return false;
+  const status = error.response?.status;
+  if (status === 409) return true;
+  const data = error.response?.data as { message?: string } | undefined;
+  const msg = String(data?.message ?? error.message ?? "").toLowerCase();
+  if (status === 400 && /duplicate|already|exists|conflict|trùng|đã/.test(msg)) return true;
+  return /duplicate|already.*(assigned|exist)|tag.*(exist|taken)|conflict/i.test(msg);
+}
 
 /**
  * Lấy tagValue đang active từ mảng `tags` (POST /api/assets/tags tạo bản ghi có isActive).
@@ -108,6 +121,19 @@ function normalizeAssetItemFromResponse(
         ? String(functionAreaId).trim()
         : null,
   };
+}
+
+/**
+ * NFC/QR hiệu lực sau khi gộp trường gốc + tag active trong `tags` — cùng logic {@link normalizeAssetItemFromResponse}.
+ * Dùng khi lọc “thiết bị chưa gán tag” (vd. modal gán NFC/QR), tránh lệch với danh sách đã chuẩn hóa.
+ */
+export function getResolvedAssetItemTagValues(
+  raw: AssetItemFromApi
+): { nfcTag: string | null; qrTag: string | null } {
+  const n = normalizeAssetItemFromResponse(
+    raw as AssetItemFromApi & { nfc_tag?: string | null; qr_tag?: string | null }
+  );
+  return { nfcTag: n.nfcTag, qrTag: n.qrTag };
 }
 
 /**
@@ -256,6 +282,9 @@ export const getAssetItemById = async (id: string): Promise<AssetItemFromApi | u
 /**
  * Tra cứu thiết bị sau khi quét NFC hoặc QR (GET /api/assets/tags/asset/{tagValue}).
  * `data` trong response có thể là một object (Postman) hoặc mảng (tương thích cũ).
+ *
+ * Không fallback sang GET /assets/items + quét list: sau khi gỡ tag, endpoint theo tag có thể trả 404
+ * trong khi danh sách item vẫn còn trường nfcTag/tags lệch — dễ “tìm thấy” thiết bị dù tag đã detached.
  */
 export const getAssetItemByTag = async (
   tagValue: string
@@ -263,13 +292,6 @@ export const getAssetItemByTag = async (
   const normalized = tagValue.trim();
   if (!normalized) return undefined;
   const apiTagValue = normalizeTagValueForApi(normalized);
-
-  const tagMatchesScanned = (val: string | null | undefined) => {
-    if (val == null || String(val).trim() === "") return false;
-    return (
-      normalizeTagValueForCompare(String(val)) === normalizeTagValueForCompare(apiTagValue)
-    );
-  };
 
   try {
     const response = await axiosClient.get<GetAssetByTagValueApiResponse>(
@@ -295,27 +317,14 @@ export const getAssetItemByTag = async (
         function_area_id?: string | null;
       }
     );
-  } catch {
-    try {
-      const res = await getAssetItems();
-      const found = res.data.find((d) => {
-        const item = normalizeAssetItemFromResponse(
-          d as AssetItemFromApi & {
-            nfc_tag?: string | null;
-            qr_tag?: string | null;
-            function_area_id?: string | null;
-          }
-        );
-        if (tagMatchesScanned(item.nfcTag) || tagMatchesScanned(item.qrTag)) return true;
-        return (
-          Array.isArray(item.tags) &&
-          item.tags.some((t) => t.isActive !== false && tagMatchesScanned(t.tagValue))
-        );
-      });
-      return found ? normalizeAssetItemFromResponse(found as AssetItemFromApi & { nfc_tag?: string | null; qr_tag?: string | null }) : undefined;
-    } catch {
-      return undefined;
+  } catch (error) {
+    if (isAxiosError(error)) {
+      const status = error.response?.status;
+      if (status === 404 || status === 400 || status === 410) {
+        return undefined;
+      }
     }
+    return undefined;
   }
 };
 

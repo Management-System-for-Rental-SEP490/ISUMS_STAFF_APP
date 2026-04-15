@@ -12,8 +12,10 @@ export type MainTabParamList = {
   WaterUsage: undefined;
   Billing: undefined;
   Profile: undefined;
-  /** `focusDateYmd` (YYYY-MM-DD): nhảy đúng tuần/ngày trên lịch sau khi hoàn thành ca. */
-  Calendar: { focusDateYmd?: string; focusWorkSlotId?: string } | undefined;
+  /** `focusDateYmd` (YYYY-MM-DD): nhảy đúng tuần/ngày trên lịch sau khi hoàn thành ca. `snapToCurrentWeek`: bấm lại tab Lịch → về tuần hiện tại. */
+  Calendar:
+    | { focusDateYmd?: string; focusWorkSlotId?: string; snapToCurrentWeek?: number }
+    | undefined;
   /** Tab danh sách thiết bị (ItemListScreen) */
   Devices: undefined;
   /** Tab danh sách ticket dành cho Staff (thay vì Billing) */

@@ -19,7 +19,7 @@ import NfcManager, { NfcTech, Ndef } from "react-native-nfc-manager";
 import { ScanMode } from "../../../shared/types";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../../../store/useAuthStore";
-import { getAssetItemByNfcId } from "../../../shared/services/assetItemApi";
+import { getAssetItemByNfcId, isDuplicateTagConflictError } from "../../../shared/services/assetItemApi";
 import { useAttachAssetTag } from "../../../shared/hooks";
 import type { AssetItemFromApi } from "../../../shared/types/api";
 import { normalizeAssetItemStatusFromApi } from "../../../shared/types/api";
@@ -327,7 +327,11 @@ const CameraScreen = () => {
                     } 
                   },
                 ]);
-              } catch {
+              } catch (err) {
+                if (isDuplicateTagConflictError(err)) {
+                  Alert.alert(t("staff_nfc.duplicate_title"), t("staff_nfc.assign_error"));
+                  return;
+                }
                 Alert.alert(t("camera.error_title"), t("staff_nfc.assign_error"), [
                   { text: t("common.close"), onPress: () => navigation.goBack() },
                 ]);
