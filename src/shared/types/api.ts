@@ -30,14 +30,20 @@ export type IssueStatus =
   | "WAITING_TENANT_APPROVAL"
   | "WAITING_MANAGER_APPROVAL_QUOTE"
   | "WAITING_TENANT_APPROVAL_QUOTE"
+  | "WAITING_STAFF_COMPLETION"
   | "WAITING_PAYMENT"
+  | "WAITING_CASH_PAYMENT"
   | "DONE"
   | "CLOSED"
   | "CANCELLED"
   | string;
 
-/** Trạng thái ticket/issue có thể cập nhật từ Staff UI. */
-export type IssueTicketStatusUpdate = "IN_PROGRESS" | "DONE";
+/** Trạng thái ticket/issue có thể cập nhật từ Staff UI (PUT .../tickets/{id}/status). */
+export type IssueTicketStatusUpdate =
+  | "IN_PROGRESS"
+  | "DONE"
+  | "WAITING_PAYMENT"
+  | "WAITING_CASH_PAYMENT";
 
 /**
  * Ticket/issue trả về từ GET /api/issues/tickets/{ticketId}.
@@ -200,7 +206,7 @@ export interface FunctionalAreaFromApi {
   description: string | null;
   /** Trạng thái (VD: NORMAL). */
   status?: string;
-  /** Vị trí trên sơ đồ mặt bằng (BE); thiếu thì dùng fallback theo areaType trong UI. */
+  /** Tọa độ sơ đồ từ BE (legacy); app không còn dùng để bố cục — chỉ hiển thị danh sách chip. */
   position?: FunctionalAreaPosition;
   createdAt?: string;
   updatedAt?: string;
@@ -270,22 +276,33 @@ export interface HouseDetailApiResponse {
 }
 
 // =========================================================
-// Asset Categories API (/api/asset/categories)
+// Asset Categories API (GET/POST/PUT /api/assets/categories)
 // =========================================================
 
 /** Một danh mục thiết bị từ API GET /api/assets/categories (loại sản phẩm/thiết bị trong hệ thống). */
 export interface AssetCategoryFromApi {
   /** ID danh mục. */
   id: string;
-  /** Tên danh mục (ví dụ: IoT, Furniture, IT Equipment...). */
+  /** Tên mặc định hoặc theo Accept-Language (Swagger); kèm `nameTranslations` để đa ngôn ngữ đầy đủ. */
   name: string;
+  /** Giá trị `name` gốc từ BE trước khi client resolve theo locale (chuỗi thường hoặc JSON) — dùng khi ghép body PUT. */
+  nameRaw?: string;
+  /** Bản dịch tên theo vi / en / ja (khi BE trả GET /api/assets/categories). */
+  nameTranslations?: Record<string, string>;
   /** Phần trăm bồi thường khi hư hỏng (do BE quy định). */
   compensationPercent: number;
-  /** Mô tả chi tiết về danh mục. */
+  /** Mô tả; kèm `descriptionTranslations` khi BE trả map đa ngôn ngữ. */
   description: string;
+  /** Giá trị `description` gốc từ BE trước khi client resolve theo locale. */
+  descriptionRaw?: string;
+  /** Bản dịch mô tả theo vi / en / ja. */
+  descriptionTranslations?: Record<string, string>;
   /** Loại phát hiện (BE có thể trả về, ví dụ: EIF, NONI). */
-  detectionType?: string;
+  detectionType?: string | null;
 }
+
+/** Danh mục embed trong GET/PUT item — cùng shape GET /api/assets/categories. */
+export type AssetCategoryEmbeddedFromApi = AssetCategoryFromApi;
 
 /** Response body của API GET /api/asset/categories. */
 export interface AssetCategoriesApiResponse {
@@ -293,21 +310,21 @@ export interface AssetCategoriesApiResponse {
   data: AssetCategoryFromApi[];
 }
 
+/** Tên hoặc mô tả gửi POST/PUT /api/assets/categories — object theo mã ngôn ngữ (vi, en, ja). */
+export type AssetCategoryLocalizedWriteField = Record<string, string>;
+
 /**
- * Body gửi lên khi tạo danh mục thiết bị mới (POST /api/asset/categories).
- * Khớp với API: name, compensationPercent, description.
+ * Body gửi lên khi tạo danh mục thiết bị mới (POST /api/assets/categories).
+ * `name` / `description` là object đa ngôn ngữ, không còn một chuỗi đơn.
  */
 export interface CreateAssetCategoryRequest {
-  /** Tên danh mục (ví dụ: "Máy lạnh", "Bóng đèn"). */
-  name: string;
-  /** Phần trăm bồi thường khi hư hỏng (0–100 hoặc theo quy định BE). */
+  name: AssetCategoryLocalizedWriteField;
   compensationPercent: number;
-  /** Mô tả chi tiết về danh mục. */
-  description: string;
+  description: AssetCategoryLocalizedWriteField;
 }
 
 /**
- * Response body của API POST /api/asset/categories (tạo danh mục thành công).
+ * Response body của API POST /api/assets/categories (tạo danh mục thành công).
  * BE trả về data (danh mục vừa tạo), message, statusCode (201), success.
  */
 export interface CreateAssetCategoryApiResponse {
@@ -321,10 +338,7 @@ export interface CreateAssetCategoryApiResponse {
   success: boolean;
 }
 
-/**
- * Body gửi lên khi cập nhật danh mục (PUT /api/asset/categories/:id).
- * Cùng cấu trúc với Create: name, compensationPercent, description.
- */
+/** Body PUT /api/asset/categories/:id — cùng POST tạo danh mục. */
 export type UpdateAssetCategoryRequest = CreateAssetCategoryRequest;
 
 /**
@@ -386,8 +400,12 @@ export interface AssetItemFromApi {
   houseId: string;
   /** ID danh mục thiết bị (khóa ngoại sang AssetCategoryFromApi). */
   categoryId: string;
+  /** BE GET/PUT item có thể embed object category (kèm nameTranslations / descriptionTranslations). */
+  category?: AssetCategoryEmbeddedFromApi;
   /** Tên hiển thị cho thiết bị (ví dụ: Máy lạnh phòng khách). */
   displayName: string;
+  /** Map locale hoặc key Swagger → chuỗi; BE có thể trả kèm khi displayName là chuỗi canonical. */
+  translations?: Record<string, string>;
   /** Số serial (do nhà sản xuất). */
   serialNumber: string;
   /** NFC tag ID gắn với thiết bị (từ bảng asset tags), null nếu chưa gán. */
@@ -419,28 +437,51 @@ export interface AssetItemsApiResponse {
   data: AssetItemFromApi[];
 }
 
+/** BE có thể trả kèm metadata bổ sung (tùy phiên bản API). */
+export interface AssetItemCreateGeneratedLocales {
+  nameEn?: string | null;
+  nameJa?: string | null;
+}
+
+/** `displayName` trên POST Swagger: object ít nhất có key `vi`; thủ công thêm `en`, `ja`. */
+export type AssetItemDisplayNameMap = Record<string, string>;
+
 /**
- * Body gửi lên khi tạo thiết bị mới (POST /api/assets/items).
- * BE Postman: `nfcId`, `functionAreaId`, … (PUT có thể gửi tập trường tối thiểu).
+ * Body POST /api/assets/items (Swagger: metadata + `assetImages: []`, ảnh upload endpoint riêng).
+ * Không có `note` / mô tả trên create.
  */
 export interface CreateAssetItemRequest {
   houseId: string;
   categoryId: string;
-  displayName: string;
+  displayName: AssetItemDisplayNameMap;
   serialNumber: string;
-  /** Gán NFC — nhiều BE nhận `nfcId` trên POST. */
   nfcTag: string | null;
-  /** Gán QR — tương tự `qrId` trên POST nếu BE hỗ trợ. */
   qrTag: string | null;
-  /** Ưu tiên gửi lên POST dưới key `nfcId` (khớp Swagger/Postman). */
   nfcId?: string | null;
   qrId?: string | null;
   conditionPercent: number;
-  /** Ghi chú thiết bị (PUT/POST theo Swagger: `note`). */
-  note?: string | null;
-  /** Trạng thái (AssetStatus). */
   status: string;
-  /** Gán thiết bị vào khu vực chức năng (tùy chọn). */
+  functionAreaId?: string | null;
+  /** Luồng chuẩn: `[]` khi tạo metadata, sau đó POST multipart ảnh theo assetId. */
+  assetImages: string[];
+}
+
+/**
+ * Body PUT /api/assets/items/:id — BE bind `displayName` kiểu Map string→string (JSON object), tối thiểu `{ "vi": "..." }`.
+ * Không set `displayName` khi không đổi tên → không gửi field (tránh bind sai kiểu / ghi đè không cần).
+ */
+export interface UpdateAssetItemRequest {
+  houseId: string;
+  categoryId: string;
+  displayName?: AssetItemDisplayNameMap;
+  serialNumber: string;
+  nfcTag: string | null;
+  qrTag: string | null;
+  nfcId?: string | null;
+  qrId?: string | null;
+  conditionPercent: number;
+  note?: string | null;
+  status: string;
   functionAreaId?: string | null;
 }
 
@@ -450,10 +491,10 @@ export interface CreateAssetItemApiResponse {
   message: string;
   statusCode: number;
   success: boolean;
+  /** BE có thể trả thêm khi bật dịch tự động / workflow xác nhận. */
+  mode?: "AUTO" | "MANUAL";
+  generated?: AssetItemCreateGeneratedLocales;
 }
-
-/** Body cập nhật thiết bị (PUT /api/asset/items/:id). Có thể dùng cùng cấu trúc create. */
-export type UpdateAssetItemRequest = CreateAssetItemRequest;
 
 /** Response PUT /api/asset/items/:id. */
 export interface UpdateAssetItemApiResponse {
@@ -911,6 +952,58 @@ export function mapInspectionToJobFromApi(i: InspectionFromApi): JobFromApi {
     dueDate: String(i.updatedAt ?? i.createdAt ?? "").trim(),
     status: i.status,
   };
+}
+
+// =========================================================
+// App notifications (GET /api/notifications) — contract defensive (đồng bộ Mobile)
+// =========================================================
+
+/** Category theo contract notification domain (BE có thể mở rộng string). */
+export type AppNotificationCategory =
+  | "ISSUE"
+  | "BILLING"
+  | "CONTRACT"
+  | "SCHEDULE"
+  | "WORK_SLOT"
+  | "JOB"
+  | "INSPECTION"
+  | "LEAVE"
+  | "SYSTEM"
+  | "MAINTENANCE"
+  | "ACCESS"
+  | string;
+
+/** Một dòng thông báo nghiệp vụ từ REST (map khớp payload BE). */
+export interface AppNotificationFromApi {
+  /** Id bản ghi trên server (ưu tiên cho PATCH read). */
+  id: string;
+  eventId: string;
+  dedupeKey?: string | null;
+  type: string;
+  category: AppNotificationCategory;
+  entityType?: string | null;
+  entityId?: string | null;
+  houseId?: string | null;
+  actorRole?: string | null;
+  actorId?: string | null;
+  titleKey?: string | null;
+  titleI18n?: { vi?: string; en?: string; ja?: string } | null;
+  bodyParams?: Record<string, unknown> | null;
+  data?: Record<string, unknown> | null;
+  timestamp?: string | null;
+  createdAt?: string | null;
+  urgent?: boolean;
+  actionType?: string | null;
+  deepLink?: string | null;
+  read: boolean;
+  readAt?: string | null;
+}
+
+export interface AppNotificationsListResult {
+  items: AppNotificationFromApi[];
+  nextCursor: string | null;
+  /** true khi BE trả 404/501 hoặc lỗi được nuốt để không crash. */
+  fetchUnavailable?: boolean;
 }
 
 // =========================================================

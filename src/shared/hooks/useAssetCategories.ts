@@ -14,8 +14,7 @@ import type {
  * Hook dùng React Query để lấy danh sách danh mục thiết bị (asset categories).
  *
  * - Dùng cho dropdown chọn loại thiết bị, thanh filter category, v.v.
- * - refetchOnMount: "always" để mỗi lần vào màn có dùng categories đều gọi lại API,
- *   tránh hiển thị "Khác" do cache cũ khi BE đã có danh mục (IoT, Furniture, IT Equipment...).
+ * - Dùng staleTime mặc định global; sau create/update category mutation vẫn invalidate để list cập nhật.
  */
 export const ASSET_CATEGORY_KEYS = {
   /** Key gốc cho queries về asset categories. */
@@ -27,7 +26,6 @@ export const useAssetCategories = () => {
   return useQuery({
     queryKey: [...ASSET_CATEGORY_KEYS.all, i18n.language],
     queryFn: getAssetCategories,
-    refetchOnMount: "always",
   });
 };
 

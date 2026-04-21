@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { CustomAlert } from "../shared/components/alert";
 import { logoutKeycloak } from "../shared/services/keycloakAuth";
@@ -15,7 +16,7 @@ import { neutral } from "../shared/theme/color";
 import CameraScreen from "../features/modal/camera/CameraScreen";
 import BuildingDetailScreen from "../features/staff/screens/staffHouse/BuildingDetailScreen";
 import TicketDetailScreen from "../features/staff/screens/staffTicket/TicketDetailScreen";
-import CategoryScreen from "../features/staff/screens/staffCategory/categoryScreen";
+import CategoryScreen from "../features/staff/screens/staffCategory/CategoryScreen";
 import CategoryListScreen from "../features/staff/screens/staffCategory/CategoryListScreen";
 import CategoryEditScreen from "../features/staff/screens/staffCategory/CategoryEditScreen";
 import ItemCreateScreen from "../features/staff/screens/staffItems/ItemCreateScreen";
@@ -36,6 +37,8 @@ import StaffIotDetailScreen from "../features/staff/screens/staffIoT/staffIotDet
 import StaffNotificationScreen from "../features/staff/screens/staffnotification/StaffNotificationScreen";
 import { StaffScheduleProvider } from "../features/staff/context/StaffScheduleContext";
 import KeycloakChangePasswordWebViewOverlay from "../shared/components/KeycloakChangePasswordWebViewOverlay";
+import { useNotificationDeviceTokenLifecycle } from "../shared/hooks/useNotificationDeviceTokenLifecycle";
+import { DATA_LOAD_TIMEOUT_MS } from "../shared/api/config";
 
 // Wrapper components để bọc Provider cho các screen cần useStaffSchedule
 const BuildingDetailScreenWrapper = () => (
@@ -58,11 +61,15 @@ const navStyles = StyleSheet.create({
 
 const Navigation = () => {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const user = useAuthStore((state) => state.user);
   const role = useAuthStore((state) => state.role);
   const onboardedUsers = useAuthStore((state) => state.onboardedUsers);
   const [isReady, setIsReady] = useState(false);
+
+  /** Staff/manager: đăng ký FCM token khi đăng nhập — theo EXPO_PUBLIC_NOTIFICATION_DEVICE_TOKEN_ENABLED. */
+  useNotificationDeviceTokenLifecycle(Boolean(isLoggedIn && role !== "tenant"));
 
   // Kiểm tra xem User hiện tại đã xem Onboarding chưa
   const showOnboarding = isLoggedIn && user && !onboardedUsers.includes(user);
@@ -96,6 +103,15 @@ const Navigation = () => {
       );
     }
   }, [isReady, isLoggedIn, role, t]);
+
+  /** Sau DATA_LOAD_TIMEOUT_MS (4s) từ khi hydrate xong + đã đăng nhập → invalidateQueries (refresh dữ liệu). */
+  useEffect(() => {
+    if (!isReady || !isLoggedIn) return;
+    const id = setTimeout(() => {
+      queryClient.invalidateQueries();
+    }, DATA_LOAD_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [isReady, isLoggedIn, queryClient]);
 
   if (!isReady) {
       return (

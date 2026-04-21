@@ -150,6 +150,14 @@ const Icons = {
   expandLess: ({ size = 24, color = 'black' }: IconProps = {}) => (
     <MaterialIcons name="expand-less" size={size} color={color} />
   ),
+  /** Tiền mặt / thanh toán (modal chọn phương thức). */
+  attachMoney: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="attach-money" size={size} color={color} />
+  ),
+  /** VNPay / thanh toán trực tuyến. */
+  accountBalanceWallet: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="account-balance-wallet" size={size} color={color} />
+  ),
 };
 
 export default Icons;

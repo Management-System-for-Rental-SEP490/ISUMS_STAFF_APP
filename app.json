@@ -28,6 +28,7 @@
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
+      "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/logob.png"
@@ -73,6 +74,7 @@
         }
       ],
       "expo-web-browser",
+      "expo-notifications",
       [
         "expo-media-library",
         {

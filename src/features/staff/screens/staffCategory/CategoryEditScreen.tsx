@@ -1,9 +1,8 @@
 /**
  * Màn hình chỉnh sửa danh mục thiết bị (Staff), hiện dạng modal.
- * Nhận category từ route.params, form điền sẵn; gửi PUT /api/asset/categories/:id.
- * Chỉnh thành công thì goBack() về CategoryList.
+ * PUT body giống Swagger (`name` / `description` object, `compensationPercent`). Dịch tự động — Backend.
  */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -21,7 +20,12 @@ import type { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
 import { RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
+import { CustomAlert } from "../../../../shared/components/alert";
 import { useUpdateAssetCategory } from "../../../../shared/hooks";
+import {
+  mergeAssetCategoryPutPayloadFromEditableFields,
+  resolveLocalizedApiFieldFromI18n,
+} from "../../../../shared/utils/resolveLocalizedJsonString";
 import { categoryScreenStyles } from "./categoryScreenStyles";
 import {
   StackScreenTitleBadge,
@@ -38,29 +42,57 @@ type CategoryEditNavProp = NativeStackNavigationProp<RootStackParamList, "Catego
 type CategoryEditRouteProp = RouteProp<RootStackParamList, "CategoryEdit">;
 
 export default function CategoryEditScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<CategoryEditNavProp>();
   const route = useRoute<CategoryEditRouteProp>();
   const category = route.params.category;
 
-  const [name, setName] = useState(category.name);
+  const [name, setName] = useState(() =>
+    resolveLocalizedApiFieldFromI18n(category.name, category.nameTranslations)
+  );
   const [compensationPercent, setCompensationPercent] = useState(
     String(category.compensationPercent)
   );
-  const [description, setDescription] = useState(category.description ?? "");
+  const [description, setDescription] = useState(() =>
+    resolveLocalizedApiFieldFromI18n(category.description, category.descriptionTranslations)
+  );
 
-  // Đồng bộ state khi params đổi (phòng trường hợp navigate lại với category khác)
+  /** Khi cùng id nhưng list refetch sau PUT, `category` từ params đổi nội dung — cần sync form (chỉ [id] là không đủ). */
+  const categoryParamsSyncKey = useMemo(
+    () =>
+      JSON.stringify({
+        id: category.id,
+        name: category.name,
+        description: category.description,
+        compensationPercent: category.compensationPercent,
+        nameRaw: category.nameRaw ?? null,
+        descriptionRaw: category.descriptionRaw ?? null,
+        nt: category.nameTranslations ?? null,
+        dt: category.descriptionTranslations ?? null,
+      }),
+    [
+      category.id,
+      category.name,
+      category.description,
+      category.compensationPercent,
+      category.nameRaw,
+      category.descriptionRaw,
+      category.nameTranslations,
+      category.descriptionTranslations,
+    ]
+  );
+
   useEffect(() => {
-    setName(category.name);
+    setName(resolveLocalizedApiFieldFromI18n(category.name, category.nameTranslations));
     setCompensationPercent(String(category.compensationPercent));
-    setDescription(category.description ?? "");
-  }, [category.id]);
+    setDescription(
+      resolveLocalizedApiFieldFromI18n(category.description, category.descriptionTranslations)
+    );
+  }, [categoryParamsSyncKey, i18n.language]);
 
   const updateMutation = useUpdateAssetCategory();
   const isPending = updateMutation.isPending;
-  const isSuccess = updateMutation.isSuccess;
-  const error = updateMutation.error;
 
   const handleSubmit = () => {
     const nameTrim = name.trim();
@@ -73,18 +105,42 @@ export default function CategoryEditScreen() {
       updateMutation.reset();
       return;
     }
+    const merged = mergeAssetCategoryPutPayloadFromEditableFields(
+      category,
+      nameTrim,
+      description.trim(),
+      i18n.language
+    );
     updateMutation.mutate(
       {
         id: category.id,
         payload: {
-          name: nameTrim,
+          name: merged.name,
           compensationPercent: percent,
-          description: description.trim(),
+          description: merged.description,
         },
       },
       {
         onSuccess: () => {
-          navigation.goBack();
+          CustomAlert.alert(
+            t("common.success"),
+            t("staff_category_edit.success_message"),
+            [
+              {
+                text: t("common.close"),
+                onPress: () => navigation.goBack(),
+              },
+            ],
+            { type: "success" }
+          );
+        },
+        onError: () => {
+          CustomAlert.alert(
+            t("common.error"),
+            t("staff_category.error_message"),
+            undefined,
+            { type: "error" }
+          );
         },
       }
     );
@@ -171,6 +227,7 @@ export default function CategoryEditScreen() {
                 placeholderTextColor="#9CA3AF"
                 multiline
                 numberOfLines={4}
+                textAlignVertical="top"
                 editable={!isPending}
               />
             </View>
@@ -192,17 +249,6 @@ export default function CategoryEditScreen() {
                 </Text>
               )}
             </TouchableOpacity>
-
-            {isSuccess && (
-              <Text style={categoryScreenStyles.successText}>
-                {t("staff_category_edit.success_message")}
-              </Text>
-            )}
-            {error && (
-              <Text style={categoryScreenStyles.errorText}>
-                {t("staff_category.error_message")}
-              </Text>
-            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

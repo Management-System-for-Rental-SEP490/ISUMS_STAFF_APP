@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import { brandPrimary } from "../../../../shared/theme/color";
+import { brandPrimary, neutral } from "../../../../shared/theme/color";
 
 /**
  * Styles cho màn hình Tạo danh mục thiết bị (CategoryScreen).
@@ -73,6 +73,21 @@ export const categoryScreenStyles = StyleSheet.create({
   fieldSpacer: {
     marginTop: 18,
   },
+  /** Hàng có Switch (bật/tắt mô tả) — cùng ý với item create */
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 18,
+    marginBottom: 4,
+  },
+  toggleHint: {
+    fontSize: 12,
+    color: neutral.textMuted,
+    marginTop: 4,
+    lineHeight: 17,
+  },
   /** Nút Gửi */
   submitBtn: {
     marginTop: 24,
@@ -103,5 +118,9 @@ export const categoryScreenStyles = StyleSheet.create({
     fontSize: 14,
     color: brandPrimary,
     textAlign: "center",
+  },
+  /** Khoảng cách nhỏ hơn fieldSpacer (vd. sau khối pager thủ công). */
+  fieldSpacerTight: {
+    marginTop: 10,
   },
 });

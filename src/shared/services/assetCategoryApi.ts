@@ -3,8 +3,11 @@
  * GET /api/assets/categories, POST, PUT /api/assets/categories/:id.
  */
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE } from "../api/config";
-import { resolveLocalizedJsonStringFromI18n } from "../utils/resolveLocalizedJsonString";
+import { ASSET_ITEM_MUTATION_TIMEOUT_MS, BACKEND_API_BASE } from "../api/config";
+import {
+  mergeTranslationMapsFromApi,
+  resolveLocalizedApiFieldFromI18n,
+} from "../utils/resolveLocalizedJsonString";
 import type {
   AssetCategoriesApiResponse,
   AssetCategoryFromApi,
@@ -15,10 +18,32 @@ import type {
 } from "../types/api";
 
 function localizeAssetCategoryRow(c: AssetCategoryFromApi): AssetCategoryFromApi {
+  const nameRaw =
+    c.nameRaw != null ? String(c.nameRaw) : c.name != null ? String(c.name) : "";
+  const descriptionRaw =
+    c.descriptionRaw != null
+      ? String(c.descriptionRaw)
+      : c.description != null
+        ? String(c.description)
+        : "";
+  const r = c as AssetCategoryFromApi & {
+    name_translations?: Record<string, unknown>;
+    description_translations?: Record<string, unknown>;
+  };
+  const nameTranslations = mergeTranslationMapsFromApi(
+    r.nameTranslations as Record<string, unknown> | undefined,
+    r.name_translations
+  );
+  const descriptionTranslations = mergeTranslationMapsFromApi(
+    r.descriptionTranslations as Record<string, unknown> | undefined,
+    r.description_translations
+  );
   return {
     ...c,
-    name: resolveLocalizedJsonStringFromI18n(c.name),
-    description: resolveLocalizedJsonStringFromI18n(c.description),
+    nameRaw,
+    descriptionRaw,
+    name: resolveLocalizedApiFieldFromI18n(c.name, nameTranslations),
+    description: resolveLocalizedApiFieldFromI18n(c.description, descriptionTranslations),
   };
 }
 
@@ -42,7 +67,7 @@ export const getAssetCategories = async (): Promise<AssetCategoriesApiResponse> 
 /**
  * Tạo danh mục thiết bị mới (POST /api/assets/categories).
  * Gửi name, compensationPercent, description; BE trả về danh mục vừa tạo (có id).
- * @param payload - Đối tượng CreateAssetCategoryRequest (name, compensationPercent, description).
+ * @param payload - name / description là map đa ngôn ngữ (vi, en, ja), compensationPercent.
  * @returns Promise<CreateAssetCategoryApiResponse> - data là danh mục vừa tạo, statusCode 201.
  */
 export const createAssetCategory = async (
@@ -50,7 +75,8 @@ export const createAssetCategory = async (
 ): Promise<CreateAssetCategoryApiResponse> => {
   const response = await axiosClient.post<CreateAssetCategoryApiResponse>(
     `${BACKEND_API_BASE}/assets/categories`,
-    payload
+    payload,
+    { timeout: ASSET_ITEM_MUTATION_TIMEOUT_MS }
   );
   const body = response.data;
   if (!body?.data) return body;
@@ -68,7 +94,8 @@ export const updateAssetCategory = async (
 ): Promise<UpdateAssetCategoryApiResponse> => {
   const response = await axiosClient.put<UpdateAssetCategoryApiResponse>(
     `${BACKEND_API_BASE}/assets/categories/${id}`,
-    payload
+    payload,
+    { timeout: ASSET_ITEM_MUTATION_TIMEOUT_MS }
   );
   const body = response.data;
   if (!body?.data) return body;

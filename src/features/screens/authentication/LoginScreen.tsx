@@ -33,6 +33,7 @@ import { brandGradient } from "../../../shared/theme/color";
 import { RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import { useTranslation } from "react-i18next";
 import { useAndroidKeycloakWebViewSystemUi } from "../../../shared/hooks/useAndroidKeycloakWebViewSystemUi";
+import { LOGIN_OAUTH_EXCHANGE_DEADLINE_MS } from "../../../shared/api/config";
 
 type LoginNavigationProp = NativeStackNavigationProp<RootStackParamList, "AuthLogin">;
 
@@ -97,9 +98,14 @@ const LoginScreen = () => {
         if (isProcessing.current) {
           isProcessing.current = false;
           setIsLoading(false);
-          Alert.alert("Lỗi", "Quá thời gian đăng nhập. Vui lòng thử lại.");
+          Alert.alert(
+            t("common.error"),
+            t("login_timeout_message"),
+            [{ text: t("common.close") }],
+            { type: "error" }
+          );
         }
-      }, 15000);
+      }, LOGIN_OAUTH_EXCHANGE_DEADLINE_MS);
 
       try {
         const payload = await exchangeCodeForToken(code);
@@ -117,13 +123,17 @@ const LoginScreen = () => {
           return;
         }
         useAuthStore.getState().login(payload);
+        setIsLoading(false);
+        isProcessing.current = false;
       } catch (error) {
         clearTimeout(timeoutId);
         setIsLoading(false);
         isProcessing.current = false;
         Alert.alert(
-          "Đăng nhập thất bại",
-          error instanceof Error ? error.message : "Có lỗi xảy ra"
+          t("login_failed_title"),
+          error instanceof Error ? error.message : t("login_failed_generic"),
+          [{ text: t("common.close") }],
+          { type: "error" }
         );
       }
     } else {
@@ -132,7 +142,12 @@ const LoginScreen = () => {
         const error = url.searchParams.get("error");
         const errorDescription = url.searchParams.get("error_description");
         if (error) {
-          Alert.alert("Lỗi đăng nhập", errorDescription || error);
+          Alert.alert(
+            t("login_oauth_error_title"),
+            errorDescription || error,
+            [{ text: t("common.close") }],
+            { type: "error" }
+          );
         }
       } catch {
         // Ignore parsing errors

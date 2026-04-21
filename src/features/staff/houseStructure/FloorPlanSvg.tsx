@@ -1,31 +1,24 @@
 /**
- * Sơ đồ một tầng: Cover_Floor_Plan.png nền, nhãn khu vực theo position từ BE (hoặc fallback).
+ * Khu vực chức năng một tầng: mái + khung ngoài + sàn trong.
+ * **Tất cả khu trên một hàng ngang**, chia đều bề ngang trong khung.
  */
-import React, { useMemo } from "react";
-import { View, useWindowDimensions, Pressable, StyleSheet, Image } from "react-native";
-import Svg, { G, Rect, Text as SvgText } from "react-native-svg";
+import React from "react";
+import { View, useWindowDimensions, Pressable, StyleSheet, Text } from "react-native";
 import type { FunctionalAreaFromApi } from "../../../shared/types/api";
-import { brandPrimary } from "../../../shared/theme/color";
+import { brandPrimary, brandTintBg, neutral } from "../../../shared/theme/color";
 import { mapLabelForFunctionalArea } from "../../../shared/utils";
-import { FLOOR_PLAN_IMAGE_ASPECT, getPositionForArea } from "./floorPlanPositions";
+import { appTypography } from "../../../shared/utils/typography";
+
+const OUTER_PAD_X2 = 20;
+const INNER_PAD_X2 = 24;
+const INNER_BORDER_X2 = 2;
+const GAP = 8;
 
 interface FloorPlanSvgProps {
   areas: FunctionalAreaFromApi[];
   selectedAreaId: string;
   onSelectArea: (areaId: string) => void;
   accentColor?: string;
-}
-
-type AreaLayout = { area: FunctionalAreaFromApi; rect: { x: number; y: number; w: number; h: number } };
-
-function getAreaLayouts(areas: FunctionalAreaFromApi[]): AreaLayout[] {
-  return areas.map((area, i) => {
-    const pos = getPositionForArea(area, i);
-    return {
-      area,
-      rect: { x: pos.x, y: pos.y, w: pos.width, h: pos.height },
-    };
-  });
 }
 
 const FloorPlanSvg: React.FC<FloorPlanSvgProps> = ({
@@ -35,83 +28,63 @@ const FloorPlanSvg: React.FC<FloorPlanSvgProps> = ({
   accentColor = brandPrimary,
 }) => {
   const { width: screenWidth } = useWindowDimensions();
-  const planWidth = Math.min(screenWidth - 24, 440);
-  const planHeight = planWidth / FLOOR_PLAN_IMAGE_ASPECT;
-  const layout = useMemo(() => getAreaLayouts(areas), [areas]);
+  const frameWidth = Math.min(screenWidth - 24, 440);
 
   if (areas.length === 0) {
     return null;
   }
 
+  const innerContentW = frameWidth - OUTER_PAD_X2 - INNER_PAD_X2 - INNER_BORDER_X2;
+  const n = areas.length;
+  const totalGap = (n - 1) * GAP;
+  const baseChipW = Math.max(1, Math.floor((innerContentW - totalGap) / n));
+  const lastChipW = baseChipW + (innerContentW - totalGap - baseChipW * n);
+
+  const innerMinH = INNER_PAD_X2 + 48;
+  const roofW = frameWidth * 0.56;
+
   return (
     <View style={styles.container}>
-      <View style={[styles.planWrapper, { width: planWidth, height: planHeight }]} collapsable={false}>
-        <Image
-          source={require("../../../../assets/Cover_Floor_Plan.png")}
-          style={styles.backgroundImage}
-          resizeMode="contain"
-        />
-        <Svg width={planWidth} height={planHeight} viewBox="0 0 100 100" style={styles.svgOverlay}>
-          {layout.map(({ area, rect }) => {
-            const isSelected = selectedAreaId === area.id;
-            const areaLabel = mapLabelForFunctionalArea(area.name);
-            const centerX = rect.x + rect.w / 2;
-            const centerY = rect.y + rect.h / 2;
-            const frameWidth = Math.max(20, Math.min(Math.max(rect.w * 0.9, areaLabel.length * 2.2), 42));
-            const frameHeight = isSelected ? 33 : 33;
-            return (
-              <G key={area.id}>
-                <Rect
-                  x={centerX - frameWidth / 2}
-                  y={centerY - frameHeight / 2}
-                  width={frameWidth}
-                  height={frameHeight}
-                  rx={1.2}
-                  ry={1.2}
-                  fill={isSelected ? "#ffffff" : "#f8fafc"}
-                  fillOpacity={isSelected ? 0.98 : 0.9}
-                  stroke={isSelected ? accentColor : "#0f172a"}
-                  strokeWidth={isSelected ? 0.9 : 0.7}
-                />
-                <SvgText
-                  x={centerX}
-                  y={centerY}
-                  textAnchor="middle"
-                  fontSize={isSelected ? 6 : 5}
-                  alignmentBaseline="middle"
-                  fill={isSelected ? accentColor : "#0f172a"}
-                  fontWeight="700"
-                >
-                  {areaLabel}
-                </SvgText>
-              </G>
-            );
-          })}
-        </Svg>
-        {layout.map(({ area, rect }) => {
-          const isSelected = selectedAreaId === area.id;
-          const scale = isSelected ? 1.05 : 1;
-          const left = (rect.x / 100) * planWidth;
-          const top = (rect.y / 100) * planHeight;
-          const w = (rect.w / 100) * planWidth;
-          const h = (rect.h / 100) * planHeight;
-          return (
-            <Pressable
-              key={area.id}
-              style={[
-                styles.areaOverlay,
-                {
-                  left,
-                  top,
-                  width: w,
-                  height: h,
-                  transform: [{ scale }],
-                },
-              ]}
-              onPress={() => onSelectArea(area.id)}
-            />
-          );
-        })}
+      <View style={[styles.houseColumn, { width: frameWidth }]}>
+        <View style={[styles.roofCap, { width: roofW, height: 12 }]} />
+        <View style={styles.outerShell}>
+          <View style={[styles.innerFloor, { minHeight: innerMinH }]}>
+            <View style={[styles.chipsRow, { gap: GAP }]}>
+              {areas.map((area, index) => {
+                const isSelected = selectedAreaId === area.id;
+                const label = mapLabelForFunctionalArea(area.name);
+                const cellW = index === n - 1 ? lastChipW : baseChipW;
+                return (
+                  <Pressable
+                    key={area.id}
+                    accessibilityRole="button"
+                    onPress={() => onSelectArea(area.id)}
+                    style={({ pressed }) => [
+                      styles.chip,
+                      { width: cellW },
+                      {
+                        borderColor: isSelected ? accentColor : neutral.border,
+                        backgroundColor: isSelected ? brandTintBg : neutral.surface,
+                      },
+                      pressed && styles.chipPressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        appTypography.chip,
+                        styles.chipLabel,
+                        { color: isSelected ? accentColor : neutral.slate900 },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -119,25 +92,48 @@ const FloorPlanSvg: React.FC<FloorPlanSvgProps> = ({
 
 const styles = StyleSheet.create({
   container: { alignItems: "center", paddingVertical: 6 },
-  planWrapper: {
-    position: "relative",
-    borderRadius: 12,
-    overflow: "hidden",
+  houseColumn: { alignSelf: "center", alignItems: "center" },
+  roofCap: {
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 4,
+    backgroundColor: neutral.slate300,
+    marginBottom: 2,
   },
-  backgroundImage: {
-    ...StyleSheet.absoluteFillObject,
+  outerShell: {
     width: "100%",
-    height: "100%",
+    borderWidth: 2,
+    borderColor: neutral.slate300,
+    borderRadius: 14,
+    backgroundColor: neutral.backgroundSubtle,
+    paddingTop: 8,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
   },
-  svgOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
+  innerFloor: {
+    borderWidth: 1,
+    borderColor: neutral.border,
+    borderRadius: 12,
+    backgroundColor: neutral.backgroundElevated,
+    padding: 12,
   },
-  areaOverlay: {
-    position: "absolute",
-    backgroundColor: "transparent",
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    alignItems: "stretch",
+    justifyContent: "flex-start",
   },
+  chip: {
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  chipLabel: { textAlign: "center" },
+  chipPressed: { opacity: 0.88 },
 });
 
 export default FloorPlanSvg;

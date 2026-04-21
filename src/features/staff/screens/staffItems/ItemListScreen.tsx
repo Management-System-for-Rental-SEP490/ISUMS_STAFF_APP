@@ -10,7 +10,6 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
-import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -24,7 +23,6 @@ import {
   useRefreshControlGate,
   asAssetItemArray,
 } from "../../../../shared/hooks";
-import { getHouses } from "../../../../shared/services/houseApi";
 import { useAuthStore } from "../../../../store/useAuthStore";
 import { itemScreenStyles } from "./itemScreenStyles";
 import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
@@ -37,8 +35,6 @@ import { DropdownBox, type DropdownBoxSection } from "../../../../shared/compone
 type NavProp = BottomTabNavigationProp<MainTabParamList, "Devices">;
 
 type ItemListRow = { item: AssetItemFromApi; categoryName: string };
-
-const HOUSES_ALL_LOOKUP_KEY = ["houses", "allCatalogForItemList"] as const;
 
 export default function ItemListScreen() {
   const { t } = useTranslation();
@@ -58,6 +54,7 @@ export default function ItemListScreen() {
     data: housesData,
     refetch: refetchHouses,
     isRefetching: housesRefetching,
+    isPending: housesPending,
   } = useHouses();
   const staffHouses = housesData?.data ?? [];
   const staffHouseIdSet = useMemo(
@@ -69,27 +66,14 @@ export default function ItemListScreen() {
     [staffHouses]
   );
 
-  const {
-    data: allHousesData,
-    refetch: refetchAllHouses,
-    isRefetching: allHousesRefetching,
-  } = useQuery({
-    queryKey: HOUSES_ALL_LOOKUP_KEY,
-    queryFn: getHouses,
-    enabled: isLoggedIn && Boolean(token),
-  });
-  const allHousesCatalog = allHousesData?.data ?? [];
-
+  /** Chỉ cần nhà từ `useHouses` — mọi thiết bị list đều theo `staffHouseIds`; bỏ GET /houses toàn hệ thống (tiết kiệm 1 request mỗi lần vào màn). */
   const houseById = useMemo(() => {
     const map = new Map<string, HouseFromApi>();
-    for (const h of allHousesCatalog) {
-      if (h?.id) map.set(h.id, h);
-    }
     for (const h of staffHouses) {
       if (h?.id) map.set(h.id, h);
     }
     return map;
-  }, [allHousesCatalog, staffHouses]);
+  }, [staffHouses]);
 
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   /** Mỗi lần vào màn (focus) tăng để DropdownBox luôn mở panel danh sách — kể cả khi tab giữ component mounted. */
@@ -103,6 +87,14 @@ export default function ItemListScreen() {
     isRefetching: itemsRefetching,
   } = useAssetItemsAllHouses(staffHouseIds, selectedCategoryId);
   const rawItems: AssetItemFromApi[] = asAssetItemArray(itemsData?.data);
+
+  /**
+   * Full-page loading: chờ danh sách nhà (lần đầu) trước khi gộp query theo từng nhà — tránh UI “trống” hoặc chỉ spinner overlay
+   * khi `staffHouseIds` chưa kịp có từ `useHouses`; đồng thời giữ spinner khi đang tải thiết bị (có ít nhất một nhà).
+   */
+  const showFullPageLoading =
+    (isLoggedIn && Boolean(token) && housesPending) ||
+    (staffHouseIds.length > 0 && isLoading);
 
   const openCreateItem = () => {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate("ItemCreate");
@@ -265,23 +257,23 @@ export default function ItemListScreen() {
     />
   );
 
-  const listRefreshing =
-    housesRefetching || categoriesRefetching || itemsRefetching || allHousesRefetching;
+  const listRefreshing = housesRefetching || categoriesRefetching || itemsRefetching;
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
   const onPullRefresh = useCallback(() => {
-    return Promise.all([refetchHouses(), refetchCategories(), refetch(), refetchAllHouses()]);
-  }, [refetchHouses, refetchCategories, refetch, refetchAllHouses]);
+    return Promise.all([refetchHouses(), refetchCategories(), refetch()]);
+  }, [refetchHouses, refetchCategories, refetch]);
 
   useFocusEffect(
     useCallback(() => {
-      refetch();
-      refetchCategories();
-      refetchAllHouses();
-      setItemListDropdownExpandSig((n) => n + 1);
-    }, [refetch, refetchCategories, refetchAllHouses])
+      /** Hoãn tăng signal để không cùng commit với dữ liệu query mới — tránh DropdownBox/useEffect chồng setState (Maximum update depth). */
+      const t = setTimeout(() => {
+        setItemListDropdownExpandSig((n) => n + 1);
+      }, 0);
+      return () => clearTimeout(t);
+    }, [])
   );
 
-  if (isLoading) {
+  if (showFullPageLoading) {
     return (
       <View style={itemScreenStyles.container}>
         {staffTabHeader}

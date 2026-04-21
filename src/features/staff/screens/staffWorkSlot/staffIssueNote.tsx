@@ -55,6 +55,13 @@ import { staffFormShape } from "../../../../shared/styles/staffFormShape";
 import Icons from "../../../../shared/theme/icon";
 import { submittedIssueRepairTicketIdsInSession } from "./issueRepairSession";
 
+/** Hiển thị mã tham chiếu ngắn thay vì full UUID (tránh nhấp nháy/chười ở UI). */
+function formatShortAssetRef(assetId: string): string {
+  const compact = assetId.replace(/-/g, "");
+  const tail = compact.slice(-8);
+  return tail.length ? `…${tail}` : assetId;
+}
+
 type IssueNoteRouteProp = RouteProp<RootStackParamList, "StaffIssueNote">;
 type IssueNoteNavProp = NativeStackNavigationProp<RootStackParamList, "StaffIssueNote">;
 
@@ -64,12 +71,14 @@ export default function StaffIssueNoteScreen() {
   const keyboardInset = useKeyboardBottomInset();
   const navigation = useNavigation<IssueNoteNavProp>();
   const route = useRoute<IssueNoteRouteProp>();
+  /** `issueId` trên route = id ticket/issue; dùng làm `ticketId` cho POST /api/issues/quotes/{ticketId}/quote. */
   const { issueId, houseId, assetId } = route.params;
 
   const [conditionScore, setConditionScore] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [deviceDisplayName, setDeviceDisplayName] = useState(assetId);
+  /** `null` = đang tải tên thiết bị; không dùng UUID đầy đủ làm giá trị ban đầu để tránh nhấp nháy. */
+  const [deviceDisplayName, setDeviceDisplayName] = useState<string | null>(null);
   const [oldConditionScore, setOldConditionScore] = useState<number | null>(null);
 
   // ====== Phần báo giá (quote) theo API ======
@@ -128,22 +137,45 @@ export default function StaffIssueNoteScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    setDeviceDisplayName(null);
+    setOldConditionScore(null);
+    setConditionScore("");
+
+    const applyResolvedLabel = (asset: NonNullable<Awaited<ReturnType<typeof getAssetItemById>>>) => {
+      const name = asset.displayName?.trim();
+      setDeviceDisplayName(
+        name && name.length > 0
+          ? name
+          : t("staff_issue_note.device_name_fallback", { ref: formatShortAssetRef(assetId) })
+      );
+      if (typeof asset.conditionPercent === "number" && Number.isFinite(asset.conditionPercent)) {
+        setOldConditionScore(asset.conditionPercent);
+        setConditionScore(String(asset.conditionPercent));
+      }
+    };
+
     getAssetItemById(assetId)
       .then((asset) => {
-        if (cancelled || !asset) return;
-        if (asset.displayName?.trim()) {
-          setDeviceDisplayName(asset.displayName);
+        if (cancelled) return;
+        if (!asset) {
+          setDeviceDisplayName(
+            t("staff_issue_note.device_name_fallback", { ref: formatShortAssetRef(assetId) })
+          );
+          return;
         }
-        if (typeof asset.conditionPercent === "number" && Number.isFinite(asset.conditionPercent)) {
-          setOldConditionScore(asset.conditionPercent);
-          // Prefill giá trị cũ để staff chỉnh lại nhanh, không phải nhập từ đầu.
-          setConditionScore((prev) => (prev.trim() === "" ? String(asset.conditionPercent) : prev));
-        }
+        applyResolvedLabel(asset);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) {
+          setDeviceDisplayName(
+            t("staff_issue_note.device_name_fallback", { ref: formatShortAssetRef(assetId) })
+          );
+        }
+      });
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ đồng bộ theo `assetId`; không gắn `t` để tránh reset form khi đổi ngôn ngữ.
   }, [assetId]);
 
   useEffect(() => {
@@ -350,7 +382,17 @@ export default function StaffIssueNoteScreen() {
             <Text style={styles.deviceLabel}>{t("staff_issue_note.device_label")}</Text>
             <View style={styles.deviceRow}>
               <Icons.assignment size={18} color={neutral.slate500} />
-              <Text style={styles.deviceValue}>{deviceDisplayName}</Text>
+              <Text
+                style={[
+                  styles.deviceValue,
+                  deviceDisplayName === null && styles.deviceValueLoading,
+                ]}
+                numberOfLines={2}
+              >
+                {deviceDisplayName === null
+                  ? t("staff_issue_note.device_name_loading")
+                  : deviceDisplayName}
+              </Text>
             </View>
             {oldConditionScore != null ? (
               <Text style={styles.currentStatusText}>
@@ -571,6 +613,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "500",
     color: neutral.text,
+  },
+  deviceValueLoading: {
+    color: neutral.slate500,
+    fontWeight: "400",
   },
   currentStatusText: {
     marginTop: -4,

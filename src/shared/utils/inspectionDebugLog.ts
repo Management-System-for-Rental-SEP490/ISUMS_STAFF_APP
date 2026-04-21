@@ -2,8 +2,9 @@
  * Log debug cho luồng kiểm định / batch asset — dễ theo dõi trên Metro khi chưa có BE ổn định.
  * Bật mặc định trong __DEV__; có thể tắt bằng EXPO_PUBLIC_INSPECTION_DEBUG_LOG=false.
  *
- * Log API maintenance (getJobById / getInspectionById, …) chỉ in khi đang trong phiên luồng kiểm định
- * (màn chi tiết slot INSPECTION, InspectionConfirm, hoặc đồng bộ sau hoàn tất) — tránh spam khi enrich lịch Home.
+ * `logInspectionFlowDebug` và `logInspectionError` chỉ in khi đang trong phiên luồng kiểm định
+ * (`pushInspectionFlowDebugSession`: màn chi tiết slot INSPECTION, InspectionConfirm, đồng bộ sau hoàn tất)
+ * — tránh spam Metro khi enrich lịch Home / gọi GET maintenance ngoài phiên đó.
  */
 const ENABLED =
   typeof __DEV__ !== "undefined" &&
@@ -76,6 +77,10 @@ export function logInspectionFlowDebug(
   }
 }
 
+/**
+ * `console.warn` cho lỗi API luồng kiểm định / batch — cùng điều kiện phiên với `logInspectionFlowDebug`
+ * để lỗi 500 từ enrich lịch (gọi `getJobById` / `getInspectionById` hàng loạt) không tràn Metro.
+ */
 export function logInspectionError(
   prefix: InspectionLogPrefix,
   message: string,
@@ -83,6 +88,7 @@ export function logInspectionError(
   extra?: Record<string, unknown>
 ): void {
   if (!ENABLED) return;
+  if (!isInspectionFlowDebugEnabled()) return;
   const msg = err instanceof Error ? err.message : String(err);
   // eslint-disable-next-line no-console
   console.warn(prefix, message, msg, extra ? safeJson(extra) : "");

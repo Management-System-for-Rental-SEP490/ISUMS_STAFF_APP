@@ -21,8 +21,10 @@ import { useRoute, useNavigation, RouteProp, useFocusEffect } from "@react-navig
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import {
+  confirmIssueTicketCashPayment,
   getIssueTicketById,
   getIssueTicketImages,
+  postIssueTicketRepairComplete,
   type IssueTicketImageFromApi,
   updateIssueTicketStatus,
 } from "../../../../shared/services/issuesApi";
@@ -66,6 +68,7 @@ import { WorkSlotInspectionCheckInModalFlow } from "./WorkSlotInspectionCheckInM
 import { WorkSlotInspectionCheckOutModalFlow } from "./WorkSlotInspectionCheckOutModalFlow";
 import { WorkSlotMaintenanceModalFlow } from "./WorkSlotMaintenanceModalFlow";
 import { submittedIssueRepairTicketIdsInSession } from "./issueRepairSession";
+import { IssueRepairPaymentTypeModal } from "./paymentTypeSelect";
 import { MAX_MAINTENANCE_ASSET_IMAGES, type MaintenanceDraft } from "./staffWorkSlotModalTypes";
 import { useFunctionalAreasByHouseId, useHouseById } from "../../../../shared/hooks/useHouses";
 import { useAssetItemById } from "../../../../shared/hooks/useAssetItems";
@@ -104,6 +107,7 @@ function normalizeScheduleStatusKey(status: string | undefined): string {
 const JOB_STATUS_KEYS = new Set([
   "PENDING",
   "WAITING_MANAGER_CONFIRM",
+  "WAITING_STAFF_COMPLETION",
   "BOOKED",
   "BLOCKED",
   "NEED_RESCHEDULE",
@@ -204,6 +208,9 @@ export default function WorkSlotDetailScreen() {
   const [maintenanceSubmitted, setMaintenanceSubmitted] = useState(false);
   /** Issue IN_PROGRESS: đã gửi xong màn ghi nhận sửa chữa → chỉ hiện nút Hoàn thành. */
   const [issueRepairSubmitted, setIssueRepairSubmitted] = useState(false);
+  /** Sau POST repair-complete hoặc khi ticket đã WAITING_STAFF_COMPLETION — chọn Cash / VNPay. */
+  const [issuePaymentModalVisible, setIssuePaymentModalVisible] = useState(false);
+  const [issuePaymentChoiceLoading, setIssuePaymentChoiceLoading] = useState(false);
   const [maintenanceSubmitting, setMaintenanceSubmitting] = useState(false);
   const [maintenanceEditorLoading, setMaintenanceEditorLoading] = useState(false);
   const [maintenanceAssets, setMaintenanceAssets] = useState<AssetItemFromApi[]>([]);
@@ -314,7 +321,8 @@ export default function WorkSlotDetailScreen() {
           setJob(null);
           const st = String(res.data.status ?? "").toUpperCase();
           setIssueRepairSubmitted(
-            st === "IN_PROGRESS" && submittedIssueRepairTicketIdsInSession.has(res.data.id)
+            (st === "IN_PROGRESS" || st === "WAITING_STAFF_COMPLETION") &&
+              submittedIssueRepairTicketIdsInSession.has(res.data.id)
           );
         })
         .catch(() => {});
@@ -413,11 +421,57 @@ export default function WorkSlotDetailScreen() {
     [navigation, slot.date, slot.id]
   );
 
-  const handleCompleteIssueWorkSlot = async () => {
+  /**
+   * Staff bấm «Xác nhận hoàn thành» (IN_PROGRESS + đã ghi nhận sửa chữa) hoặc «Chọn phương thức thanh toán» (WAITING_STAFF_COMPLETION).
+   * - IN_PROGRESS: POST repair-complete → ticket thường chuyển WAITING_STAFF_COMPLETION → mở modal chọn Cash/VNPay.
+   * - WAITING_STAFF_COMPLETION: chỉ mở modal (đã gọi repair-complete trước đó).
+   */
+  const handleIssuePaymentEntryPress = async () => {
     if (!ticket?.id || !slot.ticketId) return;
+    const st = normalizeScheduleStatusKey(ticket.status);
+    if (st === "WAITING_STAFF_COMPLETION") {
+      setIssuePaymentModalVisible(true);
+      return;
+    }
+    if (st !== "IN_PROGRESS" || !issueRepairSubmitted) return;
+
     setUpdateLoading(true);
     try {
-      await updateIssueTicketStatus(ticket.id, "DONE");
+      const repairRes = await postIssueTicketRepairComplete(ticket.id);
+      if (repairRes && repairRes.success === false) {
+        throw new Error(repairRes.message || t("staff_work_slot_detail.update_error"));
+      }
+      const fresh = await getIssueTicketById(ticket.id);
+      if (fresh?.success && fresh.data) {
+        setTicket(fresh.data);
+        const nst = String(fresh.data.status ?? "").toUpperCase();
+        setIssueRepairSubmitted(
+          (nst === "IN_PROGRESS" || nst === "WAITING_STAFF_COMPLETION") &&
+            submittedIssueRepairTicketIdsInSession.has(fresh.data.id)
+        );
+      }
+      setIssuePaymentModalVisible(true);
+    } catch (err) {
+      CustomAlert.alert(
+        t("staff_work_slot_detail.update_error"),
+        err instanceof Error ? err.message : "",
+        [{ text: t("common.close") }]
+      );
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
+
+  /**
+   * Modal: tiền mặt — PUT WAITING_CASH_PAYMENT rồi POST cash-payment/confirm (kỳ vọng ticket DONE).
+   */
+  const handleIssuePaymentCash = async () => {
+    if (!ticket?.id || !slot.ticketId) return;
+    setIssuePaymentChoiceLoading(true);
+    try {
+      await updateIssueTicketStatus(ticket.id, "WAITING_CASH_PAYMENT");
+      await confirmIssueTicketCashPayment(ticket.id);
+      setIssuePaymentModalVisible(false);
       navigateCalendarAfterCompletion(null);
       void waitForWorkSlotCompletionSync({
         scheduleSlotId: slot.id,
@@ -434,7 +488,36 @@ export default function WorkSlotDetailScreen() {
         [{ text: t("common.close") }]
       );
     } finally {
-      setUpdateLoading(false);
+      setIssuePaymentChoiceLoading(false);
+    }
+  };
+
+  /**
+   * Modal: VNPay — PUT WAITING_PAYMENT; tenant app thanh toán theo luồng hiện có.
+   */
+  const handleIssuePaymentVnpay = async () => {
+    if (!ticket?.id || !slot.ticketId) return;
+    setIssuePaymentChoiceLoading(true);
+    try {
+      await updateIssueTicketStatus(ticket.id, "WAITING_PAYMENT");
+      setIssuePaymentModalVisible(false);
+      navigateCalendarAfterCompletion(null);
+      void waitForWorkSlotCompletionSync({
+        scheduleSlotId: slot.id,
+        jobId: ticket.id,
+        kind: "issue",
+      }).then(() => {
+        queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
+        refetchItem();
+      });
+    } catch (err) {
+      CustomAlert.alert(
+        t("staff_work_slot_detail.update_error"),
+        err instanceof Error ? err.message : "",
+        [{ text: t("common.close") }]
+      );
+    } finally {
+      setIssuePaymentChoiceLoading(false);
     }
   };
 
@@ -1197,8 +1280,13 @@ export default function WorkSlotDetailScreen() {
     : getJobStatusLabel(job?.status ?? slot.status, t);
 
   const hasDetailItem = isIssueSlot ? !!ticket : !!job;
+  const issueTicketStatusNorm =
+    isIssueSlot && ticket ? normalizeScheduleStatusKey(ticket.status) : "";
   const canShowActions = isIssueSlot
-    ? !!ticket && (ticket.status === "SCHEDULED" || ticket.status === "IN_PROGRESS")
+    ? !!ticket &&
+      (issueTicketStatusNorm === "SCHEDULED" ||
+        issueTicketStatusNorm === "IN_PROGRESS" ||
+        issueTicketStatusNorm === "WAITING_STAFF_COMPLETION")
     : !!job && (job.status === "SCHEDULED" || job.status === "IN_PROGRESS");
 
   const inspectionTypeUpper = (inspectionType ?? "").trim().toUpperCase();
@@ -1403,7 +1491,7 @@ export default function WorkSlotDetailScreen() {
               />
               {canShowActions ? (
                 <View style={[staffWorkSlotStyles.actionRow, { marginTop: 16 }]}>
-                  {isIssueSlot && ticket?.status === "SCHEDULED" ? (
+                  {isIssueSlot && issueTicketStatusNorm === "SCHEDULED" ? (
                     <TouchableOpacity
                       style={[staffWorkSlotStyles.actionBtn, staffWorkSlotStyles.actionBtnStart, { marginRight: 6 }]}
                       onPress={handleStartWork}
@@ -1420,18 +1508,18 @@ export default function WorkSlotDetailScreen() {
                       )}
                     </TouchableOpacity>
                   ) : null}
-                  {isIssueSlot && ticket?.status === "IN_PROGRESS" ? (
+                  {isIssueSlot && issueTicketStatusNorm === "IN_PROGRESS" ? (
                     issueRepairSubmitted ? (
                       <TouchableOpacity
                         style={[staffWorkSlotStyles.actionBtn, staffWorkSlotStyles.actionBtnSuccess, { marginRight: 6 }]}
-                        onPress={handleCompleteIssueWorkSlot}
-                        disabled={updateLoading}
+                        onPress={() => void handleIssuePaymentEntryPress()}
+                        disabled={updateLoading || issuePaymentChoiceLoading}
                       >
                         {updateLoading ? (
                           <RefreshLogoInline logoPx={18} />
                         ) : (
                           <Text style={staffWorkSlotStyles.actionBtnText}>
-                            {t("staff_work_slot_detail.btn_complete")}
+                            {t("staff_work_slot_detail.btn_confirm_complete")}
                           </Text>
                         )}
                       </TouchableOpacity>
@@ -1460,6 +1548,21 @@ export default function WorkSlotDetailScreen() {
                         </Text>
                       </TouchableOpacity>
                     )
+                  ) : null}
+                  {isIssueSlot && issueTicketStatusNorm === "WAITING_STAFF_COMPLETION" ? (
+                    <TouchableOpacity
+                      style={[staffWorkSlotStyles.actionBtn, staffWorkSlotStyles.actionBtnSuccess, { marginRight: 6 }]}
+                      onPress={() => void handleIssuePaymentEntryPress()}
+                      disabled={updateLoading || issuePaymentChoiceLoading}
+                    >
+                      {updateLoading ? (
+                        <RefreshLogoInline logoPx={18} />
+                      ) : (
+                        <Text style={staffWorkSlotStyles.actionBtnText}>
+                          {t("staff_work_slot_detail.btn_select_payment")}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
                   ) : null}
 
                   {!isIssueSlot && job?.status === "SCHEDULED" ? (
@@ -1525,6 +1628,16 @@ export default function WorkSlotDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      <IssueRepairPaymentTypeModal
+        visible={issuePaymentModalVisible}
+        loading={issuePaymentChoiceLoading}
+        onClose={() => {
+          if (!issuePaymentChoiceLoading) setIssuePaymentModalVisible(false);
+        }}
+        onSelectCash={handleIssuePaymentCash}
+        onSelectVnpay={handleIssuePaymentVnpay}
+      />
 
       {!isInspectionSlot ? (
         <WorkSlotMaintenanceModalFlow

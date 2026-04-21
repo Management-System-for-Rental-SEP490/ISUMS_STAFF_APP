@@ -4,7 +4,7 @@
  * - PUT /api/issues/tickets/{ticketId}/status?status={status} - cập nhật trạng thái (nếu BE hỗ trợ)
  */
 import axiosClient from "../api/axiosClient";
-import { ASSETS_API_BASE, BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
+import { BACKEND_API_BASE } from "../api/config";
 import type {
   ApiResponse,
   CreateIssueQuoteApiResponse,
@@ -32,7 +32,6 @@ export const getIssueTicketImages = async (
 ): Promise<IssueTicketImageFromApi[]> => {
   if (!ticketId?.trim()) return [];
 
-  //const url = `${FALLBACK_BACKEND_URL}/issues/tickets/${encodeURIComponent(ticketId)}/images`;
   const url = `${BACKEND_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}/images`;
   const response = await axiosClient.get<ApiResponse<IssueTicketImageFromApi[]>>(url);
 
@@ -50,7 +49,6 @@ export const getIssueTicketById = async (
 ): Promise<IssueTicketApiResponse> => {
   const response = await axiosClient.get<IssueTicketApiResponse>(
     `${BACKEND_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}`
-    //`${FALLBACK_BACKEND_URL}/issues/tickets/${encodeURIComponent(ticketId)}`
   );
   return response.data;
 };
@@ -67,7 +65,6 @@ export const updateIssueTicketStatus = async (
 ): Promise<{ success: boolean; message?: string }> => {
   const response = await axiosClient.put<{ success: boolean; message?: string }>(
     `${BACKEND_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}/status`,
-    //`${FALLBACK_BACKEND_URL}/issues/tickets/${encodeURIComponent(ticketId)}/status`,
     null,
     { params: { status } }
   );
@@ -90,7 +87,6 @@ export const getIssueTicketDataById = async (
 export const getIssueTicketsByStaff = async (): Promise<IssueTicketListApiResponse> => {
   const response = await axiosClient.get<IssueTicketListApiResponse>(
     `${BACKEND_API_BASE}/issues/tickets/staff`
-    // `${FALLBACK_BACKEND_URL}/issues/tickets/staff`
   );
   return response.data;
 };
@@ -135,7 +131,6 @@ export const createIssueExecution = async (
 ): Promise<CreateIssueExecutionResponse> => {
   const response = await axiosClient.post<CreateIssueExecutionResponse>(
     `${BACKEND_API_BASE}/issues/executions/${encodeURIComponent(issueId)}/execution`,
-   // `${FALLBACK_BACKEND_URL}/issues/executions/${encodeURIComponent(issueId)}/execution`,
     payload
   );
   return response.data;
@@ -148,7 +143,6 @@ export const createIssueExecution = async (
 export const getIssueBanners = async (): Promise<IssueBannerFromApi[]> => {
   const response = await axiosClient.get<ApiResponse<IssueBannerFromApi[]>>(
     `${BACKEND_API_BASE}/issues/banners`
-    //`${FALLBACK_BACKEND_URL}/issues/banners`
   );
   if (response.data?.success && Array.isArray(response.data.data)) {
     return response.data.data;
@@ -157,18 +151,45 @@ export const getIssueBanners = async (): Promise<IssueBannerFromApi[]> => {
 };
 
 /**
- * Tạo báo giá cho issue.
- * POST /api/issues/quotes/{issueId}/quote
+ * Tạo báo giá cho ticket sửa chữa.
+ * POST /api/issues/quotes/{ticketId}/quote — path param là **ticketId** (id ticket/issue).
  */
 export const createIssueQuote = async (
-  issueId: string,
+  ticketId: string,
   payload: CreateIssueQuotePayload
 ): Promise<CreateIssueQuoteApiResponse> => {
   const response = await axiosClient.post<CreateIssueQuoteApiResponse>(
-     `${BACKEND_API_BASE}/issues/quotes/${encodeURIComponent(issueId)}/quote`,
-   // `${FALLBACK_BACKEND_URL}/issues/quotes/${encodeURIComponent(issueId)}/quote`,
+    `${BACKEND_API_BASE}/issues/quotes/${encodeURIComponent(ticketId)}/quote`,
     payload
   );
   return response.data;
+};
+
+/**
+ * Kỹ thuật xác nhận hoàn tất sửa chữa — chuyển ticket sang trạng thái sẵn sàng chọn thanh toán (vd. WAITING_STAFF_COMPLETION).
+ * POST /api/issues/tickets/{ticketId}/repair-complete
+ */
+export const postIssueTicketRepairComplete = async (
+  ticketId: string
+): Promise<{ success: boolean; message?: string }> => {
+  const response = await axiosClient.post<{ success: boolean; message?: string }>(
+    `${BACKEND_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}/repair-complete`,
+    {}
+  );
+  return response.data ?? { success: true };
+};
+
+/**
+ * Xác nhận đã nhận tiền mặt cho ticket (sau PUT status=WAITING_CASH_PAYMENT).
+ * POST /api/issues/tickets/{ticketId}/cash-payment/confirm
+ */
+export const confirmIssueTicketCashPayment = async (
+  ticketId: string
+): Promise<{ success: boolean; message?: string }> => {
+  const response = await axiosClient.post<{ success: boolean; message?: string }>(
+    `${BACKEND_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}/cash-payment/confirm`,
+    {}
+  );
+  return response.data ?? { success: true };
 };
 

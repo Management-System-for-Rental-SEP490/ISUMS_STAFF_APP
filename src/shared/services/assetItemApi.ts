@@ -5,18 +5,31 @@
 import { isAxiosError } from "axios";
 import axiosClient from "../api/axiosClient";
 import { logInspectionDebug, logInspectionError } from "../utils/inspectionDebugLog";
-import { ASSETS_API_BASE, BACKEND_API_BASE } from "../api/config";
+import { logFetchAbortTimeout } from "../utils/clientNetworkTimeoutLog";
+import {
+  API_REQUEST_TIMEOUT_MS,
+  ASSET_IMAGE_UPLOAD_TIMEOUT_MS,
+  ASSET_ITEM_MUTATION_TIMEOUT_MS,
+  BACKEND_API_BASE,
+} from "../api/config";
 import i18n from "../i18n";
-import { resolveLocalizedJsonStringFromI18n } from "../utils/resolveLocalizedJsonString";
+import {
+  mergeTranslationMapsFromApi,
+  resolveLocalizedApiFieldFromI18n,
+  resolveLocalizedJsonStringFromI18n,
+  toAppLocaleCode,
+} from "../utils/resolveLocalizedJsonString";
 import { useAuthStore } from "../../store/useAuthStore";
 import {
   normalizeAssetItemStatusFromApi,
+  type AssetCategoryEmbeddedFromApi,
   type AssetItemFromApi,
   type AssetItemImageFromApi,
   type AssetItemsApiResponse,
   type AssetItemsParams,
   type CreateAssetItemRequest,
   type CreateAssetItemApiResponse,
+  type AssetItemDisplayNameMap,
   type UpdateAssetItemRequest,
   type UpdateAssetItemApiResponse,
   type IotControllerHouseDataFromApi,
@@ -38,6 +51,30 @@ import {
 } from "../types/api";
 
 export type { AssetItemImageFromApi };
+
+/**
+ * Gọi `fetch` với trần thời gian; hết hạn (AbortError) → cùng thông điệp với axios `timeout` / `common.server_not_responding`.
+ */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (e: unknown) {
+    const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
+    if (name === "AbortError") {
+      logFetchAbortTimeout(url, timeoutMs);
+      throw new Error(i18n.t("common.server_not_responding"));
+    }
+    throw e;
+  } finally {
+    clearTimeout(id);
+  }
+}
 
 /**
  * Chuẩn hóa tagValue trước khi gửi lên BE.
@@ -85,10 +122,104 @@ function pickActiveTagValueFromTags(
   return null;
 }
 
+function normalizeEmbeddedCategory(
+  c: AssetCategoryEmbeddedFromApi | undefined | null
+): AssetCategoryEmbeddedFromApi | undefined {
+  if (!c || typeof c !== "object") return undefined;
+  const r = c as AssetCategoryEmbeddedFromApi & {
+    name_translations?: Record<string, unknown>;
+    description_translations?: Record<string, unknown>;
+  };
+  const nameMap = mergeTranslationMapsFromApi(
+    r.nameTranslations as Record<string, unknown> | undefined,
+    r.name_translations
+  );
+  const descMap = mergeTranslationMapsFromApi(
+    r.descriptionTranslations as Record<string, unknown> | undefined,
+    r.description_translations
+  );
+  return {
+    ...c,
+    name: resolveLocalizedApiFieldFromI18n(r.name, nameMap),
+    description: resolveLocalizedApiFieldFromI18n(r.description, descMap),
+  };
+}
+
+/**
+ * Ưu tiên `translations` (PUT/GET BE) để resolve tên theo locale; sau đó displayName map hoặc chuỗi.
+ */
+function pickDisplayStringForResolve(
+  raw: AssetItemFromApi & {
+    displayName?: unknown;
+    translations?: Record<string, unknown> | null;
+  }
+): string | null | undefined {
+  const tr = raw.translations;
+  if (tr && typeof tr === "object" && !Array.isArray(tr)) {
+    const filtered: Record<string, string> = {};
+    for (const [k, v] of Object.entries(tr)) {
+      if (typeof v === "string" && v.trim() !== "") filtered[k] = v;
+    }
+    if (Object.keys(filtered).length > 0) return JSON.stringify(filtered);
+  }
+  const displayRaw = raw.displayName as unknown;
+  if (typeof displayRaw === "string" || displayRaw == null) {
+    return displayRaw as string | null | undefined;
+  }
+  if (typeof displayRaw === "object" && !Array.isArray(displayRaw)) {
+    return JSON.stringify(displayRaw);
+  }
+  return String(displayRaw);
+}
+
+/** `displayName` dạng object: `en` là bản tiếng Anh canonical khi BE tách map. */
+function canonicalEnglishDisplayNameFromDisplayNameField(displayRaw: unknown): string {
+  if (displayRaw == null) return "";
+  if (typeof displayRaw === "string") return displayRaw.trim();
+  if (typeof displayRaw === "object" && !Array.isArray(displayRaw)) {
+    const o = displayRaw as Record<string, unknown>;
+    const en = o.en;
+    if (typeof en === "string" && en.trim() !== "") return en.trim();
+    return "";
+  }
+  return String(displayRaw).trim();
+}
+
+function displayNameFieldToMap(displayRaw: unknown): Record<string, string> | undefined {
+  if (!displayRaw || typeof displayRaw !== "object" || Array.isArray(displayRaw)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(displayRaw as Record<string, unknown>)) {
+    if (typeof v === "string" && v.trim() !== "") out[k] = v.trim();
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Tên hiển thị thiết bị: ưu tiên `translations[locale]` (và key trong object `displayName`), `displayName` chuỗi/en làm tiếng Anh mặc định.
+ */
+function resolveAssetItemDisplayNameForUi(
+  raw: AssetItemFromApi & { displayName?: unknown; translations?: Record<string, unknown> | null }
+): string {
+  const trMap = mergeTranslationMapsFromApi(
+    raw.translations as Record<string, unknown> | undefined
+  );
+  const displayMap = displayNameFieldToMap(raw.displayName);
+  const merged = mergeTranslationMapsFromApi(trMap, displayMap);
+  const canonical = canonicalEnglishDisplayNameFromDisplayNameField(raw.displayName);
+
+  if (merged && Object.keys(merged).length > 0) {
+    return resolveLocalizedApiFieldFromI18n(canonical || null, merged);
+  }
+
+  const displayForResolve = pickDisplayStringForResolve(raw);
+  return resolveLocalizedJsonStringFromI18n(displayForResolve);
+}
+
 /**
  * Chuẩn hóa một item từ BE: đảm bảo nfcTag, qrTag có giá trị dù BE trả về camelCase hay snake_case.
  * API GET /api/assets/items/house/:houseId đã được cập nhật trả về đầy đủ nfcTag, qrTag;
  * nếu BE trả snake_case (nfc_tag, qr_tag) thì map sang camelCase để màn danh sách & chi tiết hiển thị đúng.
+ * Response PUT/GET có thể có `translations`, `category` embed — resolve đa ngôn ngữ thống nhất với resolveLocalizedJsonString.
  */
 function normalizeAssetItemFromResponse(
   raw: AssetItemFromApi & {
@@ -115,7 +246,8 @@ function normalizeAssetItemFromResponse(
     null;
   return {
     ...raw,
-    displayName: resolveLocalizedJsonStringFromI18n(raw.displayName),
+    displayName: resolveAssetItemDisplayNameForUi(raw),
+    category: normalizeEmbeddedCategory(raw.category),
     nfcTag: nfcStr !== "" ? nfcStr : null,
     qrTag: qrStr !== "" ? qrStr : null,
     status: normalizeAssetItemStatusFromApi(raw.status),
@@ -379,10 +511,7 @@ export const createAssetItem = async (
   const functionAreaId = pickFirstNonEmptyString(payload.functionAreaId);
   const nfcForPost = pickFirstNonEmptyString(payload.nfcId, payload.nfcTag);
   const qrForPost = pickFirstNonEmptyString(payload.qrId, payload.qrTag);
-  const noteForApi =
-    payload.note === undefined || payload.note === null
-      ? ""
-      : String(payload.note).trim();
+  const assetImages = Array.isArray(payload.assetImages) ? payload.assetImages : [];
 
   const body = useSnakeCasePutBody
     ? {
@@ -393,9 +522,9 @@ export const createAssetItem = async (
         nfc_id: nfcForPost,
         qr_id: qrForPost,
         condition_percent: payload.conditionPercent,
-        note: noteForApi,
         status: payload.status,
         function_area_id: functionAreaId,
+        asset_images: assetImages,
       }
     : {
         houseId: payload.houseId,
@@ -405,16 +534,16 @@ export const createAssetItem = async (
         ...(nfcForPost ? { nfcId: nfcForPost } : {}),
         ...(qrForPost ? { qrId: qrForPost } : {}),
         conditionPercent: payload.conditionPercent,
-        note: noteForApi,
         status: payload.status,
         ...(functionAreaId ? { functionAreaId } : {}),
+        assetImages,
       };
 
-  const response = await axiosClient.post<CreateAssetItemApiResponse>(
-    `${BACKEND_API_BASE}/assets/items`,
-    body
-  );
-  const res = response.data;
+  const postUrl = `${BACKEND_API_BASE}/assets/items`;
+  const response = await axiosClient.post<CreateAssetItemApiResponse>(postUrl, body, {
+    timeout: ASSET_ITEM_MUTATION_TIMEOUT_MS,
+  });
+  const res = response.data as CreateAssetItemApiResponse;
   if (res?.data && typeof res.data === "object") {
     return {
       ...res,
@@ -433,60 +562,95 @@ export const createAssetItem = async (
 };
 
 /**
- * Cập nhật thiết bị (PUT /api/asset/items/:id).
- * Body gồm các trường create + `note`. Mặc định camelCase; nếu EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE=true thì gửi snake_case.
- * Backend phải map cả houseId/house_id và categoryId/category_id thì mới cập nhật được nhà/danh mục.
+ * Các giá trị hợp lệ cho `status` trên record Java `UpdateAssetItemRequest` (enum AssetStatus).
+ * Trạng thái workflow-only từ app (vd. WAITING_MANAGER_CONFIRM) không có trong enum → Jackson không bind được → thường 400/500.
  */
-export const updateAssetItem = async (
-  id: string,
-  payload: UpdateAssetItemRequest
-): Promise<UpdateAssetItemApiResponse> => {
+const ASSET_ITEM_PUT_JAVA_STATUS_VALUES = new Set([
+  "AVAILABLE",
+  "IN_USE",
+  "ACTIVE",
+  "BROKEN",
+  "DISPOSED",
+  "DELETED",
+]);
+
+/**
+ * Chuẩn hoá map tên hiển thị gửi PUT: bỏ key rỗng; BE nhận `Map<String,String>` (JSON object).
+ */
+function pickNonEmptyDisplayNameMap(
+  map: AssetItemDisplayNameMap | undefined
+): Record<string, string> | undefined {
+  if (map == null || typeof map !== "object") return undefined;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(map)) {
+    if (v == null) continue;
+    const s = String(v).trim();
+    if (s !== "") out[k] = s;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Dựng JSON body PUT khớp Swagger `PUT /api/assets/items/{id}` (ví dụ: functionAreaId, displayName map, serialNumber, nfcId, conditionPercent, note, status).
+ * - `displayName`: Map locale → chuỗi; ItemEdit luôn gửi map ít nhất một key (vi/en/ja).
+ * - `nfcId`: Swagger có field (chuỗi rỗng khi chưa gán) — gửi rõ để bind DTO Java ổn định.
+ * - `functionAreaId`: gửi `""` khi chưa chọn (cùng ví dụ Swagger).
+ * - Snake_case: bật cùng cờ `EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE` như POST create.
+ * - Đổi nhà: `transferAssetItemHouse`; gán/gỡ tag: `/api/assets/tags` — không nằm trong PUT này.
+ */
+function buildUpdateAssetItemRequestBody(payload: UpdateAssetItemRequest): Record<string, unknown> {
   const functionAreaId = pickFirstNonEmptyString(payload.functionAreaId);
-  const nfcForPut = pickFirstNonEmptyString(payload.nfcId, payload.nfcTag);
-  const qrForPut = pickFirstNonEmptyString(payload.qrId, payload.qrTag);
   const noteForApi =
     payload.note === undefined || payload.note === null
       ? ""
       : String(payload.note).trim();
 
-  const body = useSnakeCasePutBody
-    ? {
-        house_id: payload.houseId,
-        category_id: payload.categoryId,
-        display_name: payload.displayName,
-        serial_number: payload.serialNumber,
-        nfc_tag: nfcForPut,
-        nfc_id: nfcForPut,
-        qr_tag: qrForPut,
-        qr_id: qrForPut,
-        condition_percent: payload.conditionPercent,
-        note: noteForApi,
-        status: payload.status,
-        function_area_id: functionAreaId,
-        functional_area_id: functionAreaId,
-      }
-    : {
-        houseId: payload.houseId,
-        categoryId: payload.categoryId,
-        displayName: payload.displayName,
-        serialNumber: payload.serialNumber,
-        nfcTag: nfcForPut,
-        nfcId: nfcForPut,
-        qrTag: qrForPut,
-        qrId: qrForPut,
-        conditionPercent: payload.conditionPercent,
-        note: noteForApi,
-        status: payload.status,
-        functionAreaId,
-        functionalAreaId: functionAreaId,
-        /** Một số BE chỉ map snake_case vào DTO — gửi kèm camel để tránh mất khu vực. */
-        function_area_id: functionAreaId,
-        functional_area_id: functionAreaId,
-      };
+  const nfcForPut = pickFirstNonEmptyString(payload.nfcId, payload.nfcTag);
+  const nameMap = pickNonEmptyDisplayNameMap(payload.displayName);
 
+  const statusRaw = payload.status != null ? String(payload.status).trim() : "";
+  const statusOut =
+    statusRaw !== "" && ASSET_ITEM_PUT_JAVA_STATUS_VALUES.has(statusRaw) ? statusRaw : undefined;
+
+  if (useSnakeCasePutBody) {
+    const body: Record<string, unknown> = {
+      serial_number: payload.serialNumber,
+      condition_percent: payload.conditionPercent,
+      note: noteForApi,
+      function_area_id: functionAreaId ?? "",
+      nfc_id: nfcForPut ?? "",
+    };
+    if (nameMap) body.display_name = nameMap;
+    if (statusOut !== undefined) body.status = statusOut;
+    return body;
+  }
+
+  const body: Record<string, unknown> = {
+    serialNumber: payload.serialNumber,
+    conditionPercent: payload.conditionPercent,
+    note: noteForApi,
+    functionAreaId: functionAreaId ?? "",
+    nfcId: nfcForPut ?? "",
+  };
+  if (nameMap) body.displayName = nameMap;
+  if (statusOut !== undefined) body.status = statusOut;
+  return body;
+}
+
+/**
+ * Cập nhật thiết bị (PUT /api/assets/items/{id}).
+ * Body khớp record Java `UpdateAssetItemRequest` (displayName dạng map, functionAreaId, serialNumber, conditionPercent, note, status).
+ */
+export const updateAssetItem = async (
+  id: string,
+  payload: UpdateAssetItemRequest
+): Promise<UpdateAssetItemApiResponse> => {
+  const body = buildUpdateAssetItemRequestBody(payload);
   const putUrl = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(id)}`;
 
-  const response = await axiosClient.put<UpdateAssetItemApiResponse>(putUrl, body);
+  const response = await axiosClient.put<UpdateAssetItemApiResponse>(putUrl, body, {
+    timeout: ASSET_ITEM_MUTATION_TIMEOUT_MS,
+  });
   const res = response.data;
 
   if (res?.data && typeof res.data === "object") {
@@ -550,18 +714,22 @@ export const updateAssetItemsMaintenanceBatch = async (
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
-      "Accept-Language": i18n.language || "vi",
+      "Accept-Language": toAppLocaleCode(i18n.language),
       "Content-Type": "application/json",
     };
     if (url.includes("ngrok")) {
       headers["ngrok-skip-browser-warning"] = "true";
     }
 
-    const response = await fetch(url, {
-      method: "PUT",
-      headers,
-      body,
-    });
+    const response = await fetchWithTimeout(
+      url,
+      {
+        method: "PUT",
+        headers,
+        body,
+      },
+      API_REQUEST_TIMEOUT_MS
+    );
 
     const rawText = await response.text();
     let parsed: AssetMaintenanceBatchUpdateApiResponse | null = null;
@@ -685,7 +853,6 @@ export const deprovisionIotControllerByHouseId = async (
 ): Promise<ApiResponse<string>> => {
   const response = await axiosClient.delete<ApiResponse<string>>(
     `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
-   // `https://api-dev.isums.pro/api/assets/houses/${encodeURIComponent(houseId)}/iot/deprovision`
   );
   return response.data;
 };
@@ -700,8 +867,7 @@ export const provisionIotControllerByHouseId = async (
   payload: IotProvisionRequest
 ): Promise<IotProvisionApiResponse> => {
   const response = await axiosClient.post<IotProvisionApiResponse>(
-   // `${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
-   `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
+    `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision`,
     payload
   );
   return response.data;
@@ -712,7 +878,6 @@ export const getIotProvisionTokenBySerial = async (
   payload: IotProvisionTokenRequest
 ): Promise<IotProvisionTokenApiResponse> => {
   const response = await axiosClient.post<IotProvisionTokenApiResponse>(
-    //`${ASSETS_API_BASE}/assets/iot/provision-token`,
     `${BACKEND_API_BASE}/assets/iot/provision-token`,
     payload
   );
@@ -724,7 +889,6 @@ export const getIotControllerByHouseId = async (
   houseId: string
 ): Promise<IotControllerByHouseApiResponse> => {
   const response = await axiosClient.get<IotControllerByHouseApiResponse>(
-    //`${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
     `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/controller`
   );
   return response.data;
@@ -736,7 +900,6 @@ export const provisionIotNodeByHouseId = async (
   payload: IotProvisionNodeRequest
 ): Promise<IotProvisionNodeApiResponse> => {
   const response = await axiosClient.post<IotProvisionNodeApiResponse>(
-    //`${ASSETS_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
     `${BACKEND_API_BASE}/assets/houses/${encodeURIComponent(houseId)}/iot/provision-node`,
     payload
   );
@@ -824,9 +987,7 @@ export const getAssetItemImages = (
     return Promise.resolve(cached.data);
   }
 
-  // Cùng ASSETS_API_BASE với upload/delete — tránh GET primary trong khi POST lên fallback/ngrok.
   const baseUrl = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(key)}/images`;
-  //const baseUrl = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/${encodeURIComponent(key)}/images`;
   const url = cacheBust ? `${baseUrl}?t=${encodeURIComponent(String(cacheBust))}` : baseUrl;
 
   const run = (async (): Promise<AssetItemImageFromApi[]> => {
@@ -869,7 +1030,6 @@ export const uploadAssetItemImages = async (
   }
 
   const url = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(itemId)}/images`;
-  //const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/${encodeURIComponent(itemId)}/images`;
   const formData = new FormData();
 
   images.forEach((img, idx) => {
@@ -885,14 +1045,18 @@ export const uploadAssetItemImages = async (
     );
   });
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Accept-Language": i18n.language || "vi",
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Accept-Language": toAppLocaleCode(i18n.language),
+      },
+      body: formData,
     },
-    body: formData,
-  });
+    ASSET_IMAGE_UPLOAD_TIMEOUT_MS
+  );
 
   const rawText = await response.text();
   let parsed: any = null;
@@ -930,7 +1094,6 @@ export const uploadAssetEventImages = async (
   }
 
   const url = `${BACKEND_API_BASE}/assets/events/${encodeURIComponent(id)}/images`;
-  //const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/events/${encodeURIComponent(id)}/images`;
   const formData = new FormData();
 
   images.forEach((img, idx) => {
@@ -948,17 +1111,21 @@ export const uploadAssetEventImages = async (
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
-    "Accept-Language": i18n.language || "vi",
+    "Accept-Language": toAppLocaleCode(i18n.language),
   };
   if (url.includes("ngrok")) {
     headers["ngrok-skip-browser-warning"] = "true";
   }
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers,
+      body: formData,
+    },
+    ASSET_IMAGE_UPLOAD_TIMEOUT_MS
+  );
 
   const rawText = await response.text();
   let parsed: { success?: boolean; message?: string } | null = null;
@@ -991,7 +1158,6 @@ export const deleteAssetItemImage = async (
   }
 
   const url = `${BACKEND_API_BASE}/assets/items/${encodeURIComponent(normalizedItemId)}/image/${encodeURIComponent(normalizedImageId)}`;
-  //const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/assets/items/${encodeURIComponent(normalizedItemId)}/image/${encodeURIComponent(normalizedImageId)}`;
   const response = await axiosClient.delete<ApiResponse<null>>(url);
   const ok = Boolean(response?.data?.success);
   if (!ok) {

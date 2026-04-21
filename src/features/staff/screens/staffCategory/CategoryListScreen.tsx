@@ -1,6 +1,6 @@
 /**
  * Màn hình danh sách danh mục thiết bị (Staff).
- * - Chỉ danh mục (card) + ô tìm theo tên/mô tả/mức bồi thường; không lọc chip, không gắn thiết bị.
+ * - Chỉ danh mục (card) + ô tìm theo tên/mô tả/phần trăm; không lọc chip, không gắn thiết bị.
  */
 import React, { useCallback, useMemo } from "react";
 import {

@@ -29,6 +29,7 @@ import {
   useAssetCategories,
   useDetachAssetTag,
   useFunctionalAreasByHouseId,
+  applyFreshAssetItemToQueryCache,
 } from "../../../../shared/hooks";
 import { itemScreenStyles } from "./itemScreenStyles";
 import type { AssetItemFromApi } from "../../../../shared/types/api";
@@ -69,7 +70,7 @@ type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemDescription">;
 type ItemDescriptionRouteProp = RouteProp<RootStackParamList, "ItemDescription">;
 
 export default function ItemDescriptionScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavProp>();
   const route = useRoute<ItemDescriptionRouteProp>();
@@ -125,6 +126,7 @@ export default function ItemDescriptionScreen() {
           if (latest) {
             // Luôn tin kết quả GET — không gộp tag từ params khi API trả null (sau gỡ NFC/QR).
             setItem(latest);
+            applyFreshAssetItemToQueryCache(queryClient, latest, i18n.language);
             const embedded = normalizeEmbeddedImages(latest.images);
             if (embedded.length > 0) {
               setItemImages(embedded);
@@ -219,7 +221,7 @@ export default function ItemDescriptionScreen() {
         : "";
       return [a.name, floorPart].filter(Boolean).join(" · ");
     }
-    return t("staff_item_create.function_area_unknown");
+    return "—";
   }, [item.functionAreaId, functionalAreas, t]);
 
   const getStatusStyle = () => {

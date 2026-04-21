@@ -6,7 +6,12 @@ import { AuthPayload, UserRole } from "../types";
 import { useAuthStore } from "../../store/useAuthStore";
 import { CustomAlert } from "../components/alert";
 import i18n from "../i18n";
+import type { GetUserProfileOptions } from "./userProfileDirectApi";
 import { getUserProfileWithAccessToken } from "./userProfileDirectApi";
+import {
+  AUTH_PROFILE_FETCH_TIMEOUT_MS,
+  KEYCLOAK_HTTP_TIMEOUT_MS,
+} from "../api/config";
 
 // Đảm bảo WebBrowser hoạt động đúng trên Web
 WebBrowser.maybeCompleteAuthSession();
@@ -217,6 +222,7 @@ export const exchangeCodeForToken = async (code: string): Promise<AuthPayload> =
         redirect_uri: KEYCLOAK_CONFIG.redirectUri,
       }),
       {
+        timeout: KEYCLOAK_HTTP_TIMEOUT_MS,
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
@@ -236,8 +242,10 @@ export const exchangeCodeForToken = async (code: string): Promise<AuthPayload> =
     // -----------------
 
     const userInfo = await getUserInfo(access_token);
-    const role = await resolveStaffAppRoleFromBackend(access_token);
-    
+    const role = await resolveStaffAppRoleFromBackend(access_token, {
+      timeoutMs: AUTH_PROFILE_FETCH_TIMEOUT_MS,
+    });
+
     // Extract houseId from attributes (Keycloak usually returns attributes as arrays)
     let houseId: string | undefined;
     const rawHouseId = userInfo.attributes?.houseId || userInfo.houseId;
@@ -274,6 +282,7 @@ export const exchangeCodeForToken = async (code: string): Promise<AuthPayload> =
 const getUserInfo = async (accessToken: string) => {
   const userInfoUrl = `${KEYCLOAK_CONFIG.baseUrl}/realms/${KEYCLOAK_CONFIG.realm}/protocol/openid-connect/userinfo`;
   const response = await axios.get(userInfoUrl, {
+    timeout: KEYCLOAK_HTTP_TIMEOUT_MS,
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
@@ -333,8 +342,11 @@ function impliesStaffAppTechnicalRole(roleNames: string[]): boolean {
 /**
  * Role ứng dụng staff: chỉ từ GET /api/users/me — không dùng realm_access / resource_access / groups Keycloak.
  */
-async function resolveStaffAppRoleFromBackend(accessToken: string): Promise<UserRole> {
-  const profile = await getUserProfileWithAccessToken(accessToken);
+async function resolveStaffAppRoleFromBackend(
+  accessToken: string,
+  profileOptions?: Pick<GetUserProfileOptions, "apiBase" | "timeoutMs">
+): Promise<UserRole> {
+  const profile = await getUserProfileWithAccessToken(accessToken, profileOptions);
   if (!profile) {
     throw new Error(
       "Không lấy được hồ sơ người dùng (GET /api/users/me). Kiểm tra mạng, URL API và token."
@@ -360,6 +372,7 @@ export const refreshAccessToken = async (refreshToken: string): Promise<AuthPayl
         refresh_token: refreshToken,
       }),
       {
+        timeout: KEYCLOAK_HTTP_TIMEOUT_MS,
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
@@ -368,7 +381,9 @@ export const refreshAccessToken = async (refreshToken: string): Promise<AuthPayl
 
     const { access_token, refresh_token: new_refresh_token, id_token } = response.data;
     const userInfo = await getUserInfo(access_token);
-    const role = await resolveStaffAppRoleFromBackend(access_token);
+    const role = await resolveStaffAppRoleFromBackend(access_token, {
+      timeoutMs: AUTH_PROFILE_FETCH_TIMEOUT_MS,
+    });
 
     // Extract houseId
     let houseId: string | undefined;

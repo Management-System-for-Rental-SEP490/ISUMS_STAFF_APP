@@ -29,7 +29,7 @@ export const staffHomeStyles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
   },
   listContent: {
-    paddingBottom: 100,
+    paddingBottom: 8,
   },
   /** Tiêu đề section (nhà thuộc thẩm quyền, …) — đồng bộ appTypography.sectionHeading */
   sectionTitle: {
@@ -109,14 +109,17 @@ export const staffHomeStyles = StyleSheet.create({
     borderColor: "rgba(0,0,0,0.06)",
     alignItems: "center",
   },
-  homeSiteFooterVersionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 10,
+  homeSiteFooterBuildRow: {
+    marginTop: 10,
+    marginBottom: 4,
     alignSelf: "stretch",
+    alignItems: "center",
+  },
+  homeSiteFooterBadgeRow: {
+    marginTop: 12,
+    paddingBottom: 4,
+    alignSelf: "stretch",
+    alignItems: "center",
   },
   homeSiteFooterPill: {
     backgroundColor: brandTintBg,
@@ -129,12 +132,6 @@ export const staffHomeStyles = StyleSheet.create({
     fontWeight: "800",
     color: brandPrimaryDark,
     letterSpacing: 0.5,
-  },
-  homeSiteFooterDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: neutral.slate300,
   },
   homeSiteFooterBuild: {
     fontSize: 11,

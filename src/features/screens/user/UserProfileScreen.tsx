@@ -1,15 +1,18 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { CustomAlert as Alert } from "../../../shared/components/alert";
-import { RefreshLogoInline, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
+import {
+  PullToRefreshControl,
+  RefreshLogoInline,
+  RefreshLogoOverlay,
+} from "@shared/components/RefreshLogoOverlay";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import userProfileStyles from "./UserProfileScreenStyles";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { logoutKeycloak, openChangePasswordPage } from "../../../shared/services/keycloakAuth";
-import { UserProfileResponse } from "../../../shared/types/api";
-import { getUserProfile } from "../../../shared/services/userApi";
 import Icons from "../../../shared/theme/icon";
+import { useRefreshControlGate, useUserProfile } from "../../../shared/hooks";
 import {
   BRAND_DANGER,
   brandGradientSolid,
@@ -23,28 +26,19 @@ const UserProfileScreen = () => {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { user, role, idToken, logout } = useAuthStore();
-  const [userInfo, setUserInfo] = useState<UserProfileResponse | null>(null);
-  const [profileLoaded, setProfileLoaded] = useState(false);
+  const {
+    data: userInfo,
+    isPending: profilePending,
+    isRefetching: profileRefetching,
+    refetch: refetchProfile,
+  } = useUserProfile();
+  const profileLoaded = !profilePending;
 
-  useEffect(() => {
-    let cancelled = false;
-    const fetchProfile = async () => {
-      try {
-        const data = await getUserProfile();
-        if (!cancelled && data) {
-          setUserInfo(data);
-        }
-      } finally {
-        if (!cancelled) {
-          setProfileLoaded(true);
-        }
-      }
-    };
-    fetchProfile();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
+
+  const onRefreshProfile = useCallback(async () => {
+    await refetchProfile();
+  }, [refetchProfile]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -104,10 +98,18 @@ const UserProfileScreen = () => {
 
   return (
     <View style={userProfileStyles.container}>
+      <RefreshLogoOverlay visible={profileRefetching} />
       <ScrollView
-        contentContainerStyle={[
-          userProfileStyles.contentContainer,
-        ]}
+        contentContainerStyle={[userProfileStyles.contentContainer]}
+        onScroll={onScrollForRefreshGate}
+        scrollEventThrottle={16}
+        refreshControl={
+          <PullToRefreshControl
+            refreshing={profileRefetching}
+            onRefresh={onRefreshProfile}
+            scrollAtTop={scrollAtTop}
+          />
+        }
       >
         <TouchableOpacity
           activeOpacity={0.9}

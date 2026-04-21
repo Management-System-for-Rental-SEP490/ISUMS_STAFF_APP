@@ -1,5 +1,6 @@
 import axios, { isAxiosError } from "axios";
 import i18n from "../i18n";
+import { toAppLocaleCode } from "../utils/resolveLocalizedJsonString";
 import { useAuthStore } from "../../store/useAuthStore";
 import { refreshAccessToken, logoutKeycloak } from "../services/keycloakAuth";
 import { CustomAlert } from "../components/alert";
@@ -8,6 +9,7 @@ import {
   BACKEND_URL_PRIMARY,
   BACKEND_URL_FALLBACK,
 } from "./config";
+import { logAxiosClientTimeout } from "../utils/clientNetworkTimeoutLog";
 
 function isAxiosTimeout(error: unknown): boolean {
   if (!isAxiosError(error)) return false;
@@ -35,9 +37,8 @@ axiosClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    // Ngôn ngữ hiện tại, mặc định 'vi' khi BE chưa hỗ trợ / không bắt được
-    // Khi BE có bảng đa ngôn ngữ, sẽ dựa vào header này để trả đúng dữ liệu
-    config.headers["Accept-Language"] = i18n.language || "vi";
+    // BE (Swagger): Accept-Language hỗ trợ vi | en | ja — không gửi mã dài (en-US) để tránh fallback sai.
+    config.headers["Accept-Language"] = toAppLocaleCode(i18n.language);
     return config;
   },
   (error) => Promise.reject(error)
@@ -140,6 +141,12 @@ axiosClient.interceptors.response.use(
       originalRequest._retriedWithFallback = true;
       originalRequest.url = url.replace(BACKEND_URL_PRIMARY, BACKEND_URL_FALLBACK);
       return axiosClient(originalRequest);
+    }
+
+    // Quá thời gian chờ phía client (mạng yếu / không phản hồi kịp) — không phải HTTP từ BE; log Metro + device.
+    if (isAxiosTimeout(error)) {
+      logAxiosClientTimeout(error, DATA_LOAD_TIMEOUT_MS);
+      return Promise.reject(new Error(i18n.t("common.server_not_responding")));
     }
 
     return Promise.reject(error);

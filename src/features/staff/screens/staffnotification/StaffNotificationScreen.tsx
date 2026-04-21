@@ -1,7 +1,5 @@
 /**
- * Màn hình Thông báo dành cho Staff.
- * Mock: thông báo kiểu "người thuê căn X đã gửi ticket", "lịch làm việc đã cập nhật", ...
- * Khi có API sẽ thay bằng dữ liệu thật.
+ * Thông báo Staff: REST `/api/notifications` (defensive) + poll foreground; mock đã thay bằng API.
  */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -10,147 +8,122 @@ import {
   FlatList,
   TouchableOpacity,
   ListRenderItem,
+  Pressable,
+  StyleSheet,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../../../../shared/types";
 import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import Header from "../../../../shared/components/header";
 import Icons from "../../../../shared/theme/icon";
 import { staffNotificationStyles } from "./staffNotificationStyles";
-import { brandPrimary } from "../../../../shared/theme/color";
+import { brandPrimary, neutral } from "../../../../shared/theme/color";
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
-import { formatTimeAgoI18n, getTotalPages, slicePage } from "../../../../shared/utils";
-import { useRefreshControlGate } from "../../../../shared/hooks";
-import type { StaffNotificationItem } from "../../../../shared/types/api";
+import {
+  CLIENT_LIST_PAGE_SIZE,
+  formatTimeAgoI18n,
+  getTotalPages,
+  slicePage,
+} from "../../../../shared/utils";
+import { useRefreshControlGate, useStaffBusinessNotifications } from "../../../../shared/hooks";
+import type { AppNotificationFromApi } from "../../../../shared/types/api";
+import {
+  NOTIFICATION_READ_ALL_AVAILABLE,
+  NOTIFICATION_REALTIME_ENABLED,
+} from "../../../../shared/api/config";
+import { formatAppNotificationTitle } from "../../../../shared/utils/notificationDisplay";
+import { useNotificationTransportStore } from "../../../../store/useNotificationTransportStore";
+import { useAlertStore } from "../../../../store/useAlertStore";
+import { resolveStaffNotificationNavigation } from "../../../../shared/utils/resolveStaffNotificationNavigation";
 
 export default function StaffNotificationScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
-  const notifications = useMemo((): StaffNotificationItem[] => {
-    const base: StaffNotificationItem[] = [
-      {
-        id: "sn1",
-        type: "ticket_from_tenant",
-        titleKey: "staff_notification.tenant_sent_ticket_title",
-        bodyKey: "staff_notification.tenant_sent_ticket_body",
-        params: { house: t("staff_notification.demo_house_a"), id: "T002" },
-        createdAt: new Date(Date.now() - 30 * 60 * 1000),
-        read: false,
-      },
-      {
-        id: "sn2",
-        type: "schedule_updated",
-        titleKey: "staff_notification.schedule_updated_title",
-        bodyKey: "staff_notification.schedule_updated_body",
-        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        read: false,
-      },
-      {
-        id: "sn3",
-        type: "ticket_assigned",
-        titleKey: "staff_notification.ticket_assigned_title",
-        bodyKey: "staff_notification.ticket_assigned_body",
-        params: { id: "T001" },
-        createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000),
-        read: true,
-      },
-      {
-        id: "sn4",
-        type: "inspection_reminder",
-        titleKey: "staff_notification.inspection_reminder_title",
-        bodyKey: "staff_notification.inspection_reminder_body",
-        params: { building: t("staff_notification.demo_building_c") },
-        createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        read: true,
-      },
-      {
-        id: "sn5",
-        type: "ticket_from_tenant",
-        titleKey: "staff_notification.tenant_sent_ticket_title",
-        bodyKey: "staff_notification.tenant_sent_ticket_body",
-        params: { house: t("staff_notification.demo_house_b"), id: "T003" },
-        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        read: true,
-      },
-      {
-        id: "sn6",
-        type: "system",
-        titleKey: "staff_notification.system_maintenance_title",
-        bodyKey: "staff_notification.system_maintenance_body",
-        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-        read: true,
-      },
-    ];
-    const extra: StaffNotificationItem[] = Array.from({ length: 14 }, (_, i) => ({
-      id: `sn-demo-${i}`,
-      type: "system",
-      titleKey: "staff_notification.system_maintenance_title",
-      bodyKey: "staff_notification.system_maintenance_body",
-      createdAt: new Date(Date.now() - (i + 8) * 3600 * 1000),
-      read: i % 3 !== 0,
-    }));
-    return [...base, ...extra];
-  }, [t]);
-  const [listPage, setListPage] = useState(1);
-  const [refreshing, setRefreshing] = useState(false);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-  const notifTotalPages = getTotalPages(notifications.length);
+  const biz = useStaffBusinessNotifications(true);
+  const realtimeUnavailable = useNotificationTransportStore((s) => s.realtimeUnavailable);
+
+  const [listPage, setListPage] = useState(1);
+
+  const notifications = biz.items;
+  const notifTotalPages = getTotalPages(notifications.length, CLIENT_LIST_PAGE_SIZE);
   const pagedNotifications = useMemo(
-    () => slicePage(notifications, listPage),
+    () => slicePage(notifications, listPage, CLIENT_LIST_PAGE_SIZE),
     [notifications, listPage]
   );
 
   useEffect(() => {
     setListPage(1);
   }, [notifications.length]);
+
+  const listLoading = biz.listQuery.isPending && notifications.length === 0;
+  const refreshing = biz.listQuery.isRefetching || biz.unreadQuery.isRefetching;
+
   const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 450);
-  }, []);
+    void biz.refetchAll();
+  }, [biz]);
+
+  const onPressMarkAllRead = useCallback(async () => {
+    const ok = await biz.markAllRead();
+    if (!ok) {
+      useAlertStore.getState().show(t("common.error"), t("notification.mark_read_failed"), [{ text: "OK" }], "error");
+    }
+  }, [biz, t]);
+
+  const onPressItem = useCallback(
+    async (item: AppNotificationFromApi) => {
+      const ok = await biz.markRead(item.id);
+      if (!ok) {
+        useAlertStore.getState().show(t("common.error"), t("notification.mark_read_failed"), [{ text: "OK" }], "error");
+        return;
+      }
+      const nav = resolveStaffNotificationNavigation(item);
+      if (nav.kind === "fallbackMain") {
+        navigation.navigate("Main" as never);
+        return;
+      }
+      if (nav.kind === "stack") {
+        navigation.navigate(nav.screen, nav.params);
+        return;
+      }
+      if (nav.kind === "mainTab") {
+        navigation.navigate("Main", { screen: nav.tab, params: nav.params });
+      }
+    },
+    [biz, navigation, t]
+  );
 
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
 
-  const renderItem: ListRenderItem<StaffNotificationItem> = ({ item }) => {
-    const title = t(item.titleKey, item.params as Record<string, string>);
-    const body = t(item.bodyKey, item.params as Record<string, string>);
-    const timeStr = formatTimeAgoI18n(item.createdAt, t);
-
-    let iconWrapperStyle = staffNotificationStyles.iconWrapperTicket;
-    let IconComponent = Icons.ticket;
-    let iconColor = brandPrimary;
-    if (item.type === "schedule_updated" || item.type === "inspection_reminder") {
-      iconWrapperStyle = staffNotificationStyles.iconWrapperSchedule;
-      IconComponent = Icons.calendar;
-      iconColor = brandPrimary;
-    } else if (item.type === "ticket_assigned") {
-      iconWrapperStyle = staffNotificationStyles.iconWrapperTicket;
-      IconComponent = Icons.contract;
-      iconColor = brandPrimary;
-    } else if (item.type === "system") {
-      iconWrapperStyle = staffNotificationStyles.iconWrapperSystem;
-      IconComponent = Icons.shield;
-      iconColor = brandPrimary;
-    }
+  const renderItem: ListRenderItem<AppNotificationFromApi> = ({ item }) => {
+    const title = formatAppNotificationTitle(item, i18n.language);
+    const ts = Date.parse(String(item.createdAt ?? item.timestamp ?? ""));
+    const timeStr = Number.isFinite(ts)
+      ? formatTimeAgoI18n(new Date(ts), t)
+      : "—";
 
     return (
       <TouchableOpacity
         activeOpacity={0.7}
+        onPress={() => void onPressItem(item)}
         style={[
           staffNotificationStyles.itemCard,
           !item.read && staffNotificationStyles.itemCardUnread,
         ]}
       >
-        <View style={[staffNotificationStyles.iconWrapper, iconWrapperStyle]}>
-          <IconComponent size={22} color={iconColor} />
+        <View style={[staffNotificationStyles.iconWrapper, staffNotificationStyles.iconWrapperTicket]}>
+          <Icons.notification size={22} color={brandPrimary} />
         </View>
         <View style={staffNotificationStyles.itemBody}>
           <Text style={staffNotificationStyles.itemTitle} numberOfLines={2}>
             {title}
           </Text>
-          <Text style={staffNotificationStyles.itemMessage} numberOfLines={3}>
-            {body}
+          <Text style={staffNotificationStyles.itemMessage} numberOfLines={2}>
+            {item.category} · {item.type}
           </Text>
           <Text style={staffNotificationStyles.itemTime}>{timeStr}</Text>
         </View>
@@ -159,18 +132,29 @@ export default function StaffNotificationScreen() {
   };
 
   const listHeader = (
-    <Text style={staffNotificationStyles.title}>
-      {t("screens.notification")}
-    </Text>
-  );
-
-  const listEmpty = (
-    <View style={staffNotificationStyles.emptyWrapper}>
-      <Text style={staffNotificationStyles.emptyText}>
-        {t("notification.empty")}
-      </Text>
+    <View>
+      <Text style={staffNotificationStyles.title}>{t("screens.notification")}</Text>
+      {NOTIFICATION_REALTIME_ENABLED && realtimeUnavailable ? (
+        <View style={bannerStyles.hint}>
+          <Text style={bannerStyles.hintText}>{t("notification.realtime_unavailable_hint")}</Text>
+        </View>
+      ) : null}
+      {NOTIFICATION_READ_ALL_AVAILABLE && biz.resolvedUnreadCount > 0 ? (
+        <Pressable
+          onPress={() => void onPressMarkAllRead()}
+          style={({ pressed }) => [bannerStyles.readAll, pressed && { opacity: 0.88 }]}
+        >
+          <Text style={bannerStyles.readAllText}>{t("notification.read_all")}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
+
+  const listEmpty = !listLoading ? (
+    <View style={staffNotificationStyles.emptyWrapper}>
+      <Text style={staffNotificationStyles.emptyText}>{t("notification.empty")}</Text>
+    </View>
+  ) : null;
 
   return (
     <View style={staffNotificationStyles.container}>
@@ -183,38 +167,73 @@ export default function StaffNotificationScreen() {
       />
       <View style={{ flex: 1, position: "relative" }}>
         <RefreshLogoOverlay visible={refreshing} />
-        <FlatList
-          style={{ flex: 1 }}
-          data={pagedNotifications}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          ListHeaderComponent={listHeader}
-          ListEmptyComponent={listEmpty}
-          ListFooterComponent={() => (
-            <PaginationBar
-              currentPage={listPage}
-              totalPages={notifTotalPages}
-              onPageChange={setListPage}
-              style={{ paddingBottom: Math.max(8, insets.bottom) }}
-            />
-          )}
-          contentContainerStyle={
-            notifications.length === 0
-              ? [staffNotificationStyles.listContent, { flex: 1 }]
-              : staffNotificationStyles.listContent
-          }
-          showsVerticalScrollIndicator={false}
-          onScroll={onScrollForRefreshGate}
-          scrollEventThrottle={16}
-          refreshControl={
-            <PullToRefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              scrollAtTop={scrollAtTop}
-            />
-          }
-        />
+        {listLoading ? (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 160 }}>
+            <Text style={{ color: neutral.textSecondary }}>{t("common.loading")}</Text>
+          </View>
+        ) : (
+          <FlatList
+            style={{ flex: 1 }}
+            data={pagedNotifications}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+            ListHeaderComponent={listHeader}
+            ListEmptyComponent={listEmpty}
+            ListFooterComponent={() => (
+              <PaginationBar
+                currentPage={listPage}
+                totalPages={notifTotalPages}
+                onPageChange={setListPage}
+                style={{ paddingBottom: Math.max(8, insets.bottom) }}
+              />
+            )}
+            contentContainerStyle={
+              notifications.length === 0
+                ? [staffNotificationStyles.listContent, { flex: 1 }]
+                : staffNotificationStyles.listContent
+            }
+            showsVerticalScrollIndicator={false}
+            onScroll={onScrollForRefreshGate}
+            scrollEventThrottle={16}
+            refreshControl={
+              <PullToRefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                scrollAtTop={scrollAtTop}
+              />
+            }
+          />
+        )}
       </View>
     </View>
   );
 }
+
+const bannerStyles = StyleSheet.create({
+  hint: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 10,
+    backgroundColor: neutral.surface,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: neutral.border,
+  },
+  hintText: {
+    fontSize: 13,
+    color: neutral.textSecondary,
+    textAlign: "center",
+  },
+  readAll: {
+    alignSelf: "flex-end",
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  readAllText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: brandPrimary,
+  },
+});

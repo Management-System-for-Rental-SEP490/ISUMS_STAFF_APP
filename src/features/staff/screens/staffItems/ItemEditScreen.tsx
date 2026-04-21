@@ -45,6 +45,7 @@ import {
   useHouses,
   useAssetCategories,
   ASSET_ITEM_KEYS,
+  applyFreshAssetItemToQueryCache,
   useTransferAssetItemHouse,
   useDetachAssetTag,
   useFunctionalAreasByHouseId,
@@ -79,24 +80,68 @@ import {
   formatDdMmYyyyHms24,
   mergeFunctionalAreasForHouse,
   sortFunctionalAreasForDisplay,
+  parseViEnJaFromLocalizedField,
 } from "../../../../shared/utils";
+
+/**
+ * Chuẩn hoá `displayName` từ item (plain text, chuỗi JSON, hoặc object sau khi axios parse) thành một chuỗi cho TextInput và so sánh khi build PUT.
+ */
+function itemDisplayNameAsPlainString(raw: unknown): string {
+  if (raw == null) return "";
+  if (typeof raw === "string") {
+    const t = raw.trim();
+    if (!t) return "";
+    if (t.startsWith("{")) {
+      const { vi, en, ja } = parseViEnJaFromLocalizedField(t);
+      return (vi || en || ja || "").trim();
+    }
+    return t;
+  }
+  if (typeof raw === "object" && !Array.isArray(raw)) {
+    try {
+      const { vi, en, ja } = parseViEnJaFromLocalizedField(JSON.stringify(raw));
+      return (vi || en || ja || "").trim();
+    } catch {
+      return "";
+    }
+  }
+  return String(raw).trim();
+}
+
+/**
+ * Khi PUT thành công mà `data.functionAreaId` trống/khác payload (DTO/mapper BE không trả đủ), ghi đè bằng giá trị đã gửi để UI và cache không lệch cho tới lần GET sau.
+ */
+function mergeAssetItemFunctionAreaFromPutPayload(
+  fromServer: AssetItemFromApi | null | undefined,
+  payload: UpdateAssetItemRequest
+): AssetItemFromApi | undefined {
+  if (!fromServer || typeof fromServer !== "object") return undefined;
+  const faPayload =
+    payload.functionAreaId != null && String(payload.functionAreaId).trim() !== ""
+      ? String(payload.functionAreaId).trim()
+      : null;
+  if (faPayload == null) return fromServer;
+  const backRaw = fromServer.functionAreaId;
+  const faServer =
+    backRaw != null && String(backRaw).trim() !== "" ? String(backRaw).trim() : null;
+  if (faServer === faPayload) return fromServer;
+  return { ...fromServer, functionAreaId: faPayload };
+}
 
 type NavProp = NativeStackNavigationProp<RootStackParamList, "ItemEdit">;
 type ItemEditRouteProp = RouteProp<RootStackParamList, "ItemEdit">;
 
-/** AssetStatus (BE): có thể gồm WAITING_MANAGER_CONFIRM (chờ quản lý duyệt) + IN_USE, ACTIVE, BROKEN, DISPOSED. */
-const STATUS_OPTIONS = [
-  "WAITING_MANAGER_CONFIRM",
-  "IN_USE",
-  "ACTIVE",
-  "BROKEN",
-  "DISPOSED",
-] as const;
+/**
+ * Trạng thái cho dropdown khi staff **chỉnh sửa** thủ công.
+ * Không cho chọn `WAITING_MANAGER_CONFIRM` (chờ quản lý) — trạng thái đó do luồng tạo mới / BE gán;
+ * khi thiết bị đang chờ duyệt, form khóa và chỉ hiển thị nhãn (xem `statusDropdownSection`).
+ */
+const ITEM_EDIT_MANUAL_STATUS_OPTIONS = ["IN_USE", "ACTIVE", "BROKEN", "DISPOSED"] as const;
 
 const MAX_ASSET_ATTACHMENT_IMAGES = 5;
 
 export default function ItemEditScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavProp>();
   const route = useRoute<ItemEditRouteProp>();
@@ -135,6 +180,7 @@ export default function ItemEditScreen() {
             // Luôn tin kết quả GET — không gộp lại tag từ params khi API trả null,
             // kẻo sau gỡ NFC/QR thành công vẫn hiển thị mã cũ.
             setLatestItem(newItem);
+            applyFreshAssetItemToQueryCache(queryClient, newItem, i18n.language);
           }
         } catch (e) {
           console.log("Error fetching latest item:", e);
@@ -145,25 +191,25 @@ export default function ItemEditScreen() {
     }, [item.id])
   );
 
-  // Refresh ảnh khi item được load/cập nhật từ API — ưu tiên mảng `images` từ GET item, fallback GET .../images
+  // Đồng bộ danh sách ảnh: ưu tiên images trên bản GET item; không thì gọi GET .../images
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
       if (!latestItem?.id) return;
+      const embedded =
+        latestItem.images?.map((img) => ({
+          id: String(img.id ?? "").trim(),
+          url: String(img.url ?? ""),
+          createdAt: img.createdAt ?? null,
+        })).filter((x) => x.id.length > 0 && x.url.length > 0) ?? [];
       try {
-        setImagesLoading(true);
-        const embedded =
-          latestItem.images?.map((img) => ({
-            id: String(img.id ?? "").trim(),
-            url: String(img.url ?? ""),
-            createdAt: img.createdAt ?? null,
-          })).filter((x) => x.id.length > 0 && x.url.length > 0) ?? [];
         if (embedded.length > 0) {
           if (!cancelled) setItemImages(embedded);
-        } else {
-          const imgs = await getAssetItemImages(latestItem.id);
-          if (!cancelled) setItemImages(imgs);
+          return;
         }
+        setImagesLoading(true);
+        const imgs = await getAssetItemImages(latestItem.id);
+        if (!cancelled) setItemImages(imgs);
       } catch {
         if (!cancelled) setItemImages([]);
       } finally {
@@ -178,7 +224,7 @@ export default function ItemEditScreen() {
 
   const [houseId, setHouseId] = useState(latestItem.houseId);
   const [categoryId, setCategoryId] = useState(latestItem.categoryId);
-  const [displayName, setDisplayName] = useState(latestItem.displayName);
+  const [displayName, setDisplayName] = useState(() => itemDisplayNameAsPlainString(item.displayName));
   const [serialNumber, setSerialNumber] = useState(latestItem.serialNumber);
   const [nfcId, setNfcId] = useState(latestItem.nfcTag ?? "");
   const [qrId, setQrId] = useState(latestItem.qrTag ?? "");
@@ -212,7 +258,7 @@ export default function ItemEditScreen() {
   useEffect(() => {
     setHouseId(latestItem.houseId);
     setCategoryId(latestItem.categoryId);
-    setDisplayName(latestItem.displayName);
+    setDisplayName(itemDisplayNameAsPlainString(latestItem.displayName));
     setSerialNumber(latestItem.serialNumber);
     setNfcId(latestItem.nfcTag ?? "");
     setQrId(latestItem.qrTag ?? "");
@@ -305,19 +351,27 @@ export default function ItemEditScreen() {
     };
   }, [houses, houseId, t]);
 
+  /**
+   * Chờ quản lý duyệt: chỉ một dòng hiển thị (read-only). Còn lại: IN_USE / ACTIVE / BROKEN / DISPOSED — không cho chọn chờ quản lý.
+   */
   const statusDropdownSection = useMemo((): DropdownBoxSection => {
+    const lockedPending =
+      normalizeAssetItemStatusFromApi(latestItem.status) === "WAITING_MANAGER_CONFIRM";
+    const optionIds = lockedPending
+      ? (["WAITING_MANAGER_CONFIRM"] as const)
+      : ITEM_EDIT_MANUAL_STATUS_OPTIONS;
     return {
       id: "status",
       title: t("dropdown_box.section_status"),
       itemLayout: "card",
-      items: STATUS_OPTIONS.map((s) => {
+      items: optionIds.map((s) => {
         const label = statusLabel(s);
         return { id: s, label, detail: label };
       }),
       selectedId: status,
       showAllOption: false,
     };
-  }, [status, statusLabel, t]);
+  }, [status, statusLabel, t, latestItem.status]);
 
   const houseDropdownSummary = useMemo(() => {
     const h = houses.find((x: HouseFromApi) => x.id === houseId);
@@ -364,7 +418,7 @@ export default function ItemEditScreen() {
       return `${t("dropdown_box.functional_area_short")}: ${t("staff_item_create.function_area_none")}`;
     }
     const a = functionalAreas.find((x) => x.id === functionAreaId);
-    const label = a ? formatAreaDropdownLabel(a) : t("staff_item_create.function_area_unknown");
+    const label = a ? formatAreaDropdownLabel(a) : "—";
     return `${t("dropdown_box.functional_area_short")}: ${label}`;
   }, [functionAreaId, functionalAreas, formatAreaDropdownLabel, t]);
 
@@ -414,7 +468,9 @@ export default function ItemEditScreen() {
 
   const handleSubmit = async () => {
     if (formLocked) return;
-    if (!houseId.trim() || !categoryId.trim() || !displayName.trim() || !serialNumber.trim()) {
+    const nameForRequired =
+      typeof displayName === "string" ? displayName.trim() : String(displayName ?? "").trim();
+    if (!houseId.trim() || !categoryId.trim() || !nameForRequired || !serialNumber.trim()) {
       updateMutation.reset();
       return;
     }
@@ -460,11 +516,14 @@ export default function ItemEditScreen() {
       }
     }
 
-    // Payload đầy đủ cho PUT /api/asset/items/:id — BE cập nhật các thông tin thiết bị (không bao gồm logic chuyển nhà).
+    // PUT /api/assets/items/:id — BE: `displayName` là Map (JSON object). Luôn gửi map theo locale UI (một số bản BE bắt buộc field / bind lỗi khi thiếu).
+    const trimmedName = nameForRequired;
+    const nameLang = (i18n.language ?? "vi").split("-")[0]?.toLowerCase() ?? "vi";
+    const displayNameMapKey = nameLang === "en" ? "en" : nameLang === "ja" ? "ja" : "vi";
     const payload: UpdateAssetItemRequest = {
       houseId: houseId.trim(),
       categoryId: categoryId.trim(),
-      displayName: displayName.trim(),
+      displayName: { [displayNameMapKey]: trimmedName },
       serialNumber: serialNumber.trim(),
       nfcTag: trimmedNfcId.length > 0 ? trimmedNfcId : null,
       nfcId: trimmedNfcId.length > 0 ? trimmedNfcId : null,
@@ -472,7 +531,11 @@ export default function ItemEditScreen() {
       qrId: trimmedQrId.length > 0 ? trimmedQrId : null,
       conditionPercent: percent,
       note: note.trim(),
-      status: status || "IN_USE",
+      status: (() => {
+        const s = normalizeAssetItemStatusFromApi(status) || "IN_USE";
+        if (s === "WAITING_MANAGER_CONFIRM") return "IN_USE";
+        return s;
+      })(),
       functionAreaId,
     };
 
@@ -512,24 +575,40 @@ export default function ItemEditScreen() {
       const areaMismatch =
         sentFaNorm !== "" && (backFaNorm === "" || backFaNorm !== sentFaNorm);
 
-      const finish = async () => {
-        await queryClient.refetchQueries({ queryKey: ASSET_ITEM_KEYS.base });
-        const refreshedItem = await getAssetItemById(item.id);
-        if (refreshedItem) {
-          setLatestItem(refreshedItem);
-        }
-        navigation.goBack();
-      };
-
       if (suspiciousBackend || areaMismatch) {
-        Alert.alert(
-          t("staff_item_edit.area_not_saved_title"),
-          t("staff_item_edit.area_not_saved_message"),
-          [{ text: t("common.close"), onPress: () => void finish() }]
-        );
-      } else {
-        await finish();
+        console.warn("[ItemEditScreen] Phản hồi PUT lệch khu vực / message — chỉ log terminal", {
+          suspiciousBackend,
+          areaMismatch,
+          sentFunctionAreaId: sentFaNorm || null,
+          responseFunctionAreaId: backFaNorm || null,
+          responseMessage: msg || null,
+        });
       }
+
+      /**
+       * GET chi tiết sau khi PUT (và upload ảnh nếu có) rồi ghi thẳng vào cache danh sách (`applyFreshAssetItemToQueryCache`).
+       * Tránh `invalidateQueries` toàn cây asset: refetch từng nhà chậm và thường kết thúc sau khi user đã goBack → vẫn thấy dòng cũ.
+       * Fallback: merge từ body PUT nếu GET lỗi; khi đổi nhà vẫn invalidate một lần để bù query nhà mới chưa từng mount.
+       */
+      const didTransferHouse = trimmedHouseId !== item.houseId;
+      const mergedFallback = mergeAssetItemFunctionAreaFromPutPayload(updateRes?.data, payload);
+      const freshFromServer =
+        (await getAssetItemById(item.id)) ?? mergedFallback ?? undefined;
+      if (freshFromServer) {
+        setLatestItem(freshFromServer);
+        applyFreshAssetItemToQueryCache(queryClient, freshFromServer, i18n.language, {
+          previousHouseId: didTransferHouse ? String(item.houseId).trim() : undefined,
+        });
+        if (didTransferHouse) {
+          void queryClient.invalidateQueries({ queryKey: ASSET_ITEM_KEYS.base });
+        }
+      } else {
+        void queryClient.invalidateQueries({ queryKey: ASSET_ITEM_KEYS.base });
+      }
+
+      Alert.alert(t("common.success"), t("staff_item_edit.success_message"), [
+        { text: t("common.close"), onPress: () => navigation.goBack() },
+      ]);
     } catch (e) {
       if (isDuplicateTagConflictError(e)) {
         const ax = isAxiosError(e) ? e : null;
@@ -543,6 +622,15 @@ export default function ItemEditScreen() {
       } else {
         const msg = e instanceof Error && e.message ? e.message : t("staff_item_create.error_message");
         setUploadError(msg);
+      }
+      if (isAxiosError(e)) {
+        console.error("[ItemEditScreen] handleSubmit failed — gửi kèm log [ISUMS][updateAssetItem] cho BE", {
+          status: e.response?.status,
+          statusText: e.response?.statusText,
+          responseData: e.response?.data,
+          requestUrl: e.config?.url,
+          requestMethod: e.config?.method,
+        });
       }
       console.error("[ItemEditScreen] handleSubmit failed", e);
     } finally {
@@ -563,10 +651,14 @@ export default function ItemEditScreen() {
           onPress: () => {
             // Xóa mềm: chỉ cập nhật status sang DISPOSED, giữ lại mọi thông tin khác.
             const percent = parseInt(conditionPercent, 10);
+            const dnTrim =
+              typeof displayName === "string" ? displayName.trim() : String(displayName ?? "").trim();
+            const delNameLang = (i18n.language ?? "vi").split("-")[0]?.toLowerCase() ?? "vi";
+            const delMapKey = delNameLang === "en" ? "en" : delNameLang === "ja" ? "ja" : "vi";
             const payload: UpdateAssetItemRequest = {
               houseId: houseId.trim(),
               categoryId: categoryId.trim(),
-              displayName: displayName.trim(),
+              displayName: { [delMapKey]: dnTrim },
               serialNumber: serialNumber.trim(),
               nfcTag: nfcId.trim() ? nfcId.trim() : null,
               nfcId: nfcId.trim() ? nfcId.trim() : null,
@@ -596,7 +688,7 @@ export default function ItemEditScreen() {
     !formLocked &&
     houseId.trim().length > 0 &&
     categoryId.trim().length > 0 &&
-    displayName.trim().length > 0 &&
+    (typeof displayName === "string" ? displayName : String(displayName ?? "")).trim().length > 0 &&
     serialNumber.trim().length > 0 &&
     conditionPercent.length > 0 &&
     !Number.isNaN(parseInt(conditionPercent, 10));

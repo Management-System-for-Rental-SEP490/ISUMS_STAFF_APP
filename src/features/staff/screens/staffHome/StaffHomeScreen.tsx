@@ -119,13 +119,13 @@ export default function StaffHomeScreen() {
   const invalidateScheduleRelated = useInvalidateScheduleRelatedQueries();
 
   // React Query: nhà theo region của staff (regions/staff → houses/region/{id}), qua useHouses.
-  const { data, isLoading, isError, refetch, isRefetching: housesRefetching } = useHouses();
+  const { data, isLoading, isError, refetch, isRefetching: housesRefetching, isStale } = useHouses();
 
   useFocusEffect(
     useCallback(() => {
-      void refetch();
       invalidateScheduleRelated();
-    }, [refetch, invalidateScheduleRelated])
+      if (isStale) void refetch();
+    }, [invalidateScheduleRelated, isStale, refetch])
   );
   const buildings: HouseFromApi[] = data?.data ?? [];
   const loading = isLoading;
@@ -640,13 +640,6 @@ export default function StaffHomeScreen() {
         style={staffHomeStyles.homeSiteFooter}
         accessibilityLabel={t("home.footer.aria_label")}
       >
-        <View style={staffHomeStyles.homeSiteFooterVersionRow}>
-          <View style={staffHomeStyles.homeSiteFooterPill}>
-            <Text style={staffHomeStyles.homeSiteFooterPillText}>{t("home.footer.badge")}</Text>
-          </View>
-          <View style={staffHomeStyles.homeSiteFooterDot} />
-          <Text style={staffHomeStyles.homeSiteFooterBuild}>{t("home.footer.build")}</Text>
-        </View>
         <Text style={staffHomeStyles.homeSiteFooterSupport}>{t("home.footer.support_line")}</Text>
         <View style={staffHomeStyles.homeSiteFooterLinksRow}>
           {staffFooterLinks.privacyPolicy.trim() ? (
@@ -682,7 +675,15 @@ export default function StaffHomeScreen() {
             <Text style={staffHomeStyles.homeSiteFooterLinkMuted}>{t("home.footer.link_support")}</Text>
           )}
         </View>
+        <View style={staffHomeStyles.homeSiteFooterBuildRow}>
+          <Text style={staffHomeStyles.homeSiteFooterBuild}>{t("home.footer.build")}</Text>
+        </View>
         <Text style={staffHomeStyles.homeSiteFooterCopy}>{t("home.footer.copyright")}</Text>
+        <View style={staffHomeStyles.homeSiteFooterBadgeRow}>
+          <View style={staffHomeStyles.homeSiteFooterPill}>
+            <Text style={staffHomeStyles.homeSiteFooterPillText}>{t("home.footer.badge")}</Text>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -755,7 +756,10 @@ export default function StaffHomeScreen() {
             keyExtractor={(_, index) => `empty-${index}`}
             ListHeaderComponent={listHeader}
             renderItem={() => null}
-            contentContainerStyle={staffHomeStyles.listContent}
+            contentContainerStyle={[
+              staffHomeStyles.listContent,
+              { paddingBottom: 24 + Math.max(insets.bottom, 12) },
+            ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             nestedScrollEnabled

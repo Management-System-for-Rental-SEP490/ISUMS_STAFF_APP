@@ -86,7 +86,7 @@ export default function TicketListScreen() {
   const assetDetailQueries = useQueries({
     queries: assetIdsNeedingDetailFetch.map((assetId) => ({
       queryKey: ASSET_ITEM_KEYS.byId(assetId),
-      queryFn: () => getAssetItemById(assetId),
+      queryFn: async () => (await getAssetItemById(assetId)) ?? null,
       enabled: Boolean(assetId),
       staleTime: 5 * 60 * 1000,
     })),

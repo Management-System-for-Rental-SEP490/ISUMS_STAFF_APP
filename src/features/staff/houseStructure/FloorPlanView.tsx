@@ -1,6 +1,6 @@
 /**
- * Wrapper hiển thị sơ đồ nhà: Cover_Floor_Plan.png làm nền, các khu vực theo position.
- * Mặc định vào Tầng 1, hiển thị "Tất cả tầng" cho đến khi user bấm chọn khu vực cụ thể.
+ * Khu vực chức năng theo tầng: một khung chứa các chip (không ảnh nền).
+ * Không có khu vực cho tầng/nhà → trả về null (luồng chọn qua dropdown).
  */
 import React, { useMemo } from "react";
 import { View, StyleSheet, type StyleProp, type ViewStyle } from "react-native";

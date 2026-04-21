@@ -8,13 +8,14 @@ import "./src/shared/i18n";
 import Navigation from "./src/navigation/navigation";
 import { GlobalAlert } from "./src/shared/components/alert";
 
-const queryClient = new QueryClient({ /* cấu hình defaultOptions cho tất cả queries */
+const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 2, /* retry 2 lần nếu request thất bại */
-      staleTime: 1000 * 60 * 5, /* 5 phút */
-      refetchOnReconnect: true, /* refetch khi mạng trở lại */
-      refetchOnWindowFocus: true, /* refetch khi app active */
+      retry: 1,
+      staleTime: 1000 * 60 * 5,
+      refetchOnReconnect: true,
+      /** Tắt refetch mỗi lần app lên foreground — giảm tải mạng và cảm giác “lag” khi chuyển app. */
+      refetchOnWindowFocus: false,
     },
   },
 });

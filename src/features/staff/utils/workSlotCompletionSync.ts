@@ -29,6 +29,10 @@ function isTerminalJobStatus(
 ): boolean {
   const n = norm(s);
   if (kind === "maintenance") return n === "COMPLETED" || n === "DONE";
+  if (kind === "issue") {
+    /** Staff đã chuyển sang chờ tenant thanh toán VNPay — coi job ổn định để không kéo dài poll. */
+    return n === "DONE" || n === "COMPLETED" || n === "WAITING_PAYMENT";
+  }
   return n === "DONE" || n === "COMPLETED";
 }
 
