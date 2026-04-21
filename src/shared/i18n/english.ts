@@ -765,6 +765,8 @@ export default {
         "btn_issue_repair_flow": "Repair notes",
         "btn_confirm_complete": "Confirm completion",
         "btn_select_payment": "Choose payment method",
+        "btn_confirm_cash_received": "Confirm cash received",
+        "cash_confirm_success_message": "Cash payment confirmed successfully.",
         "payment_modal_title": "Payment method",
         "payment_modal_subtitle": "Choose how the tenant will pay after repair is completed.",
         "payment_method_cash": "Cash",

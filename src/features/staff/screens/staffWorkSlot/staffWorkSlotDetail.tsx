@@ -40,6 +40,7 @@ import { CustomAlert } from "../../../../shared/components/alert";
 import { RefreshLogoInline, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import {
   mapInspectionToJobFromApi,
+  normalizeAssetItemStatusFromApi,
   type AssetItemFromApi,
   type FunctionalAreaFromApi,
   type IssueTicketFromApi,
@@ -211,6 +212,7 @@ export default function WorkSlotDetailScreen() {
   /** Sau POST repair-complete hoặc khi ticket đã WAITING_STAFF_COMPLETION — chọn Cash / VNPay. */
   const [issuePaymentModalVisible, setIssuePaymentModalVisible] = useState(false);
   const [issuePaymentChoiceLoading, setIssuePaymentChoiceLoading] = useState(false);
+  const [issueCashConfirmLoading, setIssueCashConfirmLoading] = useState(false);
   const [maintenanceSubmitting, setMaintenanceSubmitting] = useState(false);
   const [maintenanceEditorLoading, setMaintenanceEditorLoading] = useState(false);
   const [maintenanceAssets, setMaintenanceAssets] = useState<AssetItemFromApi[]>([]);
@@ -463,24 +465,26 @@ export default function WorkSlotDetailScreen() {
   };
 
   /**
-   * Modal: tiền mặt — PUT WAITING_CASH_PAYMENT rồi POST cash-payment/confirm (kỳ vọng ticket DONE).
+   * Modal: tiền mặt — chỉ PUT WAITING_CASH_PAYMENT; staff xác nhận đã nhận tiền trên màn chi tiết (POST confirm).
    */
   const handleIssuePaymentCash = async () => {
     if (!ticket?.id || !slot.ticketId) return;
     setIssuePaymentChoiceLoading(true);
     try {
       await updateIssueTicketStatus(ticket.id, "WAITING_CASH_PAYMENT");
-      await confirmIssueTicketCashPayment(ticket.id);
       setIssuePaymentModalVisible(false);
-      navigateCalendarAfterCompletion(null);
-      void waitForWorkSlotCompletionSync({
-        scheduleSlotId: slot.id,
-        jobId: ticket.id,
-        kind: "issue",
-      }).then(() => {
-        queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
+      const fresh = await getIssueTicketById(ticket.id);
+      if (fresh?.success && fresh.data) {
+        setTicket(fresh.data);
+        const nst = String(fresh.data.status ?? "").toUpperCase();
+        setIssueRepairSubmitted(
+          (nst === "IN_PROGRESS" || nst === "WAITING_STAFF_COMPLETION") &&
+            submittedIssueRepairTicketIdsInSession.has(fresh.data.id)
+        );
+      } else {
         refetchItem();
-      });
+      }
+      CustomAlert.alert(t("staff_work_slot_detail.update_success"), "", [{ text: t("common.close") }]);
     } catch (err) {
       CustomAlert.alert(
         t("staff_work_slot_detail.update_error"),
@@ -489,6 +493,43 @@ export default function WorkSlotDetailScreen() {
       );
     } finally {
       setIssuePaymentChoiceLoading(false);
+    }
+  };
+
+  /** Màn chi tiết: sau WAITING_CASH_PAYMENT — POST cash-payment/confirm (ticket DONE). */
+  const handleIssueConfirmCashReceived = async () => {
+    if (!ticket?.id || !slot.ticketId) return;
+    setIssueCashConfirmLoading(true);
+    try {
+      const res = await confirmIssueTicketCashPayment(ticket.id);
+      if (res && res.success === false) {
+        throw new Error(res.message || t("staff_work_slot_detail.update_error"));
+      }
+      const ticketIdForSync = ticket.id;
+      CustomAlert.alert(t("common.success"), t("staff_work_slot_detail.cash_confirm_success_message"), [
+        {
+          text: t("common.close"),
+          onPress: () => {
+            navigateCalendarAfterCompletion(null);
+            void waitForWorkSlotCompletionSync({
+              scheduleSlotId: slot.id,
+              jobId: ticketIdForSync,
+              kind: "issue",
+            }).then(() => {
+              queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
+              refetchItem();
+            });
+          },
+        },
+      ]);
+    } catch (err) {
+      CustomAlert.alert(
+        t("staff_work_slot_detail.update_error"),
+        err instanceof Error ? err.message : "",
+        [{ text: t("common.close") }]
+      );
+    } finally {
+      setIssueCashConfirmLoading(false);
     }
   };
 
@@ -981,6 +1022,10 @@ export default function WorkSlotDetailScreen() {
 
   const maintenanceAssetsSorted = useMemo(() => {
     return [...maintenanceAssets]
+      .filter(
+        (asset) =>
+          normalizeAssetItemStatusFromApi(asset.status) !== "WAITING_MANAGER_CONFIRM"
+      )
       .map((asset) => ({
         ...asset,
         floorNo:
@@ -1286,7 +1331,8 @@ export default function WorkSlotDetailScreen() {
     ? !!ticket &&
       (issueTicketStatusNorm === "SCHEDULED" ||
         issueTicketStatusNorm === "IN_PROGRESS" ||
-        issueTicketStatusNorm === "WAITING_STAFF_COMPLETION")
+        issueTicketStatusNorm === "WAITING_STAFF_COMPLETION" ||
+        issueTicketStatusNorm === "WAITING_CASH_PAYMENT")
     : !!job && (job.status === "SCHEDULED" || job.status === "IN_PROGRESS");
 
   const inspectionTypeUpper = (inspectionType ?? "").trim().toUpperCase();
@@ -1553,13 +1599,28 @@ export default function WorkSlotDetailScreen() {
                     <TouchableOpacity
                       style={[staffWorkSlotStyles.actionBtn, staffWorkSlotStyles.actionBtnSuccess, { marginRight: 6 }]}
                       onPress={() => void handleIssuePaymentEntryPress()}
-                      disabled={updateLoading || issuePaymentChoiceLoading}
+                      disabled={updateLoading || issuePaymentChoiceLoading || issueCashConfirmLoading}
                     >
                       {updateLoading ? (
                         <RefreshLogoInline logoPx={18} />
                       ) : (
                         <Text style={staffWorkSlotStyles.actionBtnText}>
                           {t("staff_work_slot_detail.btn_select_payment")}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  ) : null}
+                  {isIssueSlot && issueTicketStatusNorm === "WAITING_CASH_PAYMENT" ? (
+                    <TouchableOpacity
+                      style={[staffWorkSlotStyles.actionBtn, staffWorkSlotStyles.actionBtnSuccess, { marginRight: 6 }]}
+                      onPress={() => void handleIssueConfirmCashReceived()}
+                      disabled={updateLoading || issueCashConfirmLoading || issuePaymentChoiceLoading}
+                    >
+                      {issueCashConfirmLoading ? (
+                        <RefreshLogoInline logoPx={18} />
+                      ) : (
+                        <Text style={staffWorkSlotStyles.actionBtnText}>
+                          {t("staff_work_slot_detail.btn_confirm_cash_received")}
                         </Text>
                       )}
                     </TouchableOpacity>

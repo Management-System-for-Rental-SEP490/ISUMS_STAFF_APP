@@ -766,6 +766,8 @@ export default {
         "btn_issue_repair_flow": "修理内容を記録",
         "btn_confirm_complete": "完了を確認",
         "btn_select_payment": "支払い方法を選択",
+        "btn_confirm_cash_received": "現金受取を確認",
+        "cash_confirm_success_message": "現金の受取を確認しました。",
         "payment_modal_title": "支払い方法",
         "payment_modal_subtitle": "修理完了後の入居者の支払い方法を選んでください。",
         "payment_method_cash": "現金",

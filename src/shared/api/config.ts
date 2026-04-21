@@ -5,7 +5,7 @@
  * Đây là **trần**, không phải thời lượng tối thiểu: BE trả về sớm thì hiển thị ngay.
  * Quá hạn mà chưa có phản hồi → axios hủy request; UI dùng `common.server_not_responding`.
  */
-export const DATA_LOAD_TIMEOUT_MS = 4000 as const;
+export const DATA_LOAD_TIMEOUT_MS = 6000 as const;
 
 /** Cùng giá trị với {@link DATA_LOAD_TIMEOUT_MS} — `axios` dùng làm `timeout` (hủy request nếu quá lâu). */
 export const API_REQUEST_TIMEOUT_MS = DATA_LOAD_TIMEOUT_MS;

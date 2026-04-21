@@ -765,6 +765,8 @@ export default {
         "btn_issue_repair_flow": "Ghi nhận sửa chữa",
         "btn_confirm_complete": "Xác nhận hoàn thành",
         "btn_select_payment": "Chọn phương thức thanh toán",
+        "btn_confirm_cash_received": "Xác nhận nhận tiền mặt",
+        "cash_confirm_success_message": "Đã xác nhận nhận tiền mặt thành công.",
         "payment_modal_title": "Phương thức thanh toán",
         "payment_modal_subtitle": "Chọn cách người thuê sẽ thanh toán sau khi hoàn tất sửa chữa.",
         "payment_method_cash": "Tiền mặt",
