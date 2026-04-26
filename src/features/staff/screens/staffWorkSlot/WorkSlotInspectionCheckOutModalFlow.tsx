@@ -1,7 +1,7 @@
 /**
  * Luồng kiểm định CHECK_OUT: giống CHECK_IN + baseline từ phiên CHECK_IN (assets/events).
  */
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Image,
   KeyboardAvoidingView,
@@ -64,8 +64,10 @@ export type WorkSlotInspectionCheckOutModalFlowProps = {
   editorMarkBroken: boolean;
   setEditorMarkBroken: (v: boolean) => void;
   editorServerImages: AssetItemImageFromApi[];
+  editorPendingLocalUris: string[];
   editorImagesVersion: number;
   onDeleteEditorImage: (imageId: string) => void;
+  onRemovePendingLocalImage: (uri: string) => void;
   editorImageUploading: boolean;
   editorDeletingImageId: string | null;
   onOpenMaintenanceImageCapture: () => void;
@@ -73,8 +75,7 @@ export type WorkSlotInspectionCheckOutModalFlowProps = {
   imageCaptureVisible: boolean;
   setImageCaptureVisible: (v: boolean) => void;
   onEditorImagesPicked: (assets: ImagePicker.ImagePickerAsset[], source: "camera" | "library") => void;
-  activeImageUrl: string | null;
-  setActiveImageUrl: (url: string | null) => void;
+  onOpenImageGallery: (uris: string[], initialIndex: number) => void;
   hasFloorAreas: boolean;
   maintenanceSessionImageCount: number;
 };
@@ -112,8 +113,10 @@ export function WorkSlotInspectionCheckOutModalFlow(props: WorkSlotInspectionChe
     editorMarkBroken,
     setEditorMarkBroken,
     editorServerImages,
+    editorPendingLocalUris,
     editorImagesVersion,
     onDeleteEditorImage,
+    onRemovePendingLocalImage,
     editorImageUploading,
     editorDeletingImageId,
     onOpenMaintenanceImageCapture,
@@ -121,14 +124,24 @@ export function WorkSlotInspectionCheckOutModalFlow(props: WorkSlotInspectionChe
     imageCaptureVisible,
     setImageCaptureVisible,
     onEditorImagesPicked,
-    activeImageUrl,
-    setActiveImageUrl,
+    onOpenImageGallery,
     hasFloorAreas,
     maintenanceSessionImageCount,
   } = props;
 
   const keyboardInset = useKeyboardBottomInset();
   const draftValues = Object.values(maintenanceDrafts);
+  const serverGalleryUris = useMemo(
+    () =>
+      editorServerImages.map((im) =>
+        `${im.url}${im.url.includes("?") ? "&" : "?"}t=${editorImagesVersion}`
+      ),
+    [editorServerImages, editorImagesVersion]
+  );
+  const allGalleryUris = useMemo(
+    () => [...serverGalleryUris, ...editorPendingLocalUris],
+    [serverGalleryUris, editorPendingLocalUris]
+  );
 
   const baseline =
     selectedMaintenanceAssetId && checkInBaselineByAssetId[selectedMaintenanceAssetId]
@@ -307,6 +320,11 @@ export function WorkSlotInspectionCheckOutModalFlow(props: WorkSlotInspectionChe
             keyboardVerticalOffset={insetsTop + 48}
           >
             <View style={M.editAssetModalCard}>
+              {editorImageUploading ? (
+                <View style={M.maintenanceEditorUploadOverlay} pointerEvents="auto">
+                  <RefreshLogoInline logoPx={26} showLabel />
+                </View>
+              ) : null}
               <View style={M.maintenanceModalHeader}>
                 <Text style={M.maintenanceModalTitle}>
                   {t("staff_work_slot_detail.maintenance_edit_title")}
@@ -396,7 +414,7 @@ export function WorkSlotInspectionCheckOutModalFlow(props: WorkSlotInspectionChe
                 <Text style={M.editAssetFieldLabel}>
                   {t("staff_work_slot_detail.maintenance_images_label")}
                 </Text>
-                {editorServerImages.length === 0 ? (
+                {editorServerImages.length === 0 && editorPendingLocalUris.length === 0 ? (
                   <Text style={[M.maintenanceHintText, M.baselineHintMargin]}>
                     {t("staff_ticket_detail.images_empty")}
                   </Text>
@@ -415,7 +433,10 @@ export function WorkSlotInspectionCheckOutModalFlow(props: WorkSlotInspectionChe
                         <TouchableOpacity
                           style={M.ticketImagePressable}
                           activeOpacity={0.85}
-                          onPress={() => setActiveImageUrl(img.url)}
+                          onPress={() => {
+                            const initialIndex = editorServerImages.findIndex((r) => r.id === img.id);
+                            onOpenImageGallery(allGalleryUris, initialIndex < 0 ? 0 : initialIndex);
+                          }}
                         >
                           <Image
                             source={{
@@ -436,6 +457,33 @@ export function WorkSlotInspectionCheckOutModalFlow(props: WorkSlotInspectionChe
                           ) : (
                             <Text style={M.maintenanceImageDeleteBtnText}>×</Text>
                           )}
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                    {editorPendingLocalUris.map((uri, j) => (
+                      <View
+                        key={`pending-${j}-${uri}`}
+                        style={[M.ticketImageThumb, M.ticketImageThumbHorizontal, M.maintenanceImageThumbWrap]}
+                      >
+                        <TouchableOpacity
+                          style={M.ticketImagePressable}
+                          activeOpacity={0.85}
+                          onPress={() =>
+                            onOpenImageGallery(
+                              allGalleryUris,
+                              editorServerImages.length + j
+                            )
+                          }
+                        >
+                          <Image source={{ uri }} style={M.ticketImage} resizeMode="cover" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={M.maintenanceImageDeleteBtn}
+                          onPress={() => onRemovePendingLocalImage(uri)}
+                          activeOpacity={0.85}
+                          disabled={editorImageUploading || editorDeletingImageId != null}
+                        >
+                          <Text style={M.maintenanceImageDeleteBtnText}>×</Text>
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -479,43 +527,6 @@ export function WorkSlotInspectionCheckOutModalFlow(props: WorkSlotInspectionChe
             </View>
           </KeyboardAvoidingView>
         </View>
-      </Modal>
-
-      <Modal
-        visible={activeImageUrl != null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setActiveImageUrl(null)}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={M.imageModalBackdrop}
-          onPress={() => setActiveImageUrl(null)}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => {
-              e.stopPropagation();
-            }}
-            style={M.imageModalContent}
-          >
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={M.imageModalClose}
-              onPress={() => setActiveImageUrl(null)}
-            >
-              <Text style={M.imageModalCloseText}>×</Text>
-            </TouchableOpacity>
-
-            {activeImageUrl ? (
-              <Image
-                source={{ uri: activeImageUrl }}
-                style={M.imageModalImage}
-                resizeMode="contain"
-              />
-            ) : null}
-          </TouchableOpacity>
-        </TouchableOpacity>
       </Modal>
 
       <ImageCaptureModal

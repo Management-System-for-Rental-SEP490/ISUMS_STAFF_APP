@@ -402,12 +402,20 @@ export interface AssetItemFromApi {
   categoryId: string;
   /** BE GET/PUT item có thể embed object category (kèm nameTranslations / descriptionTranslations). */
   category?: AssetCategoryEmbeddedFromApi;
-  /** Tên hiển thị cho thiết bị (ví dụ: Máy lạnh phòng khách). */
+  /** Tên hiển thị cho thiết bị theo `Accept-Language` / mặc định (chuỗi thuần; PUT request lại dùng object `displayName`). */
   displayName: string;
-  /** Map locale hoặc key Swagger → chuỗi; BE có thể trả kèm khi displayName là chuỗi canonical. */
+  /**
+   * Bản dịch tên thiết bị (PUT/GET) — key có thể là `vi`, `ja`, `en`, `additionalprop1`, …
+   * Cùng mô hình với `nameTranslations` trên category.
+   */
   translations?: Record<string, string>;
   /** Số serial (do nhà sản xuất). */
   serialNumber: string;
+  /**
+   * Mã NFC (một số bản BE trả `nfcId` thay vì/ song song `nfcTag` + `tags`).
+   * `normalizeAssetItemFromResponse` gộp về `nfcTag` cho UI.
+   */
+  nfcId?: string | null;
   /** NFC tag ID gắn với thiết bị (từ bảng asset tags), null nếu chưa gán. */
   nfcTag: string | null;
   /** QR tag ID gắn với thiết bị, null nếu chưa gán. */
@@ -467,18 +475,18 @@ export interface CreateAssetItemRequest {
 }
 
 /**
- * Body PUT /api/assets/items/:id — BE bind `displayName` kiểu Map string→string (JSON object), tối thiểu `{ "vi": "..." }`.
- * Không set `displayName` khi không đổi tên → không gửi field (tránh bind sai kiểu / ghi đè không cần).
+ * Body PUT /api/assets/items/{id} (Swagger) — cùng kiểu `displayName` object (Map locale → chuỗi) với
+ * `CreateAssetItemRequest` / POST category; response trả `displayName` chuỗi + `translations` riêng.
+ *
+ * Không gồm `houseId` / `categoryId` (đổi nhà: `transferAssetItemHouse`; danh mục không đổi qua PUT này).
+ * `functionAreaId` gửi kèm theo `buildUpdateAssetItemRequestBody` (chuỗi rỗng khi chưa chọn), trừ khi bỏ hẳn field.
  */
 export interface UpdateAssetItemRequest {
-  houseId: string;
-  categoryId: string;
   displayName?: AssetItemDisplayNameMap;
   serialNumber: string;
-  nfcTag: string | null;
-  qrTag: string | null;
   nfcId?: string | null;
-  qrId?: string | null;
+  /** Fallback khi build body (ưu tiên `nfcId`) — gọi API chỉ cần một trong hai. */
+  nfcTag?: string | null;
   conditionPercent: number;
   note?: string | null;
   status: string;

@@ -828,6 +828,8 @@ export default {
         "submit": "Confirm and finish",
         "error_select_banner": "Select at least one banner when damage is reported.",
         "error_notes_damage": "Enter notes when damage is reported.",
+        "check_in_success": "Check-in inspection completed.",
+        "check_out_success": "Check-out inspection completed.",
     },
     "staff_issue_note": {
         "screen_title": "Repair Confirmation",

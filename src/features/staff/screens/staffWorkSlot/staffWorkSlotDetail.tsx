@@ -37,7 +37,11 @@ import {
   updateJobStatus,
 } from "../../../../shared/services/maintenanceApi";
 import { CustomAlert } from "../../../../shared/components/alert";
-import { RefreshLogoInline, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
+import {
+  PullToRefreshControl,
+  RefreshLogoInline,
+  RefreshLogoOverlay,
+} from "@shared/components/RefreshLogoOverlay";
 import {
   mapInspectionToJobFromApi,
   normalizeAssetItemStatusFromApi,
@@ -53,8 +57,8 @@ import {
 } from "../../../../shared/utils/inspectionDebugLog";
 import Icons from "../../../../shared/theme/icon";
 import { iconStyles } from "../../../../shared/styles/iconStyles";
-import { staffWorkSlotStyles, STATUS_COLORS } from "./staffWorkSlotStyles";
-import { brandPrimary, brandTintBg, neutral } from "../../../../shared/theme/color";
+import { staffWorkSlotStyles } from "./staffWorkSlotStyles";
+import { brandTintBg, neutral } from "../../../../shared/theme/color";
 import {
   formatDdMmYyyy,
   formatDdMmYyyyHms24,
@@ -65,6 +69,9 @@ import {
   isoLocalDateToYmd,
   waitForWorkSlotCompletionSync,
 } from "../../utils/workSlotCompletionSync";
+import { WorkSlotImageGalleryModal } from "./WorkSlotImageGalleryModal";
+import { WorkSlotDetailInfoRow } from "./WorkSlotDetailInfoRow";
+import { WorkSlotDetailWorkSlotSection } from "./WorkSlotDetailWorkSlotSection";
 import { WorkSlotInspectionCheckInModalFlow } from "./WorkSlotInspectionCheckInModalFlow";
 import { WorkSlotInspectionCheckOutModalFlow } from "./WorkSlotInspectionCheckOutModalFlow";
 import { WorkSlotMaintenanceModalFlow } from "./WorkSlotMaintenanceModalFlow";
@@ -76,9 +83,9 @@ import { useAssetItemById } from "../../../../shared/hooks/useAssetItems";
 import {
   getAssetItemsByHouseId,
   getAssetItemById,
-  getImagesFromAssetItem,
+  getAssetItemImages,
+  invalidateAssetItemImagesCache,
   deleteAssetItemImage,
-  uploadAssetItemImages,
   uploadAssetEventImages,
   type AssetItemImageFromApi,
   type AssetItemImageToUpload,
@@ -151,11 +158,6 @@ function getInspectionTypeDisplay(type: string | null | undefined, t: (k: string
   return raw || "—";
 }
 
-function getStatusColors(status: string | undefined): { bg: string; text: string } {
-  const key = normalizeScheduleStatusKey(status) || "OTHER";
-  return STATUS_COLORS[key] ?? STATUS_COLORS.OTHER;
-}
-
 function normalizeFloorForSort(v: string | null | undefined): string {
   return String(v ?? "").trim();
 }
@@ -198,7 +200,10 @@ export default function WorkSlotDetailScreen() {
   const [updateLoading, setUpdateLoading] = useState(false);
   const [ticketImages, setTicketImages] = useState<IssueTicketImageFromApi[]>([]);
   const [ticketImagesLoading, setTicketImagesLoading] = useState(false);
-  const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
+  const [maintenanceImageGallery, setMaintenanceImageGallery] = useState<{
+    uris: string[];
+    initialIndex: number;
+  } | null>(null);
   const [maintenanceModalVisible, setMaintenanceModalVisible] = useState(false);
   const [maintenanceEditorVisible, setMaintenanceEditorVisible] = useState(false);
   const [selectedMaintenanceAssetId, setSelectedMaintenanceAssetId] = useState<string | null>(null);
@@ -225,7 +230,8 @@ export default function WorkSlotDetailScreen() {
   /** Ảnh từ BE lúc mở editor — chỉ trong phiên ca: UI ẩn, không hiển thị trong modal (chỉ ảnh chụp mới phiên). */
   const baselineEditorImageIdsRef = useRef<Set<string>>(new Set());
   const [editorImagesVersion, setEditorImagesVersion] = useState(0);
-  const [editorImageUploading, setEditorImageUploading] = useState(false);
+  /** Không POST ảnh phiên lên asset item (tránh BE ghi đè/xóa ảnh cũ trên web); chỉ gửi qua event sau batch. */
+  const editorImageUploading = false;
   const [editorDeletingImageId, setEditorDeletingImageId] = useState<string | null>(null);
   const [imageCaptureVisible, setImageCaptureVisible] = useState(false);
   const [inspectionContractId, setInspectionContractId] = useState<string | null>(null);
@@ -233,6 +239,9 @@ export default function WorkSlotDetailScreen() {
     Record<string, { conditionPercent?: number | null; note?: string | null }>
   >({});
   const [inspectionSessionPhotoUrls, setInspectionSessionPhotoUrls] = useState<string[]>([]);
+  /** Ảnh vừa chụp/chọn — hiển thị tạm; gửi BE qua POST `events/:eventId/images` sau batch (không POST lên asset item). */
+  const [editorPendingLocalUris, setEditorPendingLocalUris] = useState<string[]>([]);
+  const [detailRefreshing, setDetailRefreshing] = useState(false);
   const [editorMarkBroken, setEditorMarkBroken] = useState(false);
   /** Số ảnh đã thêm (upload) trong lần mở modal này — giới hạn MAX, không trừ ảnh cũ trên asset. */
   const [maintenanceEditorSessionImageCount, setMaintenanceEditorSessionImageCount] = useState(0);
@@ -247,16 +256,23 @@ export default function WorkSlotDetailScreen() {
   const maintenanceImageUploadQueueRef = useRef(Promise.resolve());
   const maintenanceSessionImageCountRef = useRef(0);
   /**
-   * Ảnh đã upload lên asset trong phiên bảo trì, map theo `serverImageId` để xóa khỏi danh sách
-   * khi user xóa ảnh; sau batch BE trả `eventId` thì POST cùng file local lên sự kiện tương ứng.
+   * User xóa thumbnail local tạm trước khi tới lượt upload — URI gắn vào đây để `uploadEditorImages` bỏ qua
+   * (không POST file đã bỏ, trả slot chụp lại).
    */
-  const maintenanceEventImagesByAssetRef = useRef<
-    Record<string, Array<AssetItemImageToUpload & { serverImageId: string }>>
-  >({});
-  /** Cặp assetId/eventId từ response batch — POST ảnh lên event khi Hoàn thành / Xác nhận kiểm định. */
+  const uploadCancelledLocalUrisRef = useRef<Set<string>>(new Set());
+  /**
+   * File local (chưa POST lên asset item) gom theo asset — sau batch nhận `eventId` thì POST
+   * `POST /assets/events/:eventId/images`. Không upload item ảnh để web vẫn giữ ảnh cũ để so sánh.
+   */
+  const maintenanceEventImagesByAssetRef = useRef<Record<string, AssetItemImageToUpload[]>>({});
+  /** Cặp assetId/eventId từ response batch (N asset cập nhật → thường N phần tử) — POST ảnh khi Hoàn thành / Xác nhận kiểm định. */
   const pendingMaintenanceBatchEventsRef = useRef<Array<{ assetId: string; eventId: string }>>([]);
 
-  /** Gắn ảnh theo từng asset vào đúng `eventId` (sau khi batch đã trả events). Trả về true nếu có lần POST lỗi. */
+  /**
+   * Với từng phần tử trong `data.events` (đã chuẩn hóa ở API): một `eventId` ứng một `assetId`.
+   * Ảnh local đã gắn theo `assetId` (ref map) — POST lên `POST /assets/events/:eventId/images` tương ứng, tuần tự từng cặp.
+   * Trả về true nếu có lần POST lỗi (cặp lỗi còn trong ref để retry lần sau nếu có).
+   */
   const uploadPendingMaintenanceEventImages = useCallback(async (): Promise<boolean> => {
     const events = pendingMaintenanceBatchEventsRef.current;
     if (!events.length) return false;
@@ -264,15 +280,26 @@ export default function WorkSlotDetailScreen() {
     let failed = false;
     const remaining: Array<{ assetId: string; eventId: string }> = [];
     for (const ev of events) {
-      const rows = byAsset[ev.assetId];
+      const assetKey = normalizeId(ev.assetId);
+      const eventId = normalizeId(ev.eventId);
+      if (!assetKey || !eventId) continue;
+      const rows = byAsset[assetKey];
       if (!rows?.length) continue;
-      const files: AssetItemImageToUpload[] = rows.map(({ serverImageId: _sid, ...rest }) => rest);
+      const files: AssetItemImageToUpload[] = rows.map((r) => ({
+        uri: r.uri,
+        fileName: r.fileName,
+        mimeType: r.mimeType,
+      }));
       try {
-        await uploadAssetEventImages(ev.eventId, files);
-        delete byAsset[ev.assetId];
+        await uploadAssetEventImages(eventId, files);
+        delete byAsset[assetKey];
+        const uploadedUris = new Set(files.map((f) => String(f.uri ?? "").trim()).filter(Boolean));
+        if (uploadedUris.size > 0) {
+          setEditorPendingLocalUris((prev) => prev.filter((u) => !uploadedUris.has(u)));
+        }
       } catch {
         failed = true;
-        remaining.push(ev);
+        remaining.push({ assetId: assetKey, eventId });
       }
     }
     pendingMaintenanceBatchEventsRef.current = remaining;
@@ -311,53 +338,66 @@ export default function WorkSlotDetailScreen() {
   const { data: maintenanceAreasResp } = useFunctionalAreasByHouseId(currentHouseId ?? "");
   const maintenanceAreas = (maintenanceAreasResp?.data ?? []) as FunctionalAreaFromApi[];
 
-  const refetchItem = () => {
+  /**
+   * Tải lại job/ticket/inspection từ API — dùng khi focus màn và khi kéo làm mới.
+   */
+  const refetchItem = useCallback(async () => {
     if (!slot.ticketId?.trim()) return;
     if (isIssueSlot) {
       setInspectionNote(null);
       setInspectionType(null);
-      getIssueTicketById(slot.ticketId)
-        .then(async (res) => {
-          if (!res?.success || !res?.data) return;
-          setTicket(res.data);
-          setJob(null);
-          const st = String(res.data.status ?? "").toUpperCase();
-          setIssueRepairSubmitted(
-            (st === "IN_PROGRESS" || st === "WAITING_STAFF_COMPLETION") &&
-              submittedIssueRepairTicketIdsInSession.has(res.data.id)
-          );
-        })
-        .catch(() => {});
+      try {
+        const res = await getIssueTicketById(slot.ticketId);
+        if (!res?.success || !res?.data) return;
+        setTicket(res.data);
+        setJob(null);
+        const st = String(res.data.status ?? "").toUpperCase();
+        setIssueRepairSubmitted(
+          (st === "IN_PROGRESS" || st === "WAITING_STAFF_COMPLETION") &&
+            submittedIssueRepairTicketIdsInSession.has(res.data.id)
+        );
+      } catch {
+        /* ignore */
+      }
       return;
     }
 
     if (isInspectionSlot) {
-      getInspectionById(slot.ticketId)
-        .then((res) => {
-          if (!res?.success || !res?.data) return;
-          setJob(mapInspectionToJobFromApi(res.data));
-          setTicket(null);
-          const n = res.data.note?.trim();
-          setInspectionNote(n ? n : null);
-          const tp = res.data.type?.trim();
-          setInspectionType(tp ? tp : null);
-          const cid = res.data.contractId?.trim();
-          setInspectionContractId(cid && cid.length > 0 ? cid : null);
-        })
-        .catch(() => {});
+      try {
+        const res = await getInspectionById(slot.ticketId);
+        if (!res?.success || !res?.data) return;
+        setJob(mapInspectionToJobFromApi(res.data));
+        setTicket(null);
+        const n = res.data.note?.trim();
+        setInspectionNote(n ? n : null);
+        const tp = res.data.type?.trim();
+        setInspectionType(tp ? tp : null);
+        const cid = res.data.contractId?.trim();
+        setInspectionContractId(cid && cid.length > 0 ? cid : null);
+      } catch {
+        /* ignore */
+      }
       return;
     }
 
     setInspectionNote(null);
     setInspectionType(null);
-    getJobById(slot.ticketId)
-      .then((res) => {
-        if (!res?.success || !res?.data) return;
-        setJob(res.data);
-        setTicket(null);
-      })
-      .catch(() => {});
-  };
+    try {
+      const res = await getJobById(slot.ticketId);
+      if (!res?.success || !res?.data) return;
+      setJob(res.data);
+      setTicket(null);
+    } catch {
+      /* ignore */
+    }
+  }, [isInspectionSlot, isIssueSlot, slot.ticketId]);
+
+  const onDetailRefresh = useCallback(() => {
+    setDetailRefreshing(true);
+    void refetchItem()
+      .catch(() => {})
+      .finally(() => setDetailRefreshing(false));
+  }, [refetchItem]);
 
   /** CHECK_OUT: baseline CHECK_IN theo contractId + assets/events. */
   useEffect(() => {
@@ -482,7 +522,7 @@ export default function WorkSlotDetailScreen() {
             submittedIssueRepairTicketIdsInSession.has(fresh.data.id)
         );
       } else {
-        refetchItem();
+        void refetchItem();
       }
       CustomAlert.alert(t("staff_work_slot_detail.update_success"), "", [{ text: t("common.close") }]);
     } catch (err) {
@@ -517,7 +557,7 @@ export default function WorkSlotDetailScreen() {
               kind: "issue",
             }).then(() => {
               queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
-              refetchItem();
+              void refetchItem();
             });
           },
         },
@@ -549,7 +589,7 @@ export default function WorkSlotDetailScreen() {
         kind: "issue",
       }).then(() => {
         queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
-        refetchItem();
+        void refetchItem();
       });
     } catch (err) {
       CustomAlert.alert(
@@ -576,7 +616,7 @@ export default function WorkSlotDetailScreen() {
       try {
         await updateIssueTicketStatus(ticket.id, newStatus);
         CustomAlert.alert(t("staff_work_slot_detail.update_success"), "", [{ text: t("common.close") }]);
-        refetchItem();
+        void refetchItem();
       } catch (err) {
         CustomAlert.alert(t("staff_work_slot_detail.update_error"), err instanceof Error ? err.message : "", [{ text: t("common.close") }]);
       } finally {
@@ -638,6 +678,8 @@ export default function WorkSlotDetailScreen() {
         pendingMaintenanceBatchEventsRef.current = [];
         submittedMaintenanceJobIdsInSession.delete(job.id);
         setInspectionSessionPhotoUrls([]);
+        setEditorPendingLocalUris([]);
+        uploadCancelledLocalUrisRef.current.clear();
         maintenanceSessionImageCountRef.current = 0;
         setMaintenanceEditorSessionImageCount(0);
       } else if (finishedNow) {
@@ -660,11 +702,11 @@ export default function WorkSlotDetailScreen() {
           kind: isInspectionSlot ? "inspection" : "maintenance",
         }).then(() => {
           queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
-          refetchItem();
+          void refetchItem();
         });
       } else {
         CustomAlert.alert(t("staff_work_slot_detail.update_success"), "", [{ text: t("common.close") }]);
-        refetchItem();
+        void refetchItem();
       }
     } catch (err) {
       CustomAlert.alert(t("staff_work_slot_detail.update_error"), err instanceof Error ? err.message : "", [{ text: t("common.close") }]);
@@ -721,6 +763,13 @@ export default function WorkSlotDetailScreen() {
     setMaintenanceModalVisible(true);
   }, []);
 
+  /**
+   * Mở gallery ảnh toàn màn (vuốt trái/phải) từ thumbnail issue hoặc từ modal chỉnh thiết bị.
+   */
+  const openMaintenanceImageGallery = useCallback((uris: string[], initialIndex: number) => {
+    setMaintenanceImageGallery({ uris, initialIndex });
+  }, []);
+
   const closeMaintenanceModal = useCallback(() => {
     if (maintenanceSubmitting) return;
     setMaintenanceModalVisible(false);
@@ -757,12 +806,17 @@ export default function WorkSlotDetailScreen() {
 
   /**
    * Tải lại danh sách ảnh từ BE cho asset đang sửa.
+   * Dùng GET /api/assets/items/:id/images (đầy đủ) — trường `images` nhúng trong GET item đôi khi
+   * không liệt kê hết ảnh, khiến UI chỉ còn 1 thumbnail dù đã upload nhiều và bộ đếm phiên vẫn tăng.
    * Gán `editorServerImagesRef` đồng bộ với mảng mới — hàng đợi upload chạy ngay sau `await`
    * (trước khi React re-render) nên không được dựa vào `editorServerImages` state/ref theo render.
    */
   const refreshEditorImages = useCallback(async (assetId: string): Promise<AssetItemImageFromApi[]> => {
-    const asset = await getAssetItemById(assetId);
-    const images = getImagesFromAssetItem(asset);
+    const id = String(assetId ?? "").trim();
+    if (!id) return [];
+    /** POST ảnh gọi invalidate trong API; gọi thêm ở đây trước GET để form luôn gắn với bản mới. */
+    invalidateAssetItemImagesCache(id);
+    const images = await getAssetItemImages(id, Date.now());
     const urls = images.map((img) => img.url).filter((url) => url.trim().length > 0);
     editorServerImagesRef.current = images;
     setEditorServerImages(images);
@@ -779,7 +833,8 @@ export default function WorkSlotDetailScreen() {
       try {
         const asset = await getAssetItemById(selectedMaintenanceAssetId);
         if (cancelled) return;
-        const images = getImagesFromAssetItem(asset);
+        const images = await getAssetItemImages(selectedMaintenanceAssetId, Date.now());
+        if (cancelled) return;
         baselineEditorImageIdsRef.current = new Set(images.map((i) => i.id));
         editorServerImagesRef.current = images;
         setEditorServerImages(images);
@@ -837,6 +892,8 @@ export default function WorkSlotDetailScreen() {
     if (!maintenanceEditorVisible || !selectedMaintenanceAssetId) return;
     maintenanceSessionImageCountRef.current = 0;
     setMaintenanceEditorSessionImageCount(0);
+    setEditorPendingLocalUris([]);
+    uploadCancelledLocalUrisRef.current.clear();
   }, [maintenanceEditorVisible, selectedMaintenanceAssetId]);
 
   const handleSubmitMaintenanceBatch = useCallback(() => {
@@ -872,7 +929,13 @@ export default function WorkSlotDetailScreen() {
               if (!res?.success) {
                 throw new Error(res?.message || t("staff_work_slot_detail.maintenance_batch_error"));
               }
-              pendingMaintenanceBatchEventsRef.current = res.data?.events ?? [];
+              /**
+               * `data.events`: mỗi asset đã gửi trong batch 1 cặp (assetId, eventId) — đồng bộ với sau khi normalize ở assetItemApi.
+               */
+              pendingMaintenanceBatchEventsRef.current = (res.data?.events ?? []).map((row) => ({
+                assetId: normalizeId(row.assetId),
+                eventId: normalizeId(row.eventId),
+              })).filter((row) => row.assetId.length > 0 && row.eventId.length > 0);
               // Ghi nhớ trong phiên để quay lại màn vẫn hiện nút "Hoàn thành".
               submittedMaintenanceJobIdsInSession.add(job.id);
               setMaintenanceSubmitted(true);
@@ -1120,51 +1183,57 @@ export default function WorkSlotDetailScreen() {
   );
 
   /**
-   * Upload ảnh lên asset đang mở trong modal; `assetId` truyền rõ khi đổi thiết bị.
-   * Slot phiên đã được trừ ở `handleEditorImagesPicked` trước khi gọi hàm này.
+   * Gom file vừa chụp/chọn vào `maintenanceEventImagesByAssetRef` để sau khi gửi batch (có `eventId`) POST
+   * lên `POST /assets/events/:eventId/images` — **không** gọi POST ảnh lên asset item (tránh BE xóa/ghi đè ảnh cũ trên web).
+   * Thumbnail: `editorPendingLocalUris` (đã set ở `handleEditorImagesPicked`). Các URI trong
+   * `uploadCancelledLocalUrisRef` bỏ qua.
    */
-  const uploadEditorImages = useCallback(
-    async (assetId: string, files: AssetItemImageToUpload[]) => {
-      if (!assetId?.trim() || files.length === 0) return;
-      setEditorImageUploading(true);
-      try {
-        const beforeAsset = await getAssetItemById(assetId);
-        const beforeIds = new Set(getImagesFromAssetItem(beforeAsset).map((i) => i.id));
-        await uploadAssetItemImages(assetId, files);
-        const afterImages = await refreshEditorImages(assetId);
-        const newImages = afterImages.filter((i) => !beforeIds.has(i.id));
-        const n = Math.min(newImages.length, files.length);
-        if (n > 0) {
-          const prev = maintenanceEventImagesByAssetRef.current[assetId] ?? [];
-          const merged = [...prev];
-          for (let i = 0; i < n; i++) {
-            const img = newImages[i];
-            const f = files[i];
-            merged.push({
-              serverImageId: img.id,
-              uri: f.uri,
-              fileName: f.fileName,
-              mimeType: f.mimeType,
-            });
-          }
-          maintenanceEventImagesByAssetRef.current[assetId] = merged;
-        }
-        const newUrls = newImages
-          .map((i) => i.url)
-          .filter((u) => u.trim().length > 0);
-        if (isInspectionSlot && newUrls.length > 0) {
-          setInspectionSessionPhotoUrls((prev) => [...new Set([...prev, ...newUrls])]);
-          logInspectionDebug("[InspectionUpload]", "session photos appended", {
-            assetId,
-            added: newUrls.length,
-          });
-        }
-      } finally {
-        setEditorImageUploading(false);
+  const uploadEditorImages = useCallback((assetId: string, files: AssetItemImageToUpload[]) => {
+    if (!assetId?.trim() || files.length === 0) return;
+    const filesActive = files.filter(
+      (f) => !uploadCancelledLocalUrisRef.current.has(String(f.uri ?? "").trim())
+    );
+    if (filesActive.length === 0) return;
+    const mapKey = normalizeId(assetId);
+    const prev = maintenanceEventImagesByAssetRef.current[mapKey] ?? [];
+    const seen = new Set(prev.map((p) => String(p.uri ?? "").trim()).filter(Boolean));
+    const toAdd = filesActive.filter((f) => {
+      const u = String(f.uri ?? "").trim();
+      return u.length > 0 && !seen.has(u);
+    });
+    if (toAdd.length === 0) return;
+    for (const t of toAdd) seen.add(String(t.uri ?? "").trim());
+    maintenanceEventImagesByAssetRef.current[mapKey] = [...prev, ...toAdd];
+  }, []);
+
+  /**
+   * Xóa ảnh vừa chụp/chọn (chưa hoặc đang chờ upload): gỡ UI, trả 1 slot trong giới hạn, đánh dấu URI
+   * để hàng đợi `uploadEditorImages` bỏ qua nếu chưa gửi; kiểm định: gỡ luôn khỏi `inspectionSessionPhotoUrls`.
+   */
+  const handleRemovePendingLocalImage = useCallback((uri: string) => {
+    const u = String(uri ?? "").trim();
+    if (!u) return;
+    uploadCancelledLocalUrisRef.current.add(u);
+    setEditorPendingLocalUris((prev) => {
+      const i = prev.indexOf(u);
+      if (i < 0) return prev;
+      return [...prev.slice(0, i), ...prev.slice(i + 1)];
+    });
+    setInspectionSessionPhotoUrls((prev) => prev.filter((x) => x !== u));
+    const aid = selectedMaintenanceAssetIdRef.current;
+    if (aid) {
+      const k = normalizeId(aid);
+      const list = maintenanceEventImagesByAssetRef.current[k];
+      if (list?.length) {
+        maintenanceEventImagesByAssetRef.current[k] = list.filter((x) => String(x.uri ?? "").trim() !== u);
       }
-    },
-    [isInspectionSlot, refreshEditorImages]
-  );
+    }
+    maintenanceSessionImageCountRef.current = Math.max(
+      0,
+      maintenanceSessionImageCountRef.current - 1
+    );
+    setMaintenanceEditorSessionImageCount((c) => Math.max(0, c - 1));
+  }, []);
 
   const handleOpenMaintenanceImageCapture = useCallback(() => {
     if (editorDeletingImageId != null) {
@@ -1175,7 +1244,7 @@ export default function WorkSlotDetailScreen() {
   }, [editorDeletingImageId, t]);
 
   /**
-   * Ảnh từ camera/thư viện: trừ slot ngay (đúng giới hạn), upload chạy nền theo hàng đợi — không phải chờ mạng mới chụp/chọn tiếp.
+   * Ảnh từ camera/thư viện: trừ slot ngay; hàng đợi gom file vào ref (POST event sau batch) — không POST lên asset item.
    */
   const handleEditorImagesPicked = useCallback(
     (assets: ImagePicker.ImagePickerAsset[], _source: "camera" | "library") => {
@@ -1217,29 +1286,22 @@ export default function WorkSlotDetailScreen() {
 
       if (files.length === 0) return;
 
+      const newLocalUris = files.map((f) => f.uri).filter((u) => u.trim().length > 0);
+      setEditorPendingLocalUris((prev) => [...prev, ...newLocalUris]);
+      if (isInspectionSlot) {
+        setInspectionSessionPhotoUrls((prev) => [...new Set([...prev, ...newLocalUris])]);
+      }
+
       const reserved = files.length;
       maintenanceSessionImageCountRef.current += reserved;
       setMaintenanceEditorSessionImageCount((c) => c + reserved);
 
       const filesForUpload = files;
-      maintenanceImageUploadQueueRef.current = maintenanceImageUploadQueueRef.current
-        .then(() =>
-          uploadEditorImages(assetId, filesForUpload).catch((err: unknown) => {
-            maintenanceSessionImageCountRef.current = Math.max(
-              0,
-              maintenanceSessionImageCountRef.current - reserved
-            );
-            setMaintenanceEditorSessionImageCount((c) => Math.max(0, c - reserved));
-            CustomAlert.alert(
-              t("common.error"),
-              err instanceof Error ? err.message : t("staff_work_slot_detail.maintenance_batch_error"),
-              [{ text: t("common.close") }]
-            );
-          })
-        )
-        .catch(() => {});
+      maintenanceImageUploadQueueRef.current = maintenanceImageUploadQueueRef.current.then(() => {
+        uploadEditorImages(assetId, filesForUpload);
+      });
     },
-    [t, uploadEditorImages]
+    [t, uploadEditorImages, isInspectionSlot]
   );
 
   const handleDeleteEditorImage = useCallback(
@@ -1248,12 +1310,6 @@ export default function WorkSlotDetailScreen() {
       setEditorDeletingImageId(imageId);
       try {
         await deleteAssetItemImage(selectedMaintenanceAssetId, imageId);
-        const list = maintenanceEventImagesByAssetRef.current[selectedMaintenanceAssetId];
-        if (list?.length) {
-          maintenanceEventImagesByAssetRef.current[selectedMaintenanceAssetId] = list.filter(
-            (x) => x.serverImageId !== imageId
-          );
-        }
         await refreshEditorImages(selectedMaintenanceAssetId);
       } catch (err) {
         CustomAlert.alert(
@@ -1272,7 +1328,7 @@ export default function WorkSlotDetailScreen() {
     const targetAsset =
       maintenanceAssetsSorted.find((asset) => asset.id === selectedMaintenanceAssetId) ?? null;
     if (!targetAsset) return;
-    if (editorImageUploading || editorDeletingImageId != null) {
+    if (editorDeletingImageId != null) {
       CustomAlert.alert(
         t("common.error"),
         t("common.loading"),
@@ -1308,7 +1364,6 @@ export default function WorkSlotDetailScreen() {
   }, [
     editorConditionPercent,
     editorDeletingImageId,
-    editorImageUploading,
     editorMarkBroken,
     editorNote,
     maintenanceAssetsSorted,
@@ -1342,13 +1397,13 @@ export default function WorkSlotDetailScreen() {
       if (isInspectionSlot) {
         pushInspectionFlowDebugSession();
       }
-      refetchItem();
+      void refetchItem();
       return () => {
         if (isInspectionSlot) {
           popInspectionFlowDebugSession();
         }
       };
-    }, [slot.ticketId, isIssueSlot, isInspectionSlot])
+    }, [slot.ticketId, isIssueSlot, isInspectionSlot, refetchItem])
   );
 
   return (
@@ -1373,13 +1428,19 @@ export default function WorkSlotDetailScreen() {
         </View>
       </StackScreenTitleHeaderStrip>
 
-      <ScrollView
-        contentContainerStyle={[
-          staffWorkSlotStyles.scrollContent,
-          { paddingBottom: 24 + insets.bottom },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={{ flex: 1, position: "relative" }}>
+        <RefreshLogoOverlay visible={detailRefreshing} />
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            staffWorkSlotStyles.scrollContent,
+            { paddingBottom: 24 + insets.bottom },
+          ]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <PullToRefreshControl refreshing={detailRefreshing} onRefresh={onDetailRefresh} />
+          }
+        >
         {/* Hero banner
         <View style={staffWorkSlotStyles.heroBanner}>
           <Text style={staffWorkSlotStyles.heroTime}>{slot.timeRange}</Text>
@@ -1389,27 +1450,7 @@ export default function WorkSlotDetailScreen() {
           </Text>
         </View> */}
 
-        {/* Work Slot */}
-        <View style={staffWorkSlotStyles.section}>
-          <View style={staffWorkSlotStyles.sectionHeader}>
-            <View style={iconStyles.workSlotSectionIconWrap}>
-              <Icons.schedule size={20} color={neutral.iconMuted} />
-            </View>
-            <Text style={staffWorkSlotStyles.sectionTitle}>{t("staff_work_slot_detail.work_slot_section")}</Text>
-          </View>
-          <View style={staffWorkSlotStyles.card}>
-            <InfoRow icon={<Icons.accessTime size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.time_range")} value={slot.timeRange} />
-            <InfoRow icon={<Icons.calendar size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.date")} value={slot.date} />
-            <InfoRow icon={<Icons.workOutline size={18} color={neutral.slate500} />} label={t("staff_work_slot_detail.job_type")} value={slot.taskKey ? t(slot.taskKey) : slot.task} />
-            <InfoRow
-              icon={<Icons.flag size={18} color={neutral.slate500} />}
-              label={t("staff_work_slot_detail.status")}
-              value={slotStatusLabel}
-              isStatus
-              statusRaw={slot.status}
-            />
-          </View>
-        </View>
+        <WorkSlotDetailWorkSlotSection t={t} slot={slot} slotStatusLabel={slotStatusLabel} />
 
         {/* Job (từ API) */}
         <View style={staffWorkSlotStyles.section}>
@@ -1429,7 +1470,7 @@ export default function WorkSlotDetailScreen() {
             </View>
           ) : hasDetailItem ? (
             <View style={staffWorkSlotStyles.card}>
-              <InfoRow
+              <WorkSlotDetailInfoRow
                 icon={<Icons.home size={18} color={neutral.slate500} />}
                 label={isIssueSlot ? t("staff_ticket_detail.building") : t("staff_work_slot_detail.house_id")}
                 value={currentHouseName}
@@ -1437,23 +1478,23 @@ export default function WorkSlotDetailScreen() {
               />
               {isIssueSlot ? (
                 <>
-                  <InfoRow
+                  <WorkSlotDetailInfoRow
                     icon={<Icons.assignment size={18} color={neutral.slate500} />}
                     label={t("staff_ticket_detail.title_label")}
                     value={ticket?.title ?? ""}
                   />
-                  <InfoRow
+                  <WorkSlotDetailInfoRow
                     icon={<Icons.workOutline size={18} color={neutral.slate500} />}
                     label={t("staff_ticket_detail.description")}
                     value={ticket?.description ?? ""}
                   />
-                  <InfoRow
+                  <WorkSlotDetailInfoRow
                     icon={<Icons.tag size={18} color={neutral.slate500} />}
                     label={t("staff_ticket_detail.device")}
                     value={assetIssueDisplayName}
                     valueLoading={assetIssueNameLoading}
                   />
-                  <InfoRow
+                  <WorkSlotDetailInfoRow
                     icon={<Icons.calendar size={18} color={neutral.slate500} />}
                     label={t("staff_ticket_detail.created_at")}
                     value={ticket?.createdAt ? formatDdMmYyyy(new Date(ticket.createdAt)) : ""}
@@ -1489,7 +1530,11 @@ export default function WorkSlotDetailScreen() {
                                 staffWorkSlotStyles.ticketImageThumbHorizontal,
                               ]}
                               activeOpacity={0.85}
-                              onPress={() => setActiveImageUrl(img.url)}
+                              onPress={() => {
+                                const uris = ticketImages.map((x) => x.url);
+                                const i = ticketImages.findIndex((x) => x.id === img.id);
+                                openMaintenanceImageGallery(uris, i < 0 ? 0 : i);
+                              }}
                             >
                               <Image source={{ uri: img.url }} style={staffWorkSlotStyles.ticketImage} resizeMode="cover" />
                             </TouchableOpacity>
@@ -1503,7 +1548,7 @@ export default function WorkSlotDetailScreen() {
                 </>
               ) : (
                 <>
-                  <InfoRow
+                  <WorkSlotDetailInfoRow
                     icon={<Icons.event size={18} color={neutral.slate500} />}
                     label={
                       isInspectionSlot
@@ -1513,14 +1558,14 @@ export default function WorkSlotDetailScreen() {
                     value={job?.periodStartDate ? formatYmdStringToDdMmYyyy(job.periodStartDate) : ""}
                   />
                   {isInspectionSlot ? (
-                    <InfoRow
+                    <WorkSlotDetailInfoRow
                       icon={<Icons.tag size={18} color={neutral.slate500} />}
                       label={t("staff_work_slot_detail.inspection_type_label")}
                       value={getInspectionTypeDisplay(inspectionType, t)}
                     />
                   ) : null}
                   {isInspectionSlot && inspectionNote ? (
-                    <InfoRow
+                    <WorkSlotDetailInfoRow
                       icon={<Icons.workOutline size={18} color={neutral.slate500} />}
                       label={t("staff_work_slot_detail.inspection_note_label")}
                       value={inspectionNote}
@@ -1528,7 +1573,7 @@ export default function WorkSlotDetailScreen() {
                   ) : null}
                 </>
               )}
-              <InfoRow
+              <WorkSlotDetailInfoRow
                 icon={<Icons.flag size={18} color={neutral.slate500} />}
                 label={isIssueSlot ? t("staff_ticket_detail.status") : t("staff_work_slot_detail.job_status")}
                 value={itemStatusLabel}
@@ -1647,37 +1692,78 @@ export default function WorkSlotDetailScreen() {
                   ) : null}
 
                   {!isIssueSlot && job?.status === "IN_PROGRESS" ? (
-                    <TouchableOpacity
-                      style={[
-                        staffWorkSlotStyles.actionBtn,
-                        !maintenanceSubmitted
-                          ? staffWorkSlotStyles.actionBtnStartUpdate
-                          : isInspectionSlot
-                            ? staffWorkSlotStyles.actionBtnVerify
+                    isInspectionSlot ? (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          flexWrap: "wrap",
+                          gap: 8,
+                          flex: 1,
+                          minWidth: "100%",
+                          marginRight: 6,
+                        }}
+                      >
+                        {maintenanceSubmitted ? (
+                          <TouchableOpacity
+                            style={[
+                              staffWorkSlotStyles.actionBtn,
+                              staffWorkSlotStyles.actionBtnVerify,
+                              { flex: 1, minWidth: 140 },
+                            ]}
+                            onPress={() => void navigateToInspectionConfirm()}
+                            disabled={updateLoading}
+                          >
+                            {updateLoading ? (
+                              <RefreshLogoInline logoPx={18} />
+                            ) : (
+                              <Text style={staffWorkSlotStyles.actionBtnText}>
+                                {t("staff_work_slot_detail.btn_confirm_inspection")}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            style={[
+                              staffWorkSlotStyles.actionBtn,
+                              staffWorkSlotStyles.actionBtnStartUpdate,
+                              { flex: 1, minWidth: 140 },
+                            ]}
+                            onPress={openMaintenanceModal}
+                            disabled={updateLoading}
+                          >
+                            {updateLoading ? (
+                              <RefreshLogoInline logoPx={18} />
+                            ) : (
+                              <Text style={staffWorkSlotStyles.actionBtnText}>
+                                {t("staff_work_slot_detail.btn_start_update")}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={[
+                          staffWorkSlotStyles.actionBtn,
+                          !maintenanceSubmitted
+                            ? staffWorkSlotStyles.actionBtnStartUpdate
                             : staffWorkSlotStyles.actionBtnSuccess,
-                        { marginRight: 6 },
-                      ]}
-                      onPress={
-                        maintenanceSubmitted
-                          ? isInspectionSlot
-                            ? navigateToInspectionConfirm
-                            : handleStartWork
-                          : openMaintenanceModal
-                      }
-                      disabled={updateLoading}
-                    >
-                      {updateLoading ? (
-                        <RefreshLogoInline logoPx={18} />
-                      ) : (
-                        <Text style={staffWorkSlotStyles.actionBtnText}>
-                          {maintenanceSubmitted
-                            ? isInspectionSlot
-                              ? t("staff_work_slot_detail.btn_confirm_inspection")
-                              : t("staff_work_slot_detail.btn_complete")
-                            : t("staff_work_slot_detail.btn_start_update")}
-                        </Text>
-                      )}
-                    </TouchableOpacity>
+                          { marginRight: 6 },
+                        ]}
+                        onPress={maintenanceSubmitted ? handleStartWork : openMaintenanceModal}
+                        disabled={updateLoading}
+                      >
+                        {updateLoading ? (
+                          <RefreshLogoInline logoPx={18} />
+                        ) : (
+                          <Text style={staffWorkSlotStyles.actionBtnText}>
+                            {maintenanceSubmitted
+                              ? t("staff_work_slot_detail.btn_complete")
+                              : t("staff_work_slot_detail.btn_start_update")}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    )
                   ) : null}
                 </View>
               ) : null}
@@ -1689,6 +1775,7 @@ export default function WorkSlotDetailScreen() {
           )}
         </View>
       </ScrollView>
+      </View>
 
       <IssueRepairPaymentTypeModal
         visible={issuePaymentModalVisible}
@@ -1731,8 +1818,10 @@ export default function WorkSlotDetailScreen() {
           setEditorMarkBroken={setEditorMarkBroken}
           editorUpdateAt={editorUpdateAt}
           editorServerImages={editorSessionImagesOnly}
+          editorPendingLocalUris={editorPendingLocalUris}
           editorImagesVersion={editorImagesVersion}
           onDeleteEditorImage={handleDeleteEditorImage}
+          onRemovePendingLocalImage={handleRemovePendingLocalImage}
           editorImageUploading={editorImageUploading}
           editorDeletingImageId={editorDeletingImageId}
           onOpenMaintenanceImageCapture={handleOpenMaintenanceImageCapture}
@@ -1740,8 +1829,7 @@ export default function WorkSlotDetailScreen() {
           imageCaptureVisible={imageCaptureVisible}
           setImageCaptureVisible={setImageCaptureVisible}
           onEditorImagesPicked={handleEditorImagesPicked}
-          activeImageUrl={activeImageUrl}
-          setActiveImageUrl={setActiveImageUrl}
+          onOpenImageGallery={openMaintenanceImageGallery}
           hasFloorAreas={hasFloorAreas}
           maintenanceSessionImageCount={maintenanceEditorSessionImageCount}
         />
@@ -1778,8 +1866,10 @@ export default function WorkSlotDetailScreen() {
           editorMarkBroken={editorMarkBroken}
           setEditorMarkBroken={setEditorMarkBroken}
           editorServerImages={editorSessionImagesOnly}
+          editorPendingLocalUris={editorPendingLocalUris}
           editorImagesVersion={editorImagesVersion}
           onDeleteEditorImage={handleDeleteEditorImage}
+          onRemovePendingLocalImage={handleRemovePendingLocalImage}
           editorImageUploading={editorImageUploading}
           editorDeletingImageId={editorDeletingImageId}
           onOpenMaintenanceImageCapture={handleOpenMaintenanceImageCapture}
@@ -1787,8 +1877,7 @@ export default function WorkSlotDetailScreen() {
           imageCaptureVisible={imageCaptureVisible}
           setImageCaptureVisible={setImageCaptureVisible}
           onEditorImagesPicked={handleEditorImagesPicked}
-          activeImageUrl={activeImageUrl}
-          setActiveImageUrl={setActiveImageUrl}
+          onOpenImageGallery={openMaintenanceImageGallery}
           hasFloorAreas={hasFloorAreas}
           maintenanceSessionImageCount={maintenanceEditorSessionImageCount}
         />
@@ -1823,8 +1912,10 @@ export default function WorkSlotDetailScreen() {
           editorMarkBroken={editorMarkBroken}
           setEditorMarkBroken={setEditorMarkBroken}
           editorServerImages={editorSessionImagesOnly}
+          editorPendingLocalUris={editorPendingLocalUris}
           editorImagesVersion={editorImagesVersion}
           onDeleteEditorImage={handleDeleteEditorImage}
+          onRemovePendingLocalImage={handleRemovePendingLocalImage}
           editorImageUploading={editorImageUploading}
           editorDeletingImageId={editorDeletingImageId}
           onOpenMaintenanceImageCapture={handleOpenMaintenanceImageCapture}
@@ -1832,64 +1923,18 @@ export default function WorkSlotDetailScreen() {
           imageCaptureVisible={imageCaptureVisible}
           setImageCaptureVisible={setImageCaptureVisible}
           onEditorImagesPicked={handleEditorImagesPicked}
-          activeImageUrl={activeImageUrl}
-          setActiveImageUrl={setActiveImageUrl}
+          onOpenImageGallery={openMaintenanceImageGallery}
           hasFloorAreas={hasFloorAreas}
           maintenanceSessionImageCount={maintenanceEditorSessionImageCount}
         />
       )}
-    </View>
-  );
-}
 
-function InfoRow({
-  label,
-  value,
-  valueLoading,
-  mono,
-  valueStyle,
-  icon,
-  isStatus,
-  statusRaw,
-}: {
-  label: string;
-  value: string;
-  /** Đang GET theo id — không hiển thị id tạm; chỉ spinner nhỏ. */
-  valueLoading?: boolean;
-  mono?: boolean;
-  valueStyle?: object;
-  icon?: React.ReactNode;
-  isStatus?: boolean;
-  statusRaw?: string;
-}) {
-  const colors = isStatus ? getStatusColors(statusRaw) : undefined;
-  const valueStyles = isStatus && colors
-    ? [staffWorkSlotStyles.statusBadge, staffWorkSlotStyles.statusText, { backgroundColor: colors.bg, color: colors.text }]
-    : valueStyle;
-  return (
-    <View style={staffWorkSlotStyles.row}>
-      {icon ? (
-        <View style={iconStyles.workSlotRowIconWrap}>{icon}</View>
-      ) : null}
-      <View style={staffWorkSlotStyles.rowContent}>
-        <Text style={staffWorkSlotStyles.label}>{label}</Text>
-        {valueLoading ? (
-          <View style={{ minHeight: 22, justifyContent: "center", alignItems: "flex-start" }}>
-            <RefreshLogoInline logoPx={16} showLabel={false} />
-          </View>
-        ) : (
-          <Text
-            style={[
-              staffWorkSlotStyles.value,
-              mono && staffWorkSlotStyles.valueMono,
-              valueStyles,
-            ]}
-            numberOfLines={2}
-          >
-            {value}
-          </Text>
-        )}
-      </View>
+      <WorkSlotImageGalleryModal
+        visible={maintenanceImageGallery != null}
+        uris={maintenanceImageGallery?.uris ?? []}
+        initialIndex={maintenanceImageGallery?.initialIndex ?? 0}
+        onClose={() => setMaintenanceImageGallery(null)}
+      />
     </View>
   );
 }

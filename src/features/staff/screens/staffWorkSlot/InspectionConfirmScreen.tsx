@@ -10,10 +10,8 @@ import {
   TouchableOpacity,
   Switch,
   Image,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Modal,
   Dimensions,
 } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -41,8 +39,7 @@ import {
   DropdownBox,
   type DropdownBoxSection,
 } from "../../../../shared/components/dropdownBox";
-import { brandPrimary, brandTintBg, neutral } from "../../../../shared/theme/color";
-import { staffFormShape } from "../../../../shared/styles/staffFormShape";
+import { brandPrimary, neutral } from "../../../../shared/theme/color";
 import Icons from "../../../../shared/theme/icon";
 import { SCHEDULE_DATA_KEYS } from "../../hooks/useStaffScheduleData";
 import { isoLocalDateToYmd, waitForWorkSlotCompletionSync } from "../../utils/workSlotCompletionSync";
@@ -53,7 +50,8 @@ import {
   pushInspectionFlowDebugSession,
 } from "../../../../shared/utils/inspectionDebugLog";
 import { useKeyboardBottomInset } from "../../../../shared/hooks/useKeyboardBottomInset";
-import { staffWorkSlotModalStyles as slotModalStyles } from "./staffWorkSlotModalStyles";
+import { WorkSlotImageGalleryModal } from "./WorkSlotImageGalleryModal";
+import { inspectionConfirmStyles as styles } from "./inspectionConfirmStyles";
 
 /** Khoảng hở phía trên bàn phím (px), Android — đồng bộ tenant ticket. */
 const ANDROID_KEYBOARD_GAP = 16;
@@ -90,7 +88,10 @@ export default function InspectionConfirmScreen() {
   const [bannerLoading, setBannerLoading] = useState(false);
   const [selectedBannerIds, setSelectedBannerIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [activePhotoUri, setActivePhotoUri] = useState<string | null>(null);
+  const [photoGallery, setPhotoGallery] = useState<{
+    uris: string[];
+    initialIndex: number;
+  } | null>(null);
   const keyboardInset = useKeyboardBottomInset();
 
   const scrollRef = useRef<ScrollView>(null);
@@ -286,14 +287,24 @@ export default function InspectionConfirmScreen() {
       if (!res?.success) {
         throw new Error(res?.message || t("staff_work_slot_detail.update_error"));
       }
-      navigateCalendarAfterCompletion(null);
-      void waitForWorkSlotCompletionSync({
-        scheduleSlotId,
-        jobId: inspectionId,
-        kind: "inspection",
-      }).then(() => {
-        queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
-      });
+      const runAfterDoneSuccess = () => {
+        navigateCalendarAfterCompletion(null);
+        void waitForWorkSlotCompletionSync({
+          scheduleSlotId,
+          jobId: inspectionId,
+          kind: "inspection",
+        }).then(() => {
+          queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
+        });
+      };
+      CustomAlert.alert(
+        t("common.success"),
+        isCheckIn
+          ? t("staff_inspection_confirm.check_in_success")
+          : t("staff_inspection_confirm.check_out_success"),
+        [{ text: t("common.close"), onPress: runAfterDoneSuccess }],
+        { type: "success" }
+      );
     } catch (e: unknown) {
       logInspectionError("[InspectionConfirm]", "submit failed", e);
       CustomAlert.alert(
@@ -378,11 +389,11 @@ export default function InspectionConfirmScreen() {
               {photoUrls.length === 0 ? (
                 <Text style={styles.muted}>{t("staff_inspection_confirm.no_photos")}</Text>
               ) : (
-                photoUrls.map((uri) => (
+                photoUrls.map((uri, index) => (
                   <TouchableOpacity
-                    key={uri}
+                    key={`${index}-${uri}`}
                     activeOpacity={0.85}
-                    onPress={() => setActivePhotoUri(uri)}
+                    onPress={() => setPhotoGallery({ uris: photoUrls, initialIndex: index })}
                     style={styles.thumbWrap}
                   >
                     <Image source={{ uri }} style={styles.thumb} />
@@ -461,166 +472,12 @@ export default function InspectionConfirmScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <Modal
-        visible={activePhotoUri != null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setActivePhotoUri(null)}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={slotModalStyles.imageModalBackdrop}
-          onPress={() => setActivePhotoUri(null)}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => {
-              e.stopPropagation();
-            }}
-            style={slotModalStyles.imageModalContent}
-          >
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={slotModalStyles.imageModalClose}
-              onPress={() => setActivePhotoUri(null)}
-            >
-              <Text style={slotModalStyles.imageModalCloseText}>×</Text>
-            </TouchableOpacity>
-            {activePhotoUri ? (
-              <Image
-                source={{ uri: activePhotoUri }}
-                style={[
-                  slotModalStyles.imageModalImage,
-                  {
-                    height: Math.min(Dimensions.get("window").height * 0.52, 480),
-                  },
-                ]}
-                resizeMode="contain"
-              />
-            ) : null}
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+      <WorkSlotImageGalleryModal
+        visible={photoGallery != null}
+        uris={photoGallery?.uris ?? []}
+        initialIndex={photoGallery?.initialIndex ?? 0}
+        onClose={() => setPhotoGallery(null)}
+      />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: neutral.canvasMuted },
-  scroll: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-  },
-  sectionCard: {
-    backgroundColor: neutral.surface,
-    borderRadius: staffFormShape.radiusSurface,
-    padding: 18,
-    marginBottom: 16,
-    shadowColor: neutral.slate900,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-    borderCurve: "continuous",
-  },
-  cardFieldLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: neutral.slate500,
-    marginBottom: 8,
-  },
-  cardFieldLabelInline: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "600",
-    color: neutral.text,
-    paddingRight: 8,
-  },
-  houseRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: staffFormShape.radiusControl,
-    backgroundColor: neutral.backgroundSubtle,
-    borderWidth: 1,
-    borderColor: neutral.inputBorder,
-    borderCurve: "continuous",
-  },
-  houseValue: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: "500",
-    color: neutral.text,
-  },
-  muted: { color: neutral.slate500, marginBottom: 8 },
-  photoRow: { minHeight: 88 },
-  photoRowContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingRight: 4,
-  },
-  thumbWrap: {
-    marginRight: 8,
-    borderRadius: staffFormShape.radiusControl,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: neutral.inputBorder,
-    borderCurve: "continuous",
-  },
-  thumb: {
-    width: 88,
-    height: 88,
-    backgroundColor: brandTintBg,
-  },
-  damageRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
-    gap: 12,
-  },
-  bannerLoading: { marginVertical: 12 },
-  bannerBox: { marginTop: 4, marginBottom: 8 },
-  notesInput: {
-    borderWidth: 1,
-    borderColor: neutral.inputBorder,
-    borderRadius: staffFormShape.radiusControl,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: neutral.surface,
-    color: neutral.text,
-    fontSize: 15,
-    borderCurve: "continuous",
-  },
-  notes: { minHeight: 100, textAlignVertical: "top" },
-  deduction: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: neutral.border,
-    fontSize: 15,
-    fontWeight: "700",
-    color: neutral.text,
-  },
-  submitBtn: {
-    marginTop: 8,
-    borderRadius: staffFormShape.radiusControl,
-    backgroundColor: brandPrimary,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-    shadowColor: brandPrimary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.22,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  submitBtnDisabled: { opacity: 0.7 },
-  submitBtnText: {
-    color: neutral.surface,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-});

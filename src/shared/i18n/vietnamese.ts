@@ -830,6 +830,8 @@ export default {
         "submit": "Xác nhận và hoàn tất",
         "error_select_banner": "Vui lòng chọn ít nhất một banner khi có hư hỏng.",
         "error_notes_damage": "Vui lòng nhập ghi chú khi có hư hỏng.",
+        "check_in_success": "Đã hoàn tất check-in kiểm định.",
+        "check_out_success": "Đã hoàn tất check-out kiểm định.",
     },
     "staff_issue_note": {
         "screen_title": "Ghi nhận sửa chữa",

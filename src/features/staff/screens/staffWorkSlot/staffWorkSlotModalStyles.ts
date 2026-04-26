@@ -201,6 +201,7 @@ export const staffWorkSlotModalStyles = StyleSheet.create({
     justifyContent: "center",
   },
   editAssetModalCard: {
+    position: "relative" as const,
     backgroundColor: neutral.surface,
     borderRadius: staffFormShape.radiusSurface,
     padding: 18,
@@ -211,6 +212,15 @@ export const staffWorkSlotModalStyles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 24,
     elevation: 12,
+  },
+  /** Phủ modal khi đang upload ảnh sau chụm/chọn — chặn thao tác, giữ logo loading. */
+  maintenanceEditorUploadOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: staffFormShape.radiusSurface,
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
   },
   editAssetFieldLabel: {
     fontSize: 13,

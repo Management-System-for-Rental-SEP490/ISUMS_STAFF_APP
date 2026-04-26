@@ -829,6 +829,8 @@ export default {
         "submit": "確認して完了",
         "error_select_banner": "破損がある場合はバナーを1つ以上選択してください。",
         "error_notes_damage": "破損がある場合はメモを入力してください。",
+        "check_in_success": "検査のチェックインが完了しました。",
+        "check_out_success": "検査のチェックアウトが完了しました。",
     },
     "staff_issue_note": {
         "screen_title": "修繕の記録",
