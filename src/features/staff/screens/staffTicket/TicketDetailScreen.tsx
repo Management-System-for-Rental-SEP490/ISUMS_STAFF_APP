@@ -188,11 +188,15 @@ export default function TicketDetailScreen() {
     return () => clearTimeout(timer);
   }, [activeImageIndex, ticketImages]);
 
-  // Đồng bộ trạng thái khi user quay lại từ màn list.
+  const queryClient = useQueryClient();
+
+  /**
+   * Khi focus màn chi tiết: chỉ refetch chi tiết ticket (không invalidate cả danh sách —
+   * tránh bão GET `/tickets/staff` mỗi lần mở chi tiết; danh sách vẫn cập nhật nhờ poll tab + kéo refresh).
+   */
   useFocusEffect(
     useCallback(() => {
       void refetch();
-      return undefined;
     }, [refetch])
   );
 
@@ -208,11 +212,9 @@ export default function TicketDetailScreen() {
     setSlotModalVisible(false);
   }, []);
 
-  const queryClient = useQueryClient();
-
   const confirmSlotMutation = useMutation({
     mutationFn: confirmStaffWorkSlotForJob,
-    onSuccess: async (res) => {
+    onSuccess: (res) => {
       if (!res.success) {
         CustomAlert.alert(
           t("common.error"),
@@ -222,22 +224,10 @@ export default function TicketDetailScreen() {
         );
         return;
       }
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ISSUE_TICKET_KEYS.byId(ticketId) }),
-        queryClient.invalidateQueries({ queryKey: ISSUE_TICKET_KEYS.byStaff() }),
-        queryClient.invalidateQueries({
-          queryKey: SCHEDULE_DATA_KEYS.generatedSlots(
-            generatedRange.startYmd,
-            generatedRange.endYmd
-          ),
-        }),
-      ]);
-      const staffId = getStaffIdForSchedule();
-      if (staffId) {
-        await queryClient.invalidateQueries({
-          queryKey: SCHEDULE_DATA_KEYS.workSlots(staffId),
-        });
-      }
+      /**
+       * Đóng modal + báo thành công ngay; invalidate chạy nền (không `await`).
+       * Tránh cảm giác chờ sau POST do xếp hàng refetch ticket + danh sách + toàn bộ khóa lịch.
+       */
       setSlotRegistrationSubmitted(true);
       handleCloseModal();
       CustomAlert.alert(
@@ -254,6 +244,18 @@ export default function TicketDetailScreen() {
         ],
         { type: "success" }
       );
+
+      void queryClient.invalidateQueries({ queryKey: ISSUE_TICKET_KEYS.byId(ticketId) });
+      void queryClient.invalidateQueries({ queryKey: ISSUE_TICKET_KEYS.byStaff() });
+      void queryClient.invalidateQueries({
+        queryKey: SCHEDULE_DATA_KEYS.generatedSlots(generatedRange.startYmd, generatedRange.endYmd),
+      });
+      const staffId = getStaffIdForSchedule();
+      if (staffId) {
+        void queryClient.invalidateQueries({
+          queryKey: SCHEDULE_DATA_KEYS.workSlots(staffId),
+        });
+      }
     },
     onError: () => {
       CustomAlert.alert(
@@ -329,6 +331,7 @@ export default function TicketDetailScreen() {
     setRefreshing(true);
     try {
       await Promise.all([refetch(), refetchTicketImages(), refetchAssetDetail()]);
+      await queryClient.invalidateQueries({ queryKey: ISSUE_TICKET_KEYS.byStaff() });
     } finally {
       setRefreshing(false);
     }

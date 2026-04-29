@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import {
   useNavigation,
   useFocusEffect,
+  useIsFocused,
   useRoute,
   type NavigationProp,
   type RouteProp,
@@ -40,6 +41,14 @@ import {
 } from "./staffCalendarStyles";
 import { formatMonthYearSlashed } from "../../../../shared/utils";
 import { useRefreshControlGate } from "../../../../shared/hooks";
+import { getStaffIdForSchedule } from "../../../../shared/services/scheduleApi";
+
+/**
+ * Khi đang xem tab Lịch, invalidate query work slots định kỳ để mọi đổi status từ BE
+ * (không chỉ DONE) hiển thị lại mà không cần rời màn / kéo refresh.
+ * Giữ đồng bộ với ticket list (`STAFF_TICKET_LIST_POLL_MS`).
+ */
+const CALENDAR_WORK_SLOTS_POLL_MS = 30_000;
 
 /** Key i18n cho ngày ngắn (T2, Mon, 月...) - 1=Mon..7=Sun */
 const DAY_SHORT_KEYS: Record<number, string> = {
@@ -99,6 +108,7 @@ export default function CalendarScreen() {
   const { t } = useTranslation();
   const route = useRoute<CalendarRouteProp>();
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList, "Calendar">>();
+  const calendarTabVisible = useIsFocused();
   const {
     dayOffList,
     scheduleTemplate,
@@ -221,6 +231,20 @@ export default function CalendarScreen() {
       invalidateScheduleRelated();
     }, [invalidateScheduleRelated])
   );
+
+  /**
+   * Refetch work slots (qua invalidate + observer trong StaffScheduleProvider) theo chu kỳ
+   * khi tab Calendar là màn đang nhìn thấy — tránh poll khi đã mở WorkSlotDetail đè lên stack.
+   */
+  useEffect(() => {
+    if (!calendarTabVisible) return;
+    const staffId = getStaffIdForSchedule();
+    if (!staffId) return;
+    const id = setInterval(() => {
+      void queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.workSlots(staffId) });
+    }, CALENDAR_WORK_SLOTS_POLL_MS);
+    return () => clearInterval(id);
+  }, [calendarTabVisible, queryClient]);
 
   const navigateWeek = (delta: number) => setWeekOffset((prev) => prev + delta);
 

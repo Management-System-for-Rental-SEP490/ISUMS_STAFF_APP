@@ -3,7 +3,7 @@
  * - Chỉ thiết bị thuộc nhà phụ trách (GET /assets/items/house/:id gộp).
  * - Lọc danh mục + dropdown có tìm kiếm; mở chỉnh sửa cho thiết bị trong khu vực phụ trách.
  */
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -30,7 +30,14 @@ import Header from "../../../../shared/components/header";
 import { StaffScreenActionFab } from "../../../../shared/components/StaffScreenActionFab";
 import type { AssetItemFromApi, HouseFromApi } from "../../../../shared/types/api";
 import { normalizeAssetItemStatusFromApi } from "../../../../shared/types/api";
-import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
+import {
+  DropdownBox,
+  filterDropdownItemsByQuery,
+  type DropdownBoxItem,
+  type DropdownBoxSection,
+} from "../../../../shared/components/dropdownBox";
+import { PaginationBar } from "../../../../shared/components/PaginationBar";
+import { getTotalPages, slicePage } from "../../../../shared/utils";
 
 type NavProp = BottomTabNavigationProp<MainTabParamList, "Devices">;
 
@@ -79,13 +86,18 @@ export default function ItemListScreen() {
   /** Mỗi lần vào màn (focus) tăng để DropdownBox luôn mở panel danh sách — kể cả khi tab giữ component mounted. */
   const [itemListDropdownExpandSig, setItemListDropdownExpandSig] = useState(0);
 
+  /**
+   * Luôn tải thiết bị theo nhà không gắn `selectedCategoryId` vào query key —
+   * nếu truyền category vào hook, đổi chip danh mục làm TanStack Query coi là query mới (`isLoading` → màn loading).
+   * Lọc theo danh mục chỉ trong `categoryFilteredRows` (client, dữ liệu đã có).
+   */
   const {
     data: itemsData,
     isLoading,
     isError,
     refetch,
     isRefetching: itemsRefetching,
-  } = useAssetItemsAllHouses(staffHouseIds, selectedCategoryId);
+  } = useAssetItemsAllHouses(staffHouseIds, null);
   const rawItems: AssetItemFromApi[] = asAssetItemArray(itemsData?.data);
 
   /**
@@ -173,16 +185,12 @@ export default function ItemListScreen() {
     [t]
   );
 
-  const listCombinedSections: DropdownBoxSection[] = useMemo(() => {
-    const categorySection: DropdownBoxSection = {
-      id: "category",
-      title: t("staff_item_list.filter_category_label"),
-      items: categories.map((cat) => ({ id: cat.id, label: cat.name })),
-      selectedId: selectedCategoryId,
-      showAllOption: true,
-      itemLayout: "chips",
-    };
-    const deviceItems = categoryFilteredRows.map(({ item, categoryName }) => {
+  /**
+   * Một thiết bị (trong nhà được phân công staff) → mục `DropdownBox` chi tiết thẻ;
+   * tái dùng cho lọc tìm (cùng quy tắc ô search) rồi phân trang 10/thẻ một trang.
+   */
+  const mapRowToDeviceDropdownItem = useCallback(
+    ({ item, categoryName }: ItemListRow): DropdownBoxItem => {
       const houseName = getHouseName(item.houseId);
       const inRegion = staffHouseIdSet.has(item.houseId);
       const metaTail = inRegion ? "" : ` · ${t("staff_item_list.outside_region_badge")}`;
@@ -207,25 +215,53 @@ export default function ItemListScreen() {
           </View>
         ) : undefined,
       };
-    });
+    },
+    [getHouseName, getStatusLabel, staffHouseIdSet, t]
+  );
+
+  const [deviceListSearchQuery, setDeviceListSearchQuery] = useState("");
+  const [listPage, setListPage] = useState(1);
+
+  const deviceItemsFull = useMemo(
+    () => categoryFilteredRows.map(mapRowToDeviceDropdownItem),
+    [categoryFilteredRows, mapRowToDeviceDropdownItem]
+  );
+
+  const devicesAfterSearch = useMemo(
+    () => filterDropdownItemsByQuery(deviceItemsFull, deviceListSearchQuery),
+    [deviceItemsFull, deviceListSearchQuery]
+  );
+
+  const deviceTotalPages = useMemo(() => getTotalPages(devicesAfterSearch.length), [devicesAfterSearch]);
+
+  const deviceItemsPaged = useMemo(
+    () => slicePage(devicesAfterSearch, listPage),
+    [devicesAfterSearch, listPage]
+  );
+
+  useEffect(() => {
+    setListPage(1);
+  }, [selectedCategoryId, deviceListSearchQuery, categoryFilteredRows.length]);
+
+  const listCombinedSections: DropdownBoxSection[] = useMemo(() => {
+    const categorySection: DropdownBoxSection = {
+      id: "category",
+      title: t("staff_item_list.filter_category_label"),
+      items: categories.map((cat) => ({ id: cat.id, label: cat.name })),
+      selectedId: selectedCategoryId,
+      showAllOption: true,
+      itemLayout: "chips",
+    };
     const deviceSection: DropdownBoxSection = {
       id: "device",
       title: t("staff_item_list.device_section_title"),
-      items: deviceItems,
+      items: deviceItemsPaged,
       selectedId: null,
       showAllOption: false,
       itemLayout: "card",
     };
     return [categorySection, deviceSection];
-  }, [
-    categories,
-    categoryFilteredRows,
-    getHouseName,
-    getStatusLabel,
-    selectedCategoryId,
-    staffHouseIdSet,
-    t,
-  ]);
+  }, [categories, deviceItemsPaged, selectedCategoryId, t]);
 
   const onListCombinedSelect = useCallback(
     (sectionId: string, itemId: string | null) => {
@@ -359,6 +395,8 @@ export default function ItemListScreen() {
             sections={listCombinedSections}
             summary={`${t("staff_item_list.filter_category_label")}: ${selectedCategoryName}`}
             onSelect={onListCombinedSelect}
+            onSearchChange={setDeviceListSearchQuery}
+            sectionsExcludedFromSearch={["device"]}
             style={itemScreenStyles.filterDropdown}
             searchPlaceholder={t("staff_item_list.search_device_placeholder") as string}
             searchAutoFocus={false}
@@ -374,6 +412,13 @@ export default function ItemListScreen() {
         {categoryFilteredRows.length === 0 ? (
           <Text style={itemScreenStyles.emptyText}>{t("staff_item_list.empty")}</Text>
         ) : null}
+
+        <PaginationBar
+          currentPage={listPage}
+          totalPages={deviceTotalPages}
+          onPageChange={setListPage}
+          style={{ paddingTop: 4, paddingBottom: Math.max(4, insets.bottom) }}
+        />
         </ScrollView>
       </View>
       <StaffScreenActionFab
