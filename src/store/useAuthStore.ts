@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useCategoryFilterStore } from "./useCategoryFilterStore";
+import { useNotificationTransportStore } from "./useNotificationTransportStore";
 import { AuthState, ForgotPasswordState, RegisterState, MenuModalState } from "../shared/types";
 
 /*
@@ -45,6 +47,8 @@ const useAuthStore = create<AuthState>()(
       onboardedUsers: [], // Danh sách các user đã xem Intro
       keycloakInAppSession: null,
       setKeycloakInAppSession: (s) => set({ keycloakInAppSession: s }),
+      logoutUiLocked: false,
+      setLogoutUiLocked: (locked) => set({ logoutUiLocked: locked }),
 
       setHouseId: (id: string | null) => set({ houseId: id }),
 
@@ -59,12 +63,21 @@ const useAuthStore = create<AuthState>()(
           refreshToken: data.refreshToken ?? null,
           houseId: data.houseId ?? null,
           isLoggedIn: true,
+          logoutUiLocked: false,
           // Giữ nguyên onboardedUsers
           onboardedUsers: state.onboardedUsers, 
         }));
       },
 
-      logout: () =>
+      logout: () => {
+        useNotificationTransportStore.setState({
+          realtimeUnavailable: false,
+          realtimeReason: null,
+        });
+        useCategoryFilterStore.setState({
+          homeSelectedCategoryId: null,
+          buildingSelectedCategoryId: {},
+        });
         set((state) => ({
           user: null,
           role: null,
@@ -76,8 +89,9 @@ const useAuthStore = create<AuthState>()(
           // Đảm bảo đóng overlay WebView Keycloak nếu còn mở khi logout.
           keycloakInAppSession: null,
           // KHÔNG reset onboardedUsers để ghi nhớ lịch sử của các user trên máy này
-          onboardedUsers: state.onboardedUsers, 
-        })),
+          onboardedUsers: state.onboardedUsers,
+        }));
+      },
 
       completeOnboarding: () => {
         const currentUser = get().user;
@@ -105,6 +119,12 @@ const useAuthStore = create<AuthState>()(
         isLoggedIn: state.isLoggedIn,
         onboardedUsers: state.onboardedUsers, // lưu xuống ổ cứng
       }),
+      merge: (persistedState, currentState) =>
+        ({
+          ...currentState,
+          ...(persistedState as object ?? {}),
+          logoutUiLocked: false,
+        }) satisfies AuthState,
     }
   )
 );

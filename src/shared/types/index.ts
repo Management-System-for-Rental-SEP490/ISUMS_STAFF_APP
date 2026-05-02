@@ -231,6 +231,11 @@ export type AuthState = {
   onboardedUsers: string[]; // Danh sách username đã xem onboarding
   keycloakInAppSession: KeycloakInAppSession | null;
   setKeycloakInAppSession: (s: KeycloakInAppSession | null) => void;
+  /**
+   * Khóa UI toàn màn trong lúc SSO logout + dọn session — không persist.
+   */
+  logoutUiLocked: boolean;
+  setLogoutUiLocked: (locked: boolean) => void;
   login: (data: AuthPayload) => void;
   logout: () => void;
   completeOnboarding: () => void; // Hàm xác nhận user hiện tại đã xem xong

@@ -18,7 +18,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRoute, useNavigation, RouteProp, useFocusEffect } from "@react-navigation/native";
+import { useRoute, useNavigation, RouteProp, useFocusEffect, useIsFocused } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
@@ -50,7 +50,7 @@ import {
   stackScreenTitleRowStyle,
   stackScreenTitleSideSlotStyle,
 } from "../../../../shared/components/StackScreenTitleBadge";
-import { ISSUE_TICKET_KEYS, useIssueTicketById } from "../../../../shared/hooks/useUserProfile";
+import { ISSUE_TICKET_KEYS, STAFF_ACTIVE_SCREEN_POLL_MS, useIssueTicketById } from "../../../../shared/hooks/useUserProfile";
 import { useHouses, useHouseById } from "../../../../shared/hooks/useHouses";
 import { useAssetItemById } from "../../../../shared/hooks/useAssetItems";
 import { SCHEDULE_DATA_KEYS } from "../../hooks/useStaffScheduleData";
@@ -147,7 +147,10 @@ export default function TicketDetailScreen() {
   const route = useRoute<TicketDetailRouteProp>();
   const navigation = useNavigation<NavProp>();
   const { ticketId } = route.params;
-  const { data: ticket, isLoading, isError, refetch } = useIssueTicketById(ticketId);
+  const detailScreenFocused = useIsFocused();
+  const { data: ticket, isLoading, isError, refetch } = useIssueTicketById(ticketId, {
+    refetchInterval: detailScreenFocused ? STAFF_ACTIVE_SCREEN_POLL_MS : false,
+  });
   const {
     data: ticketImages = [],
     isLoading: ticketImagesLoading,
@@ -156,6 +159,10 @@ export default function TicketDetailScreen() {
     queryKey: [...ISSUE_TICKET_KEYS.byId(ticketId), "images"] as const,
     queryFn: () => getIssueTicketImages(ticketId),
     enabled: Boolean(ticketId?.trim()),
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnMount: false,
+    refetchInterval: detailScreenFocused ? STAFF_ACTIVE_SCREEN_POLL_MS : false,
+    refetchIntervalInBackground: false,
   });
   /** Index ảnh đang xem fullscreen; null = đóng modal. */
   const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);

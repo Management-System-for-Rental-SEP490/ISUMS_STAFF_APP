@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useTranslation } from "react-i18next";
+import { STAFF_ACTIVE_SCREEN_POLL_MS } from "../../../../shared/hooks/useUserProfile";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRoute, useNavigation, RouteProp, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -1398,7 +1399,11 @@ export default function WorkSlotDetailScreen() {
         pushInspectionFlowDebugSession();
       }
       void refetchItem();
+      const pollId = setInterval(() => {
+        void refetchItem();
+      }, STAFF_ACTIVE_SCREEN_POLL_MS);
       return () => {
+        clearInterval(pollId);
         if (isInspectionSlot) {
           popInspectionFlowDebugSession();
         }

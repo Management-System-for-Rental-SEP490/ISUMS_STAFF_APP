@@ -35,6 +35,9 @@ export type UseStaffIssueTicketsOptions = {
   refetchInterval?: number | false;
 };
 
+/** Chu kỳ poll màn đang mở (ticket list/detail, lịch…) — đồng bộ status từ BE. */
+export const STAFF_ACTIVE_SCREEN_POLL_MS = 30_000;
+
 /**
  * Danh sách chỉ được refetch nhờ poll định kỳ / kéo làm mới / invalidate — không tự coi "hết fresh" và gọi lại mỗi lần vào tab,
  * nhưng vẫn cập nhật kịp nhờ `refetchInterval` khi tab đang mở (giống lịch sự kiện trên các app phổ biến).
@@ -62,16 +65,24 @@ export const useStaffIssueTickets = (options?: UseStaffIssueTicketsOptions) => {
   });
 };
 
-/** Chi tiết ticket theo ticketId. */
-export const useIssueTicketById = (ticketId: string) => {
+export type UseIssueTicketByIdOptions = {
+  /** Khi màn chi tiết đang focus — poll GET ticket để status/slot cập nhật khớp BE. */
+  refetchInterval?: number | false;
+};
+
+/** Chi tiết ticket theo ticketId — poll tùy chọn khi màn đang mở. */
+export const useIssueTicketById = (ticketId: string, options?: UseIssueTicketByIdOptions) => {
   return useQuery<IssueTicketFromApi | null>({
     queryKey: ISSUE_TICKET_KEYS.byId(ticketId),
     queryFn: () => getIssueTicketDataById(ticketId),
     enabled: Boolean(ticketId),
-    staleTime: 30_000,
+    staleTime: Number.POSITIVE_INFINITY,
     gcTime: 10 * 60_000,
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    refetchOnMount: false,
+    refetchInterval: options?.refetchInterval ?? false,
+    refetchIntervalInBackground: false,
   });
 };
 

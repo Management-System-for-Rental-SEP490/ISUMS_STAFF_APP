@@ -1,3 +1,5 @@
+import React from "react";
+import { Modal, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
   SafeAreaProvider,
@@ -7,6 +9,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "./src/shared/i18n";
 import Navigation from "./src/navigation/navigation";
 import { GlobalAlert } from "./src/shared/components/alert";
+import { useAuthStore } from "./src/store/useAuthStore";
+import { RefreshLogoOverlay } from "./src/shared/components/RefreshLogoOverlay";
+import { neutral } from "./src/shared/theme/color";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,6 +25,30 @@ const queryClient = new QueryClient({
   },
 });
 
+const logoutCoverStyles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: neutral.background },
+});
+
+/** Modal native full-screen — che Navigator trong lúc đăng xuất SSO (logoutUiLocked). */
+function LogoutRouteCoverPortal() {
+  const logoutUiLocked = useAuthStore(
+    (s) => Boolean((s as Record<string, unknown>)["logoutUiLocked"])
+  );
+  return (
+    <Modal
+      visible={logoutUiLocked}
+      animationType="none"
+      transparent={false}
+      presentationStyle="fullScreen"
+      onRequestClose={() => {}}
+    >
+      <View style={logoutCoverStyles.root}>
+        <RefreshLogoOverlay visible mode="page" />
+      </View>
+    </Modal>
+  );
+}
+
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -27,6 +56,7 @@ export default function App() {
         <SafeAreaProvider initialMetrics={initialWindowMetrics}>
           <Navigation />
           <GlobalAlert />
+          <LogoutRouteCoverPortal />
         </SafeAreaProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
