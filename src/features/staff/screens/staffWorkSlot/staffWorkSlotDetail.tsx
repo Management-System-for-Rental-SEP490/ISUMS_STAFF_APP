@@ -1,8 +1,3 @@
-/**
- * Màn hình Chi tiết Work Slot của Staff.
- * Hiển thị đầy đủ thông tin work slot và ticket/issue (lấy từ API GET /api/issues/tickets/{ticketId}).
- * ticketId lấy từ work slot API: GET /api/schedules/work_slots/staff/{staffId}.
- */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -36,6 +31,7 @@ import {
   updateInspectionStatus,
   updateJobStatus,
 } from "../../../../shared/services/maintenanceApi";
+import { getActiveRelocationByContractId } from "../../../../shared/services/relocationApi";
 import { CustomAlert } from "../../../../shared/components/alert";
 import { RefreshLogoInline, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import {
@@ -96,7 +92,6 @@ import {
   stackScreenTitleSideSlotStyle,
 } from "../../../../shared/components/StackScreenTitleBadge";
 
-/** Chuẩn hóa status từ BE (trim, uppercase, khoảng trắng → _). */
 function normalizeScheduleStatusKey(status: string | undefined): string {
   return String(status ?? "")
     .trim()
@@ -104,7 +99,6 @@ function normalizeScheduleStatusKey(status: string | undefined): string {
     .replace(/\s+/g, "_");
 }
 
-/** Work slot / job status từ API schedules (ISSUE, MAINTENANCE, INSPECTION). */
 const JOB_STATUS_KEYS = new Set([
   "PENDING",
   "WAITING_MANAGER_CONFIRM",
@@ -132,7 +126,6 @@ function getJobStatusLabel(status: string | undefined, t: (k: string) => string)
   return JOB_STATUS_KEYS.has(normalized) ? t(key) : t("staff_calendar.job_status_OTHER");
 }
 
-/** Trạng thái ticket issue (staff_ticket_list); không khớp thì fallback cùng bộ nhãn work slot. */
 function getIssueStatusLabel(status: string | undefined, t: (k: string) => string): string {
   if (!status) return "";
   const normalized = normalizeScheduleStatusKey(status);
@@ -142,7 +135,6 @@ function getIssueStatusLabel(status: string | undefined, t: (k: string) => strin
   return getJobStatusLabel(status, t);
 }
 
-/** Nhãn hiển thị cho `InspectionFromApi.type` (CHECK_IN / CHECK_OUT). */
 function getInspectionTypeDisplay(type: string | null | undefined, t: (k: string) => string): string {
   const key = normalizeScheduleStatusKey(type ?? undefined);
   if (key === "CHECK_IN") return t("staff_work_slot_detail.inspection_type_CHECK_IN");
@@ -171,11 +163,6 @@ function compareFloor(a: string, b: string): number {
 type WorkSlotDetailRouteProp = RouteProp<RootStackParamList, "WorkSlotDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "WorkSlotDetail">;
 
-/**
- * Ghi nhớ theo phiên app các job maintenance đã submit batch update.
- * Mục tiêu: khi user rời màn rồi quay lại trước khi bấm "Hoàn thành",
- * nút vẫn hiển thị đúng trạng thái tiếp theo.
- */
 const submittedMaintenanceJobIdsInSession = new Set<string>();
 
 export default function WorkSlotDetailScreen() {
@@ -207,9 +194,7 @@ export default function WorkSlotDetailScreen() {
   const maintenanceDraftsRef = useRef(maintenanceDrafts);
   maintenanceDraftsRef.current = maintenanceDrafts;
   const [maintenanceSubmitted, setMaintenanceSubmitted] = useState(false);
-  /** Issue IN_PROGRESS: đã gửi xong màn ghi nhận sửa chữa → chỉ hiện nút Hoàn thành. */
   const [issueRepairSubmitted, setIssueRepairSubmitted] = useState(false);
-  /** Sau POST repair-complete hoặc khi ticket đã WAITING_STAFF_COMPLETION — chọn Cash / VNPay. */
   const [issuePaymentModalVisible, setIssuePaymentModalVisible] = useState(false);
   const [issuePaymentChoiceLoading, setIssuePaymentChoiceLoading] = useState(false);
   const [issueCashConfirmLoading, setIssueCashConfirmLoading] = useState(false);
@@ -217,24 +202,25 @@ export default function WorkSlotDetailScreen() {
   const [maintenanceEditorLoading, setMaintenanceEditorLoading] = useState(false);
   const [maintenanceAssets, setMaintenanceAssets] = useState<AssetItemFromApi[]>([]);
   const [maintenanceAssetsLoading, setMaintenanceAssetsLoading] = useState(false);
+  const [maintenanceAssetsLoaded, setMaintenanceAssetsLoaded] = useState(false);
   const [editorConditionPercent, setEditorConditionPercent] = useState("");
   const [editorNote, setEditorNote] = useState("");
   const [editorUpdateAt, setEditorUpdateAt] = useState("");
   const [editorImageUrls, setEditorImageUrls] = useState<string[]>([]);
   const [editorServerImages, setEditorServerImages] = useState<AssetItemImageFromApi[]>([]);
-  /** Ảnh từ BE lúc mở editor — chỉ trong phiên ca: UI ẩn, không hiển thị trong modal (chỉ ảnh chụp mới phiên). */
   const baselineEditorImageIdsRef = useRef<Set<string>>(new Set());
   const [editorImagesVersion, setEditorImagesVersion] = useState(0);
   const [editorImageUploading, setEditorImageUploading] = useState(false);
   const [editorDeletingImageId, setEditorDeletingImageId] = useState<string | null>(null);
   const [imageCaptureVisible, setImageCaptureVisible] = useState(false);
   const [inspectionContractId, setInspectionContractId] = useState<string | null>(null);
+  const [activeRelocationStatus, setActiveRelocationStatus] = useState<string | null>(null);
+  const [activeRelocationKind, setActiveRelocationKind] = useState<string | null>(null);
   const [checkInBaselineByAssetId, setCheckInBaselineByAssetId] = useState<
     Record<string, { conditionPercent?: number | null; note?: string | null }>
   >({});
   const [inspectionSessionPhotoUrls, setInspectionSessionPhotoUrls] = useState<string[]>([]);
   const [editorMarkBroken, setEditorMarkBroken] = useState(false);
-  /** Số ảnh đã thêm (upload) trong lần mở modal này — giới hạn MAX, không trừ ảnh cũ trên asset. */
   const [maintenanceEditorSessionImageCount, setMaintenanceEditorSessionImageCount] = useState(0);
 
   const editorServerImagesRef = useRef(editorServerImages);
@@ -243,20 +229,13 @@ export default function WorkSlotDetailScreen() {
   selectedMaintenanceAssetIdRef.current = selectedMaintenanceAssetId;
   const editorDeletingImageIdRef = useRef(editorDeletingImageId);
   editorDeletingImageIdRef.current = editorDeletingImageId;
-  /** Hàng đợi upload lên server (tuần tự để merge/ref không lệch); không chặn lần chụp/chọn tiếp theo. */
   const maintenanceImageUploadQueueRef = useRef(Promise.resolve());
   const maintenanceSessionImageCountRef = useRef(0);
-  /**
-   * Ảnh đã upload lên asset trong phiên bảo trì, map theo `serverImageId` để xóa khỏi danh sách
-   * khi user xóa ảnh; sau batch BE trả `eventId` thì POST cùng file local lên sự kiện tương ứng.
-   */
   const maintenanceEventImagesByAssetRef = useRef<
     Record<string, Array<AssetItemImageToUpload & { serverImageId: string }>>
   >({});
-  /** Cặp assetId/eventId từ response batch — POST ảnh lên event khi Hoàn thành / Xác nhận kiểm định. */
   const pendingMaintenanceBatchEventsRef = useRef<Array<{ assetId: string; eventId: string }>>([]);
 
-  /** Gắn ảnh theo từng asset vào đúng `eventId` (sau khi batch đã trả events). Trả về true nếu có lần POST lỗi. */
   const uploadPendingMaintenanceEventImages = useCallback(async (): Promise<boolean> => {
     const events = pendingMaintenanceBatchEventsRef.current;
     if (!events.length) return false;
@@ -359,7 +338,6 @@ export default function WorkSlotDetailScreen() {
       .catch(() => {});
   };
 
-  /** CHECK_OUT: baseline CHECK_IN theo contractId + assets/events. */
   useEffect(() => {
     if (!isInspectionSlot || !job?.id) return;
     const typ = (inspectionType ?? "").trim().toUpperCase();
@@ -423,11 +401,6 @@ export default function WorkSlotDetailScreen() {
     [navigation, slot.date, slot.id]
   );
 
-  /**
-   * Staff bấm «Xác nhận hoàn thành» (IN_PROGRESS + đã ghi nhận sửa chữa) hoặc «Chọn phương thức thanh toán» (WAITING_STAFF_COMPLETION).
-   * - IN_PROGRESS: POST repair-complete → ticket thường chuyển WAITING_STAFF_COMPLETION → mở modal chọn Cash/VNPay.
-   * - WAITING_STAFF_COMPLETION: chỉ mở modal (đã gọi repair-complete trước đó).
-   */
   const handleIssuePaymentEntryPress = async () => {
     if (!ticket?.id || !slot.ticketId) return;
     const st = normalizeScheduleStatusKey(ticket.status);
@@ -464,9 +437,6 @@ export default function WorkSlotDetailScreen() {
     }
   };
 
-  /**
-   * Modal: tiền mặt — chỉ PUT WAITING_CASH_PAYMENT; staff xác nhận đã nhận tiền trên màn chi tiết (POST confirm).
-   */
   const handleIssuePaymentCash = async () => {
     if (!ticket?.id || !slot.ticketId) return;
     setIssuePaymentChoiceLoading(true);
@@ -496,7 +466,6 @@ export default function WorkSlotDetailScreen() {
     }
   };
 
-  /** Màn chi tiết: sau WAITING_CASH_PAYMENT — POST cash-payment/confirm (ticket DONE). */
   const handleIssueConfirmCashReceived = async () => {
     if (!ticket?.id || !slot.ticketId) return;
     setIssueCashConfirmLoading(true);
@@ -533,9 +502,6 @@ export default function WorkSlotDetailScreen() {
     }
   };
 
-  /**
-   * Modal: VNPay — PUT WAITING_PAYMENT; tenant app thanh toán theo luồng hiện có.
-   */
   const handleIssuePaymentVnpay = async () => {
     if (!ticket?.id || !slot.ticketId) return;
     setIssuePaymentChoiceLoading(true);
@@ -589,7 +555,6 @@ export default function WorkSlotDetailScreen() {
     const current = (job.status ?? "").toUpperCase();
 
     let maintenanceNext: "IN_PROGRESS" | "COMPLETED" | null = null;
-    /** Kiểm định: chỉ SCHEDULED → IN_PROGRESS; DONE qua màn InspectionConfirm. */
     let inspectionNext: "IN_PROGRESS" | null = null;
     if (current === "SCHEDULED") {
       maintenanceNext = "IN_PROGRESS";
@@ -727,24 +692,34 @@ export default function WorkSlotDetailScreen() {
   }, [maintenanceSubmitting]);
 
   useEffect(() => {
+    setMaintenanceAssetsLoaded(false);
+    setMaintenanceAssets([]);
+  }, [currentHouseId]);
+
+  useEffect(() => {
     let cancelled = false;
+    const jobInProgress = String(job?.status ?? "").toUpperCase() === "IN_PROGRESS";
+    const shouldLoad = Boolean(currentHouseId) && (maintenanceModalVisible || jobInProgress);
+    if (!shouldLoad) return;
     const run = async () => {
-      if (!maintenanceModalVisible || !currentHouseId) return;
       setMaintenanceAssetsLoading(true);
       try {
-        const res = await getAssetItemsByHouseId(currentHouseId);
+        const res = await getAssetItemsByHouseId(currentHouseId!);
         if (!cancelled) setMaintenanceAssets(Array.isArray(res.data) ? res.data : []);
       } catch {
         if (!cancelled) setMaintenanceAssets([]);
       } finally {
-        if (!cancelled) setMaintenanceAssetsLoading(false);
+        if (!cancelled) {
+          setMaintenanceAssetsLoading(false);
+          setMaintenanceAssetsLoaded(true);
+        }
       }
     };
     void run();
     return () => {
       cancelled = true;
     };
-  }, [maintenanceModalVisible, currentHouseId]);
+  }, [maintenanceModalVisible, currentHouseId, job?.status]);
 
   const handleMaintenanceAssetSelect = useCallback(
     (_sectionId: string, itemId: string | null) => {
@@ -755,11 +730,6 @@ export default function WorkSlotDetailScreen() {
     []
   );
 
-  /**
-   * Tải lại danh sách ảnh từ BE cho asset đang sửa.
-   * Gán `editorServerImagesRef` đồng bộ với mảng mới — hàng đợi upload chạy ngay sau `await`
-   * (trước khi React re-render) nên không được dựa vào `editorServerImages` state/ref theo render.
-   */
   const refreshEditorImages = useCallback(async (assetId: string): Promise<AssetItemImageFromApi[]> => {
     const asset = await getAssetItemById(assetId);
     const images = getImagesFromAssetItem(asset);
@@ -825,14 +795,12 @@ export default function WorkSlotDetailScreen() {
     };
   }, [maintenanceEditorVisible, selectedMaintenanceAssetId, t]);
 
-  /** Đóng camera khi đóng modal bảo trì — tránh ImageCaptureModal còn mở phía sau. */
   useEffect(() => {
     if (!maintenanceEditorVisible) {
       setImageCaptureVisible(false);
     }
   }, [maintenanceEditorVisible]);
 
-  /** Mỗi lần mở modal sửa thiết bị / đổi asset: reset bộ đếm ảnh thêm trong phiên (không liên quan ảnh cũ trên server). */
   useEffect(() => {
     if (!maintenanceEditorVisible || !selectedMaintenanceAssetId) return;
     maintenanceSessionImageCountRef.current = 0;
@@ -873,7 +841,6 @@ export default function WorkSlotDetailScreen() {
                 throw new Error(res?.message || t("staff_work_slot_detail.maintenance_batch_error"));
               }
               pendingMaintenanceBatchEventsRef.current = res.data?.events ?? [];
-              // Ghi nhớ trong phiên để quay lại màn vẫn hiện nút "Hoàn thành".
               submittedMaintenanceJobIdsInSession.add(job.id);
               setMaintenanceSubmitted(true);
               setMaintenanceModalVisible(false);
@@ -1098,7 +1065,11 @@ export default function WorkSlotDetailScreen() {
     [filteredMaintenanceAssets.length, t]
   );
 
-  /** Vùng cuộn trong modal bảo trì (dropdown + draft) — không đẩy nội dung ra ngoài viewport. */
+  const hasNoAssetsToInspect = useMemo(
+    () => maintenanceAssetsLoaded && maintenanceAssets.length === 0,
+    [maintenanceAssetsLoaded, maintenanceAssets.length],
+  );
+
   const maintenanceModalBodyScrollMaxH = useMemo(
     () =>
       Math.max(
@@ -1108,7 +1079,6 @@ export default function WorkSlotDetailScreen() {
     [windowHeight, insets.bottom]
   );
 
-  /** Giới hạn chiều cao danh sách trong DropdownBox để chip tầng vẫn nhìn thấy khi cuộn modal. */
   const maintenanceDropdownResultsMaxH = useMemo(
     () => Math.min(220, Math.max(168, Math.round(windowHeight * 0.26))),
     [windowHeight]
@@ -1119,10 +1089,6 @@ export default function WorkSlotDetailScreen() {
     [maintenanceAssetsSorted, selectedMaintenanceAssetId]
   );
 
-  /**
-   * Upload ảnh lên asset đang mở trong modal; `assetId` truyền rõ khi đổi thiết bị.
-   * Slot phiên đã được trừ ở `handleEditorImagesPicked` trước khi gọi hàm này.
-   */
   const uploadEditorImages = useCallback(
     async (assetId: string, files: AssetItemImageToUpload[]) => {
       if (!assetId?.trim() || files.length === 0) return;
@@ -1174,9 +1140,6 @@ export default function WorkSlotDetailScreen() {
     setImageCaptureVisible(true);
   }, [editorDeletingImageId, t]);
 
-  /**
-   * Ảnh từ camera/thư viện: trừ slot ngay (đúng giới hạn), upload chạy nền theo hàng đợi — không phải chờ mạng mới chụp/chọn tiếp.
-   */
   const handleEditorImagesPicked = useCallback(
     (assets: ImagePicker.ImagePickerAsset[], _source: "camera" | "library") => {
       const assetId = selectedMaintenanceAssetIdRef.current;
@@ -1351,6 +1314,33 @@ export default function WorkSlotDetailScreen() {
     }, [slot.ticketId, isIssueSlot, isInspectionSlot])
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      const cid = inspectionContractId?.trim();
+      if (!cid) {
+        setActiveRelocationStatus(null);
+        setActiveRelocationKind(null);
+        return;
+      }
+      getActiveRelocationByContractId(cid)
+        .then((row) => {
+          if (cancelled) return;
+          setActiveRelocationStatus(row?.status ?? null);
+          setActiveRelocationKind(row?.requestKind ?? null);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setActiveRelocationStatus(null);
+            setActiveRelocationKind(null);
+          }
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [inspectionContractId])
+  );
+
   return (
     <View style={staffWorkSlotStyles.container}>
       <StackScreenTitleHeaderStrip>
@@ -1380,16 +1370,6 @@ export default function WorkSlotDetailScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero banner
-        <View style={staffWorkSlotStyles.heroBanner}>
-          <Text style={staffWorkSlotStyles.heroTime}>{slot.timeRange}</Text>
-          <Text style={staffWorkSlotStyles.heroDate}>{slot.date}</Text>
-          <Text style={staffWorkSlotStyles.heroJobType}>
-            {slot.taskKey ? t(slot.taskKey) : slot.task}
-          </Text>
-        </View> */}
-
-        {/* Work Slot */}
         <View style={staffWorkSlotStyles.section}>
           <View style={staffWorkSlotStyles.sectionHeader}>
             <View style={iconStyles.workSlotSectionIconWrap}>
@@ -1411,7 +1391,6 @@ export default function WorkSlotDetailScreen() {
           </View>
         </View>
 
-        {/* Job (từ API) */}
         <View style={staffWorkSlotStyles.section}>
           <View style={[staffWorkSlotStyles.sectionHeader, { borderBottomColor: brandTintBg }]}>
             <View style={[iconStyles.workSlotSectionIconWrap, iconStyles.workSlotSectionIconWrapJob]}>
@@ -1646,11 +1625,13 @@ export default function WorkSlotDetailScreen() {
                     </TouchableOpacity>
                   ) : null}
 
-                  {!isIssueSlot && job?.status === "IN_PROGRESS" ? (
+                  {!isIssueSlot
+                    && job?.status === "IN_PROGRESS"
+                    && !(activeRelocationKind === "LANDLORD_FAULT_UNINHABITABLE") ? (
                     <TouchableOpacity
                       style={[
                         staffWorkSlotStyles.actionBtn,
-                        !maintenanceSubmitted
+                        !maintenanceSubmitted && !hasNoAssetsToInspect
                           ? staffWorkSlotStyles.actionBtnStartUpdate
                           : isInspectionSlot
                             ? staffWorkSlotStyles.actionBtnVerify
@@ -1658,19 +1639,19 @@ export default function WorkSlotDetailScreen() {
                         { marginRight: 6 },
                       ]}
                       onPress={
-                        maintenanceSubmitted
+                        hasNoAssetsToInspect || maintenanceSubmitted
                           ? isInspectionSlot
                             ? navigateToInspectionConfirm
                             : handleStartWork
                           : openMaintenanceModal
                       }
-                      disabled={updateLoading}
+                      disabled={updateLoading || maintenanceAssetsLoading}
                     >
-                      {updateLoading ? (
+                      {updateLoading || maintenanceAssetsLoading ? (
                         <RefreshLogoInline logoPx={18} />
                       ) : (
                         <Text style={staffWorkSlotStyles.actionBtnText}>
-                          {maintenanceSubmitted
+                          {hasNoAssetsToInspect || maintenanceSubmitted
                             ? isInspectionSlot
                               ? t("staff_work_slot_detail.btn_confirm_inspection")
                               : t("staff_work_slot_detail.btn_complete")
@@ -1679,6 +1660,59 @@ export default function WorkSlotDetailScreen() {
                       )}
                     </TouchableOpacity>
                   ) : null}
+                </View>
+              ) : null}
+
+              {isInspectionSlot && inspectionContractId && job?.status === "IN_PROGRESS" && !activeRelocationStatus ? (
+                <View style={[staffWorkSlotStyles.actionRow, { marginTop: 10 }]}>
+                  <TouchableOpacity
+                    style={[staffWorkSlotStyles.actionBtn, staffWorkSlotStyles.actionBtnDanger]}
+                    onPress={() =>
+                      navigation.navigate("LandlordFaultReport", {
+                        contractId: inspectionContractId,
+                        houseId: currentHouseId,
+                        houseName: currentHouseName,
+                      })
+                    }
+                    disabled={updateLoading}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={staffWorkSlotStyles.actionBtnText}>
+                      {t("staff_work_slot_detail.btn_report_unlivable")}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {isInspectionSlot && inspectionContractId && activeRelocationStatus ? (
+                <View style={[
+                  staffWorkSlotStyles.relocationBadge,
+                  activeRelocationKind === "LANDLORD_FAULT_UNINHABITABLE" && staffWorkSlotStyles.relocationBadgeBlocking,
+                ]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[
+                      staffWorkSlotStyles.relocationBadgeLabel,
+                      activeRelocationKind === "LANDLORD_FAULT_UNINHABITABLE" && staffWorkSlotStyles.relocationBadgeLabelBlocking,
+                    ]}>
+                      {activeRelocationKind === "LANDLORD_FAULT_UNINHABITABLE"
+                        ? t("staff_work_slot_detail.relocation_blocking_label")
+                        : t("staff_work_slot_detail.relocation_in_flight_label")}
+                    </Text>
+                    {activeRelocationKind === "LANDLORD_FAULT_UNINHABITABLE" && (
+                      <Text style={staffWorkSlotStyles.relocationBadgeBlockingHint}>
+                        {t("staff_work_slot_detail.relocation_blocking_hint")}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={[
+                    staffWorkSlotStyles.relocationBadgeStatus,
+                    activeRelocationKind === "LANDLORD_FAULT_UNINHABITABLE" && staffWorkSlotStyles.relocationBadgeStatusBlocking,
+                  ]}>
+                    {t(
+                      `staff_work_slot_detail.relocation_status_${activeRelocationStatus.toLowerCase()}`,
+                      { defaultValue: activeRelocationStatus },
+                    )}
+                  </Text>
                 </View>
               ) : null}
             </View>
@@ -1854,7 +1888,6 @@ function InfoRow({
 }: {
   label: string;
   value: string;
-  /** Đang GET theo id — không hiển thị id tạm; chỉ spinner nhỏ. */
   valueLoading?: boolean;
   mono?: boolean;
   valueStyle?: object;

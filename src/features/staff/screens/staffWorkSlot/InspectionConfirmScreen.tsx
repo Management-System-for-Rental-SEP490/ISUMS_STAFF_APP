@@ -1,7 +1,7 @@
 /**
  * Màn xác nhận cuối kiểm định — gọi PUT /maintenances/inspections/:id/status DONE.
  */
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   Modal,
   Dimensions,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -34,7 +35,11 @@ import {
   stackScreenTitleRowStyle,
   stackScreenTitleSideSlotStyle,
 } from "../../../../shared/components/StackScreenTitleBadge";
-import { updateInspectionStatus } from "../../../../shared/services/maintenanceApi";
+import {
+  getInspectionById,
+  updateInspectionStatus,
+  uploadInspectionHousePhotos,
+} from "../../../../shared/services/maintenanceApi";
 import { getIssueBanners } from "../../../../shared/services/issuesApi";
 import type { IssueBannerFromApi } from "../../../../shared/types/api";
 import {
@@ -44,6 +49,7 @@ import {
 import { brandPrimary, brandTintBg, neutral } from "../../../../shared/theme/color";
 import { staffFormShape } from "../../../../shared/styles/staffFormShape";
 import Icons from "../../../../shared/theme/icon";
+import { ImageCaptureModal } from "../../../modal/imageCapture/ImageCaptureModal";
 import { SCHEDULE_DATA_KEYS } from "../../hooks/useStaffScheduleData";
 import { isoLocalDateToYmd, waitForWorkSlotCompletionSync } from "../../utils/workSlotCompletionSync";
 import {
@@ -92,6 +98,10 @@ export default function InspectionConfirmScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [activePhotoUri, setActivePhotoUri] = useState<string | null>(null);
   const keyboardInset = useKeyboardBottomInset();
+
+  const [housePhotos, setHousePhotos] = useState<string[]>([]);
+  const [housePhotoUploading, setHousePhotoUploading] = useState(false);
+  const [housePhotoCaptureVisible, setHousePhotoCaptureVisible] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const scrollYRef = useRef(0);
@@ -163,6 +173,54 @@ export default function InspectionConfirmScreen() {
       if (androidScrollDebounceRef.current) clearTimeout(androidScrollDebounceRef.current);
     };
   }, [keyboardInset]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getInspectionById(inspectionId)
+      .then((res) => {
+        if (cancelled || !res?.success || !res?.data) return;
+        const urls = Array.isArray(res.data.housePhotoUrls)
+          ? res.data.housePhotoUrls.filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+          : [];
+        setHousePhotos(urls);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [inspectionId]);
+
+  const handleHousePhotosPicked = useCallback(
+    async (assets: ImagePicker.ImagePickerAsset[]) => {
+      setHousePhotoCaptureVisible(false);
+      if (!assets?.length) return;
+      setHousePhotoUploading(true);
+      try {
+        const files = assets.map((asset, idx) => ({
+          uri: asset.uri,
+          fileName:
+            asset.fileName ||
+            asset.uri.split("/").filter(Boolean).pop() ||
+            `house-${Date.now()}-${idx}.jpg`,
+          mimeType: asset.mimeType || "image/jpeg",
+        }));
+        const res = await uploadInspectionHousePhotos(inspectionId, files);
+        const urls = Array.isArray(res.data?.housePhotoUrls)
+          ? res.data.housePhotoUrls.filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+          : [];
+        setHousePhotos(urls);
+      } catch (e: unknown) {
+        CustomAlert.alert(
+          t("common.error"),
+          e instanceof Error ? e.message : t("staff_inspection_confirm.house_photo_upload_failed"),
+          [{ text: t("common.close") }],
+        );
+      } finally {
+        setHousePhotoUploading(false);
+      }
+    },
+    [inspectionId, t],
+  );
 
   useEffect(() => {
     if (isCheckIn) return;
@@ -266,6 +324,14 @@ export default function InspectionConfirmScreen() {
       CustomAlert.alert(
         t("common.error"),
         t("staff_inspection_confirm.error_notes_damage"),
+        [{ text: t("common.close") }]
+      );
+      return;
+    }
+    if (housePhotos.length === 0) {
+      CustomAlert.alert(
+        t("common.error"),
+        t("staff_inspection_confirm.error_no_house_photo"),
         [{ text: t("common.close") }]
       );
       return;
@@ -392,6 +458,56 @@ export default function InspectionConfirmScreen() {
             </ScrollView>
           </View>
 
+          <View style={styles.sectionCard}>
+            <Text style={styles.cardFieldLabel}>
+              {t("staff_inspection_confirm.house_photos_label")}
+            </Text>
+            {housePhotos.length === 0 ? (
+              <Text style={styles.muted}>
+                {t("staff_inspection_confirm.house_photos_empty_hint")}
+              </Text>
+            ) : (
+              <ScrollView
+                horizontal
+                nestedScrollEnabled
+                showsHorizontalScrollIndicator={false}
+                style={styles.photoRow}
+                contentContainerStyle={styles.photoRowContent}
+              >
+                {housePhotos.map((uri) => (
+                  <TouchableOpacity
+                    key={uri}
+                    activeOpacity={0.85}
+                    onPress={() => setActivePhotoUri(uri)}
+                    style={styles.thumbWrap}
+                  >
+                    <Image source={{ uri }} style={styles.thumb} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+            <TouchableOpacity
+              style={[
+                styles.housePhotoBtn,
+                (housePhotoUploading || submitting) && styles.submitBtnDisabled,
+              ]}
+              onPress={() => setHousePhotoCaptureVisible(true)}
+              disabled={housePhotoUploading || submitting}
+              activeOpacity={0.85}
+            >
+              {housePhotoUploading ? (
+                <RefreshLogoInline logoPx={20} />
+              ) : (
+                <>
+                  <Icons.camera size={20} color={brandPrimary} />
+                  <Text style={styles.housePhotoBtnText}>
+                    {t("staff_inspection_confirm.house_photos_add")}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
           {!isCheckIn ? (
             <View style={styles.sectionCard}>
               <View style={styles.damageRow}>
@@ -501,6 +617,12 @@ export default function InspectionConfirmScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      <ImageCaptureModal
+        visible={housePhotoCaptureVisible}
+        onClose={() => setHousePhotoCaptureVisible(false)}
+        onPicked={handleHousePhotosPicked}
+      />
     </View>
   );
 }
@@ -622,5 +744,22 @@ const styles = StyleSheet.create({
     color: neutral.surface,
     fontSize: 15,
     fontWeight: "800",
+  },
+  housePhotoBtn: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: staffFormShape.radiusControl,
+    backgroundColor: brandTintBg,
+    borderWidth: 1.5,
+    borderColor: brandPrimary,
+  },
+  housePhotoBtnText: {
+    color: brandPrimary,
+    fontWeight: "700",
+    fontSize: 14,
   },
 });

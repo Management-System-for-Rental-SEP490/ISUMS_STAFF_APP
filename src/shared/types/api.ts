@@ -1,12 +1,3 @@
-// Định nghĩa các kiểu dữ liệu trả về từ Backend API.
-// Mục tiêu: gom TẤT CẢ các kiểu liên quan đến response API vào một nơi
-// để dễ bảo trì, tìm kiếm và tái sử dụng.
-
-// =========================================================
-// Response wrapper chung (User API / các BE cùng format Swagger)
-// =========================================================
-
-/** Wrapper chuẩn response từ BE (statusCode, success, message, errors, data). Dùng cho GET /api/users/me và các API cùng format. */
 export interface ApiResponse<T> {
   statusCode: number;
   success: boolean;
@@ -19,7 +10,6 @@ export interface ApiResponse<T> {
   data: T;
 }
 
-/** Trạng thái ticket/issue từ BE (IssueStatus). */
 export type IssueStatus =
   | "CREATED"
   | "NEED_RESCHEDULE"
@@ -38,21 +28,12 @@ export type IssueStatus =
   | "CANCELLED"
   | string;
 
-/** Trạng thái ticket/issue có thể cập nhật từ Staff UI (PUT .../tickets/{id}/status). */
 export type IssueTicketStatusUpdate =
   | "IN_PROGRESS"
   | "DONE"
   | "WAITING_PAYMENT"
   | "WAITING_CASH_PAYMENT";
 
-/**
- * Ticket/issue trả về từ GET /api/issues/tickets/{ticketId}.
- * Ví dụ response (BE):
- * {
- *   data: { id, tenantId, houseId, assetId, assignedStaffId, slotId, type, status, title, description, createdAt },
- *   message, statusCode, success
- * }
- */
 export interface IssueTicketFromApi {
   id: string;
   tenantId: string;
@@ -63,15 +44,13 @@ export interface IssueTicketFromApi {
   staffName?: string | null;
   staffPhone?: string | null;
   slotId: string;
-  /** REPAIR | QUESTION | ... */
   type: string;
   status: IssueStatus;
   title: string;
   description: string;
-  createdAt: string; // ISO 8601
+  createdAt: string;
 }
 
-/** Response wrapper của GET /api/issues/tickets/{ticketId}. */
 export interface IssueTicketApiResponse {
   data: IssueTicketFromApi;
   message: string;
@@ -79,7 +58,6 @@ export interface IssueTicketApiResponse {
   success: boolean;
 }
 
-/** Một ticket trong API danh sách ticket theo staff. */
 export interface IssueTicketListItemFromApi {
   id: string;
   tenantId: string;
@@ -97,7 +75,6 @@ export interface IssueTicketListItemFromApi {
   createdAt: string;
 }
 
-/** Response của GET /api/issues/tickets/staff. */
 export interface IssueTicketListApiResponse {
   data: IssueTicketListItemFromApi[];
   message: string;
@@ -105,30 +82,24 @@ export interface IssueTicketListApiResponse {
   success: boolean;
 }
 
-/** Banner báo giá từ API GET /api/issues/banners. */
 export interface IssueBannerFromApi {
   id: string;
   name: string;
   currentPrice: number;
 }
 
-/** Một item trong payload tạo báo giá (POST /api/issues/quotes/{issueId}/quote). */
 export interface CreateIssueQuoteItemPayload {
-  /** Có banner thì gửi bannerId. */
   bannerId?: string;
-  /** Ngoài banner thì gửi itemName + cost + price. */
   itemName?: string;
   cost?: number;
   price?: number;
 }
 
-/** Payload tạo báo giá cho issue. */
 export interface CreateIssueQuotePayload {
   isTenantFault: boolean;
   items: CreateIssueQuoteItemPayload[];
 }
 
-/** Response tối thiểu của API tạo báo giá. */
 export interface CreateIssueQuoteApiResponse {
   data?: {
     id: string;
@@ -149,7 +120,6 @@ export interface CreateIssueQuoteApiResponse {
   success?: boolean;
 }
 
-/** Trạng thái báo giá từ BE (QuoteStatus) cho luồng quote + payment. */
 export type QuoteStatus =
   | "DRAFT"
   | "WAITING_MANAGER_APPROVAL"
@@ -158,31 +128,15 @@ export type QuoteStatus =
   | "REJECTED"
   | string;
 
-// =========================================================
-// User API
-// =========================================================
-
-/** Kiểu dữ liệu user profile trả về từ API (ví dụ: GET /api/users/me). */
 export interface UserProfileResponse {
-  /** ID duy nhất của user trong hệ thống. */
   id: string;
-  /** Tên hiển thị. */
   name: string;
-  /** Email của user. */
   email: string;
-  /** Số CMND/CCCD. */
   identityNumber: string;
-  /** Số điện thoại. */
   phoneNumber: string;
-  /** Danh sách roles (VD: ["TENANT", "ADMIN"]). */
   roles: string[];
 }
 
-// =========================================================
-// Houses API (/api/houses)
-// =========================================================
-
-/** Tọa độ khu vực trong sơ đồ mặt bằng (viewBox 0 0 100 100). */
 export interface FunctionalAreaPosition {
   x: number;
   y: number;
@@ -190,160 +144,92 @@ export interface FunctionalAreaPosition {
   height: number;
 }
 
-/** Một khu vực chức năng trong nhà (phòng khách, bếp, phòng tắm, hành lang...) từ API GET /api/houses. */
 export interface FunctionalAreaFromApi {
-  /** ID khu vực. */
   id: string;
-  /** ID căn nhà chứa khu vực này. */
   houseId: string;
-  /** Tên hiển thị (VD: Phòng khách, Bếp, Phòng tắm tầng 2). */
   name: string;
-  /** Loại khu vực: LIVINGROOM, KITCHEN, BATHROOM, HALLWAY, BEDROOM, ... */
   areaType: string;
-  /** Số tầng (chuỗi do BE trả về, VD: "1", "2"). */
   floorNo: string;
-  /** Mô tả (có thể null). */
   description: string | null;
-  /** Trạng thái (VD: NORMAL). */
   status?: string;
-  /** Tọa độ sơ đồ từ BE (legacy); app không còn dùng để bố cục — chỉ hiển thị danh sách chip. */
   position?: FunctionalAreaPosition;
   createdAt?: string;
   updatedAt?: string;
 }
 
-/** Dữ liệu căn nhà trả về từ API GET /api/houses (dùng cho Staff). */
 export type HouseStatus = "AVAILABLE" | "RENTED" | "REPAIRED" | string;
 
-/** Dữ liệu căn nhà trả về từ API GET /api/houses (dùng cho Staff). */
 export interface HouseFromApi {
-  /** ID căn nhà. */
   id: string;
-  /** ID user đang thuê (nếu có), null nếu nhà đang trống. */
   userRentalId: string | null;
-  /** ID khu vực (region), có thể null. */
   regionId?: string | null;
-  /** Tên hiển thị của căn nhà (ví dụ: Phòng 101, Căn A2). */
   name: string;
-  /** Địa chỉ đầy đủ dạng text do BE trả về. */
   address: string;
-  /** Phường. */
   ward?: string;
-  /** Quận/Huyện. */
   commune?: string;
-  /** Thành phố. */
   city?: string;
-  /** Mô tả thêm về căn nhà. */
   description?: string;
-  /** Trạng thái nhà theo HouseStatus BE. */
   status?: HouseStatus;
-  /** Danh sách khu vực chức năng trong nhà (phòng khách, bếp, phòng tắm...). */
   functionalAreas?: FunctionalAreaFromApi[];
 }
 
-/** Response body của API GET /api/houses. */
 export interface HousesApiResponse {
-  /** Mảng danh sách căn nhà. */
   data: HouseFromApi[];
-  /** Thông điệp từ BE (dùng cho debug/log). */
   message: string;
-  /** HTTP status code mà BE mapping (ví dụ: 200, 401, 500). */
   statusCode: number;
-  /** Cờ đánh dấu request thành công hay không. */
   success: boolean;
 }
 
-/** Một khu vực (region) từ GET /api/houses/regions/staff/{staffId}. */
 export interface HouseRegionFromApi {
   id: string;
   name: string;
   description: string;
   managerId: string;
-  /** Danh sách staff được gán vào region; BE có thể bỏ qua nếu path đã lọc theo staff. */
   staffIds?: string[];
 }
 
-/** Response body của API GET /api/houses/{id}. */
 export interface HouseDetailApiResponse {
-  /** Thông tin chi tiết một căn nhà. */
   data: HouseFromApi;
-  /** Thông điệp từ BE (dùng cho debug/log). */
   message: string;
-  /** HTTP status code mà BE mapping (ví dụ: 200, 401, 500). */
   statusCode: number;
-  /** Cờ đánh dấu request thành công hay không. */
   success: boolean;
 }
 
-// =========================================================
-// Asset Categories API (GET/POST/PUT /api/assets/categories)
-// =========================================================
-
-/** Một danh mục thiết bị từ API GET /api/assets/categories (loại sản phẩm/thiết bị trong hệ thống). */
 export interface AssetCategoryFromApi {
-  /** ID danh mục. */
   id: string;
-  /** Tên mặc định hoặc theo Accept-Language (Swagger); kèm `nameTranslations` để đa ngôn ngữ đầy đủ. */
   name: string;
-  /** Giá trị `name` gốc từ BE trước khi client resolve theo locale (chuỗi thường hoặc JSON) — dùng khi ghép body PUT. */
   nameRaw?: string;
-  /** Bản dịch tên theo vi / en / ja (khi BE trả GET /api/assets/categories). */
   nameTranslations?: Record<string, string>;
-  /** Phần trăm bồi thường khi hư hỏng (do BE quy định). */
   compensationPercent: number;
-  /** Mô tả; kèm `descriptionTranslations` khi BE trả map đa ngôn ngữ. */
   description: string;
-  /** Giá trị `description` gốc từ BE trước khi client resolve theo locale. */
   descriptionRaw?: string;
-  /** Bản dịch mô tả theo vi / en / ja. */
   descriptionTranslations?: Record<string, string>;
-  /** Loại phát hiện (BE có thể trả về, ví dụ: EIF, NONI). */
   detectionType?: string | null;
 }
 
-/** Danh mục embed trong GET/PUT item — cùng shape GET /api/assets/categories. */
 export type AssetCategoryEmbeddedFromApi = AssetCategoryFromApi;
 
-/** Response body của API GET /api/asset/categories. */
 export interface AssetCategoriesApiResponse {
-  /** Danh sách các danh mục thiết bị. */
   data: AssetCategoryFromApi[];
 }
 
-/** Tên hoặc mô tả gửi POST/PUT /api/assets/categories — object theo mã ngôn ngữ (vi, en, ja). */
 export type AssetCategoryLocalizedWriteField = Record<string, string>;
 
-/**
- * Body gửi lên khi tạo danh mục thiết bị mới (POST /api/assets/categories).
- * `name` / `description` là object đa ngôn ngữ, không còn một chuỗi đơn.
- */
 export interface CreateAssetCategoryRequest {
   name: AssetCategoryLocalizedWriteField;
   compensationPercent: number;
   description: AssetCategoryLocalizedWriteField;
 }
 
-/**
- * Response body của API POST /api/assets/categories (tạo danh mục thành công).
- * BE trả về data (danh mục vừa tạo), message, statusCode (201), success.
- */
 export interface CreateAssetCategoryApiResponse {
-  /** Danh mục vừa được tạo (có id do BE sinh). */
   data: AssetCategoryFromApi;
-  /** Thông báo từ BE (ví dụ: "Create category successfully"). */
   message: string;
-  /** Mã HTTP (201 = Created). */
   statusCode: number;
-  /** Cờ thành công. */
   success: boolean;
 }
 
-/** Body PUT /api/asset/categories/:id — cùng POST tạo danh mục. */
 export type UpdateAssetCategoryRequest = CreateAssetCategoryRequest;
 
-/**
- * Response body của API PUT /api/asset/categories/:id (cập nhật thành công).
- */
 export interface UpdateAssetCategoryApiResponse {
   data: AssetCategoryFromApi;
   message: string;
@@ -351,24 +237,12 @@ export interface UpdateAssetCategoryApiResponse {
   success: boolean;
 }
 
-// =========================================================
-// Asset Items API (/api/asset/items)
-// =========================================================
-
-/** Tham số filter cho GET /api/asset/items (tùy chọn theo nhà, danh mục, hoặc NFC). */
 export type AssetItemsParams = {
-  /** Lọc theo ID căn nhà. */
   houseId?: string;
-  /** Lọc theo ID danh mục thiết bị. */
   categoryId?: string;
-  /** Lọc theo mã NFC đã gán (thường trả về tối đa 1 thiết bị). Một số BE hỗ trợ query ?nfcId=xxx. */
   nfcId?: string;
 };
 
-/**
- * Trạng thái thiết bị (asset) theo enum BE: không AVAILABLE / DELETED.
- * BE cũ: `AVAILABLE` → IN_USE; `DELETED` → DISPOSED (chuẩn hóa trong `normalizeAssetItemStatusFromApi`).
- */
 export type AssetStatus =
   | "IN_USE"
   | "ACTIVE"
@@ -385,71 +259,42 @@ export function normalizeAssetItemStatusFromApi(
   return s;
 }
 
-/** Ảnh đính kèm thiết bị — GET item (embed) hoặc GET .../items/:id/images. */
 export interface AssetItemImageFromApi {
   id: string;
   url: string;
   createdAt?: string | null;
 }
 
-/** Một thiết bị/item từ API GET /api/asset/items (có thể filter theo houseId, categoryId). */
 export interface AssetItemFromApi {
-  /** ID thiết bị. */
   id: string;
-  /** ID căn nhà chứa thiết bị này. */
   houseId: string;
-  /** ID danh mục thiết bị (khóa ngoại sang AssetCategoryFromApi). */
   categoryId: string;
-  /** BE GET/PUT item có thể embed object category (kèm nameTranslations / descriptionTranslations). */
   category?: AssetCategoryEmbeddedFromApi;
-  /** Tên hiển thị cho thiết bị (ví dụ: Máy lạnh phòng khách). */
   displayName: string;
-  /** Map locale hoặc key Swagger → chuỗi; BE có thể trả kèm khi displayName là chuỗi canonical. */
   translations?: Record<string, string>;
-  /** Số serial (do nhà sản xuất). */
   serialNumber: string;
-  /** NFC tag ID gắn với thiết bị (từ bảng asset tags), null nếu chưa gán. */
   nfcTag: string | null;
-  /** QR tag ID gắn với thiết bị, null nếu chưa gán. */
   qrTag: string | null;
-  /** Danh sách tags (NFC, QR, ...) gắn với thiết bị (nếu BE hỗ trợ trả về). */
   tags?: AssetTagFromApi[];
-  /** Tình trạng còn lại (%), ví dụ 80 = còn tốt 80%. */
   conditionPercent: number;
-  /** Ghi chú bảo trì/cập nhật gần nhất của thiết bị. */
   note?: string | null;
-  /** Trạng thái (AssetStatus; sau khi qua service thường đã chuẩn hóa, không còn AVAILABLE). */
   status: string;
-  /** Thời điểm cập nhật gần nhất (nếu BE trả về). */
   updateAt?: string | null;
-  /**
-   * ID khu vực chức năng (phòng/bếp/…) trong nhà; null nếu chưa gán.
-   * BE có thể trả `functionAreaId` hoặc `functionalAreaId` — service chuẩn hóa về `functionAreaId`.
-   */
   functionAreaId?: string | null;
-  /** Ảnh — BE có thể trả sẵn trong GET item. */
   images?: AssetItemImageFromApi[];
 }
 
-/** Response body của API GET /api/asset/items. */
 export interface AssetItemsApiResponse {
-  /** Danh sách các thiết bị. */
   data: AssetItemFromApi[];
 }
 
-/** BE có thể trả kèm metadata bổ sung (tùy phiên bản API). */
 export interface AssetItemCreateGeneratedLocales {
   nameEn?: string | null;
   nameJa?: string | null;
 }
 
-/** `displayName` trên POST Swagger: object ít nhất có key `vi`; thủ công thêm `en`, `ja`. */
 export type AssetItemDisplayNameMap = Record<string, string>;
 
-/**
- * Body POST /api/assets/items (Swagger: metadata + `assetImages: []`, ảnh upload endpoint riêng).
- * Không có `note` / mô tả trên create.
- */
 export interface CreateAssetItemRequest {
   houseId: string;
   categoryId: string;
@@ -462,14 +307,9 @@ export interface CreateAssetItemRequest {
   conditionPercent: number;
   status: string;
   functionAreaId?: string | null;
-  /** Luồng chuẩn: `[]` khi tạo metadata, sau đó POST multipart ảnh theo assetId. */
   assetImages: string[];
 }
 
-/**
- * Body PUT /api/assets/items/:id — BE bind `displayName` kiểu Map string→string (JSON object), tối thiểu `{ "vi": "..." }`.
- * Không set `displayName` khi không đổi tên → không gửi field (tránh bind sai kiểu / ghi đè không cần).
- */
 export interface UpdateAssetItemRequest {
   houseId: string;
   categoryId: string;
@@ -485,18 +325,15 @@ export interface UpdateAssetItemRequest {
   functionAreaId?: string | null;
 }
 
-/** Response body của API POST /api/asset/items (tạo thiết bị thành công). */
 export interface CreateAssetItemApiResponse {
   data: AssetItemFromApi;
   message: string;
   statusCode: number;
   success: boolean;
-  /** BE có thể trả thêm khi bật dịch tự động / workflow xác nhận. */
   mode?: "AUTO" | "MANUAL";
   generated?: AssetItemCreateGeneratedLocales;
 }
 
-/** Response PUT /api/asset/items/:id. */
 export interface UpdateAssetItemApiResponse {
   data: AssetItemFromApi;
   message: string;
@@ -504,28 +341,19 @@ export interface UpdateAssetItemApiResponse {
   success: boolean;
 }
 
-/** Một item gửi trong API batch cập nhật thiết bị bảo trì. */
 export interface AssetMaintenanceBatchUpdatePayload {
   assetId: string;
   conditionPercent: number;
   note: string;
-  /** Khi bật “bị hỏng” — gửi BROKEN; bỏ qua để giữ trạng thái hiện tại. */
   status?: string;
-  /**
-   * Ảnh local (camera/gallery) gửi kèm — BE nhận multipart `updates[i].images` (lặp key).
-   * Chỉ dùng khi test / khi UI đã gắn ảnh vào draft.
-   */
   localImages?: Array<{ uri: string; fileName?: string; mimeType?: string }>;
 }
 
-/** Body cho API PUT /api/assets/items/maintenance/batch. */
 export interface AssetMaintenanceBatchUpdateRequest {
-  /** Job bảo trì (UUID) — BE dùng để gắn cập nhật thiết bị với đúng công việc. */
   jobId: string;
   updates: AssetMaintenanceBatchUpdatePayload[];
 }
 
-/** Một cặp asset ↔ event sau batch bảo trì — dùng để gắn ảnh vào đúng sự kiện. */
 export interface AssetMaintenanceBatchEventRef {
   assetId: string;
   eventId: string;
@@ -534,81 +362,42 @@ export interface AssetMaintenanceBatchEventRef {
 export interface AssetMaintenanceBatchUpdateData {
   total: number;
   success: number;
-  /** Một số BE trả danh sách item đã cập nhật. */
   assets?: AssetItemFromApi[];
-  /** BE trả kèm để FE upload ảnh vào từng sự kiện bảo trì (POST /assets/events/:eventId/images). */
   events?: AssetMaintenanceBatchEventRef[];
 }
 
-/** Response của API batch cập nhật thiết bị bảo trì. */
 export type AssetMaintenanceBatchUpdateApiResponse = ApiResponse<AssetMaintenanceBatchUpdateData>;
 
-// =========================================================
-// IoT Devices API (/api/assets/iot-devices)
-// =========================================================
-
-/**
- * Một thiết bị IoT (node) trả về trong `data.devices` từ API
- * GET /api/assets/iot-devices/house/{houseId}.
- *
- * Lưu ý: backend đã gắn thiết bị IoT vào khu vực bằng `areaName`.
- */
 export interface IotNodeDeviceFromApi {
-  /** ID bản ghi thiết bị IoT (UUID). */
   id: string;
-  /** ID asset item liên quan trong hệ thống asset (UUID). */
   assetId: string;
-  /** Mã loại thiết bị IoT (ví dụ: IOT_NODE). */
   categoryCode: string;
-  /** Tên hiển thị (ví dụ: Node DA234878). */
   displayName: string;
-  /** Serial number của thiết bị. */
   serialNumber: string;
-  /** Trạng thái (ví dụ: IN_USE). */
   status: string;
-  /** Thing name/ID dùng để subscribe telemetry. */
   thing: string;
-  /** Tên khu vực được gắn (ví dụ: Phòng Bếp). */
   areaName: string | null;
 }
 
-/**
- * Dữ liệu tổng của một "controller" IoT của nhà.
- * Đây chính là object trong response `data`.
- */
 export interface IotControllerHouseDataFromApi {
   id: string;
   houseName: string;
-  /** MAC / Device ID (ví dụ: B0:CB:D8:C1:A0:F4). */
   deviceId: string;
-  /** Thing name của controller (ví dụ: ctrl-b0cbd8c1a0f4). */
   thingName: string;
-  /** Trạng thái provisioning (ví dụ: DEPROVISIONED). */
   status: string;
-  /** Khu vực gắn controller (nếu có). */
   areaName: string | null;
   createdAt?: string;
   activatedAt?: string;
-  /** Danh sách node thuộc controller/nhà. */
   devices: IotNodeDeviceFromApi[];
 }
 
-/** Response chuẩn: { data: IotControllerHouseDataFromApi, message, statusCode, success, errors } */
 export type IotDevicesByHouseApiResponse = ApiResponse<IotControllerHouseDataFromApi>;
 
-// =========================================================
-// IoT Provision API (/api/assets/houses/{houseId}/iot/provision)
-// =========================================================
-
-/** Body gửi lên khi gắn (provision) thiết bị IoT vào nhà/khu vực. */
 export interface IotProvisionRequest {
-  /** Device ID đọc được từ QR của thiết bị IoT. */
   deviceId: string;
-  /** ID khu vực chức năng trong nhà. */
   areaId: string;
 }
 
-/** Data trả về khi gắn controller IoT thành công (theo swagger). */
 export interface IotProvisionResult {
   thingName: string;
   certificatePem: string;
@@ -617,28 +406,23 @@ export interface IotProvisionResult {
   houseId: string;
 }
 
-/** Response chuẩn của API provision controller. */
 export type IotProvisionApiResponse = ApiResponse<IotProvisionResult>;
 
-/** Body gửi lên khi xin token provision cho Node. */
 export interface IotProvisionTokenRequest {
   serial: string;
 }
 
-/** Data trả về khi xin token provision cho Node. */
 export interface IotProvisionTokenResult {
   token: string;
 }
 
 export type IotProvisionTokenApiResponse = ApiResponse<IotProvisionTokenResult>;
 
-/** Data trả về khi lấy controller theo house (để lấy deviceId/MAC). */
 export interface IotControllerByHouseResult {
   deviceId: string;
 }
 export type IotControllerByHouseApiResponse = ApiResponse<IotControllerByHouseResult>;
 
-/** Body gửi lên khi gắn Node vào house. */
 export interface IotProvisionNodeRequest {
   serial: string;
   token: string;
@@ -646,21 +430,12 @@ export interface IotProvisionNodeRequest {
 }
 export type IotProvisionNodeApiResponse = ApiResponse<string>;
 
-// =========================================================
-// Asset Tags API — POST /api/assets/tags (gán), PUT /api/assets/tags/detach/{tagValue} (gỡ)
-// =========================================================
-
-/** Body gửi lên khi gán tag vào thiết bị (POST /api/assets/tags). */
 export interface AttachAssetTagRequest {
-  /** ID thiết bị (asset item) cần gán tag. */
   assetId: string;
-  /** Giá trị mã NFC (ví dụ "010101010" hoặc "04 9C 59 A2 B2 19 90"). */
   tagValue: string;
-  /** Loại tag, thường là "NFC" hoặc "QR_CODE". */
   tagType: "NFC" | "QR_CODE";
 }
 
-/** Dữ liệu tag trả về từ POST /api/assets/tags khi gán thành công. */
 export interface AssetTagFromApi {
   id: string;
   tagValue: string;
@@ -671,7 +446,6 @@ export interface AssetTagFromApi {
   isActive: boolean;
 }
 
-/** Response body của API POST /api/assets/tags. */
 export interface AttachAssetTagApiResponse {
   statusCode: number;
   success: boolean;
@@ -679,45 +453,28 @@ export interface AttachAssetTagApiResponse {
   data: AssetTagFromApi;
 }
 
-/** Response body của API PUT /api/assets/tags/detach/{tagValue}. */
 export type DetachAssetTagApiResponse = AttachAssetTagApiResponse;
 
-/** Response của GET /api/assets/tags/asset/{tagValue} (quét NFC/QR → thông tin item). */
 export interface GetAssetByTagValueApiResponse {
   statusCode: number;
   success: boolean;
   message: string;
-  /** Một object thiết bị (Postman) hoặc mảng (tương thích phiên bản cũ). */
   data: AssetItemFromApi[] | AssetItemFromApi;
 }
 
-// =========================================================
-// Schedule Template API (/api/schedules/templates/current/{date})
-// =========================================================
-
-/** Mẫu lịch làm việc trả về từ GET /api/schedules/templates/current/{date}. */
 export interface ScheduleTemplateData {
   id: string;
-  /** Các ngày làm việc (VD: "MON, TUE, WED, THU, FRI, SAT") */
   workingDays: string;
-  /** Giờ mở cửa (VD: "08:00:00") */
   openTime: string;
-  /** Giờ bắt đầu nghỉ (VD: "12:00:00") */
   breakStart: string;
-  /** Giờ kết thúc nghỉ (VD: "13:00:00") */
   breakEnd: string;
-  /** Giờ đóng cửa (VD: "17:00:00") */
   closeTime: string;
-  /** Độ dài mỗi slot (phút) */
   slotMinutes: number;
-  /** Thời gian đệm (phút) */
   bufferMinutes: number;
-  /** Ngày có hiệu lực (YYYY-MM-DD) */
   effectiveFrom: string;
   updatedAt: string;
 }
 
-/** Response body của GET /api/schedules/templates/current/{date}. */
 export interface ScheduleTemplateApiResponse {
   data: ScheduleTemplateData;
   message: string;
@@ -725,28 +482,17 @@ export interface ScheduleTemplateApiResponse {
   success: boolean;
 }
 
-// =========================================================
-// Work Slots API (/api/schedules/work_slots/staff)
-// =========================================================
-
-/** Một work slot trả về từ GET /api/schedules/work_slots/staff. */
 export interface WorkSlotFromApi {
   id: string;
   staffId: string;
   jobId: string;
-  /** ID căn nhà mà job thuộc về (BE có thể trả thêm trường này). */
   houseId?: string;
-  /** Loại công việc: MAINTENANCE, ISSUE, ... */
   jobType: string;
-  /** Thời gian bắt đầu (ISO 8601), VD "2026-03-13T13:00:00" */
   startTime: string;
-  /** Thời gian kết thúc (ISO 8601), VD "2026-03-13T14:00:00" */
   endTime: string;
-  /** Trạng thái job: CREATED, SCHEDULED, NEED_RESCHEDULE, IN_PROGRESS, COMPLETED, FAILED, CANCELLED, OVERDUE */
   status: string;
 }
 
-/** Response body của GET /api/schedules/work_slots/staff. */
 export interface WorkSlotsApiResponse {
   data: WorkSlotFromApi[];
   message: string;
@@ -754,14 +500,11 @@ export interface WorkSlotsApiResponse {
   success: boolean;
 }
 
-/** Body POST /api/schedules/work_slots/staff/confirm — `jobId` là ticket id (issue). */
 export interface ConfirmStaffWorkSlotPayload {
   jobId: string;
-  /** Local date-time không offset, VD "2026-04-03T09:45:00" (theo format BE). */
   startTime: string;
 }
 
-/** Response POST /api/schedules/work_slots/staff/confirm. */
 export interface ConfirmStaffWorkSlotResponse {
   data: WorkSlotFromApi;
   message: string;
@@ -769,33 +512,20 @@ export interface ConfirmStaffWorkSlotResponse {
   success: boolean;
 }
 
-// =========================================================
-// Generate work slots API (GET /api/schedules/work_slots/generate?start=&end=)
-// =========================================================
-
-/** Trạng thái slot do BE sinh (VD: AVAILABLE để staff chọn đăng ký issue). */
 export type GeneratedWorkSlotStatus = "AVAILABLE" | string;
 
-/** Một khung giờ trong ngày từ API generate hoặc GET .../slots/me. */
 export interface GeneratedWorkSlotTimeFromApi {
   startTime: string;
   endTime: string;
   status: GeneratedWorkSlotStatus;
-  /** Có trên API slots/me (số staff còn trống trong khung). */
   availableStaffCount?: number;
 }
 
-/** Một ngày và danh sách slot trống/đã book từ generate. */
 export interface GeneratedWorkSlotsDayFromApi {
   date: string;
   slots: GeneratedWorkSlotTimeFromApi[];
 }
 
-/**
- * Response GET /api/schedules/work_slots/generate?start=&end=
- * hoặc GET /api/schedules/work_slots/slots/me?startDate=&endDate=
- * (khoảng ngày có thể gồm Chủ nhật; BE chỉ trả các ngày làm việc trong tuần, không có Chủ nhật).
- */
 export interface GenerateWorkSlotsApiResponse {
   data: GeneratedWorkSlotsDayFromApi[];
   message: string;
@@ -803,28 +533,17 @@ export interface GenerateWorkSlotsApiResponse {
   success: boolean;
 }
 
-// =========================================================
-// Leave API (GET /api/schedules/leave/staff/{staffId})
-// =========================================================
-
-/** Một yêu cầu nghỉ trả về từ GET /api/schedules/leave/staff/{staffId}. */
 export interface LeaveRequestFromApi {
   id: string;
   staffId: string;
-  /** Ngày nghỉ (YYYY-MM-DD) */
   leaveDate: string;
-  /** Ghi chú / lý do nghỉ */
   note?: string | null;
-  /** Trạng thái: PENDING, APPROVED, REJECTED, CANCELLED */
   status: string;
-  /** ID manager duyệt (có thể null) */
   managerId?: string | null;
-  /** Ghi chú quyết định từ manager */
   decisionNote?: string | null;
   createdAt?: string;
 }
 
-/** Response body của GET /api/schedules/leave/staff/{staffId}. */
 export interface LeaveRequestsApiResponse {
   data: LeaveRequestFromApi[];
   message?: string;
@@ -832,14 +551,12 @@ export interface LeaveRequestsApiResponse {
   success?: boolean;
 }
 
-/** Body gửi khi POST /api/schedules/leave. */
 export interface CreateLeaveRequestPayload {
   staffId: string;
-  leaveDate: string; // YYYY-MM-DD
-  note?: string; // Ghi chú, có thể để trống
+  leaveDate: string;
+  note?: string;
 }
 
-/** Response body của POST /api/schedules/leave (201). */
 export interface CreateLeaveRequestResponse {
   data: LeaveRequestFromApi;
   message?: string;
@@ -847,14 +564,11 @@ export interface CreateLeaveRequestResponse {
   success?: boolean;
 }
 
-/** Body gửi khi PUT /api/schedules/leave/{id} (cập nhật trạng thái, VD hủy PENDING → CANCELLED). */
 export interface UpdateLeaveRequestPayload {
   status: "CANCELLED";
-  /** Ghi chú quyết định (tùy chọn, thường dùng khi manager duyệt/từ chối). */
   decisionNote?: string;
 }
 
-/** Response body của PUT /api/schedules/leave/{id} (200). */
 export interface UpdateLeaveRequestResponse {
   data: LeaveRequestFromApi;
   message?: string;
@@ -862,24 +576,15 @@ export interface UpdateLeaveRequestResponse {
   success?: boolean;
 }
 
-// =========================================================
-// Job API (GET /api/maintenances/jobs/{jobId})
-// =========================================================
-
-/** Job trả về từ GET /api/maintenances/jobs/{jobId}. Dùng jobId từ work slot để lấy chi tiết. */
 export interface JobFromApi {
   id: string;
   planId: string;
   houseId: string;
-  /** Ngày bắt đầu kỳ (YYYY-MM-DD) */
   periodStartDate: string;
-  /** Hạn hoàn thành (ISO 8601) */
   dueDate: string;
-  /** Trạng thái: CREATED, SCHEDULED, NEED_RESCHEDULE, IN_PROGRESS, COMPLETED, FAILED, CANCELLED, OVERDUE */
   status: string;
 }
 
-/** Response body của GET /api/maintenances/jobs/{jobId}. */
 export interface JobApiResponse {
   data: JobFromApi;
   message: string;
@@ -887,28 +592,20 @@ export interface JobApiResponse {
   success: boolean;
 }
 
-// =========================================================
-// Inspection API (GET /api/maintenances/inspections/{id} — base FALLBACK_BACKEND_URL)
-// =========================================================
-
-/** Chi tiết kiểm định (bàn giao); jobId trên lịch = id kiểm định. */
 export interface InspectionFromApi {
   id: string;
   houseId: string;
   assignedStaffId: string;
   slotId: string;
-  /** CREATED, SCHEDULED, IN_PROGRESS, APPROVED (đã kiểm định — chờ quản lý), DONE, ... */
   status: string;
-  /** CHECK_IN | CHECK_OUT (kiểu phiếu kiểm định). */
   type?: string | null;
   note?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
-  /** Hợp đồng — BE có thể trả để lấy inspection CHECK_IN cùng hợp đồng. */
   contractId?: string | null;
+  housePhotoUrls?: string[] | null;
 }
 
-/** Sự kiện tài sản (GET /api/assets/events?jobId=). */
 export interface AssetEventFromApi {
   assetId: string;
   assetName?: string | null;
@@ -917,7 +614,6 @@ export interface AssetEventFromApi {
   eventType?: string | null;
 }
 
-/** Response GET /api/assets/events. */
 export interface AssetEventsApiResponse {
   data: AssetEventFromApi[];
   message?: string;
@@ -925,7 +621,6 @@ export interface AssetEventsApiResponse {
   success?: boolean;
 }
 
-/** Response GET /api/maintenances/inspections (danh sách). */
 export interface InspectionListApiResponse {
   data: InspectionFromApi[];
   message?: string;
@@ -940,7 +635,6 @@ export interface InspectionApiResponse {
   success: boolean;
 }
 
-/** Map inspection → JobFromApi để tái sử dụng luồng maintenance (status, batch, houseId). */
 export function mapInspectionToJobFromApi(i: InspectionFromApi): JobFromApi {
   const created = String(i.createdAt ?? "").trim();
   const periodStartDate = created.length >= 10 ? created.slice(0, 10) : "";
@@ -954,11 +648,6 @@ export function mapInspectionToJobFromApi(i: InspectionFromApi): JobFromApi {
   };
 }
 
-// =========================================================
-// App notifications (GET /api/notifications) — contract defensive (đồng bộ Mobile)
-// =========================================================
-
-/** Category theo contract notification domain (BE có thể mở rộng string). */
 export type AppNotificationCategory =
   | "ISSUE"
   | "BILLING"
@@ -973,9 +662,7 @@ export type AppNotificationCategory =
   | "ACCESS"
   | string;
 
-/** Một dòng thông báo nghiệp vụ từ REST (map khớp payload BE). */
 export interface AppNotificationFromApi {
-  /** Id bản ghi trên server (ưu tiên cho PATCH read). */
   id: string;
   eventId: string;
   dedupeKey?: string | null;
@@ -1002,13 +689,8 @@ export interface AppNotificationFromApi {
 export interface AppNotificationsListResult {
   items: AppNotificationFromApi[];
   nextCursor: string | null;
-  /** true khi BE trả 404/501 hoặc lỗi được nuốt để không crash. */
   fetchUnavailable?: boolean;
 }
-
-// =========================================================
-// Staff notification (UI / mock — khi có API BE sẽ thay bằng response thật)
-// =========================================================
 
 export type StaffNotificationType =
   | "ticket_from_tenant"
@@ -1026,7 +708,3 @@ export interface StaffNotificationItem {
   createdAt: Date;
   read?: boolean;
 }
-
-// Sau này có thêm API khác thì định nghĩa tiếp ở dưới
-// Ví dụ:
-// export interface DeviceResponse { ... }

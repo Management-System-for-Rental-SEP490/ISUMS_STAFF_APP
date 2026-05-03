@@ -112,6 +112,11 @@ export type RootStackParamList = AuthStackParamList & {
     slotDate: string;
     houseName?: string;
   };
+  LandlordFaultReport: {
+    contractId: string;
+    houseId?: string;
+    houseName?: string;
+  };
   /** Màn form tạo danh mục thiết bị (Staff). Không tham số. */
   Category: undefined;
   /** Màn danh sách danh mục thiết bị (Staff). Không tham số. */

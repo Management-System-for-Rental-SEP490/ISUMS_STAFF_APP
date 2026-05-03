@@ -1,6 +1,3 @@
-/**
- * Luồng bảo trì định kỳ: modal chọn thiết bị + nháp + gửi batch; modal chỉnh từng thiết bị + ảnh.
- */
 import React from "react";
 import {
   Image,
@@ -69,7 +66,6 @@ export type WorkSlotMaintenanceModalFlowProps = {
   activeImageUrl: string | null;
   setActiveImageUrl: (url: string | null) => void;
   hasFloorAreas: boolean;
-  /** Số ảnh đã thêm trong lần mở modal (giới hạn MAX / phiên; không tính ảnh cũ trên asset). */
   maintenanceSessionImageCount: number;
 };
 

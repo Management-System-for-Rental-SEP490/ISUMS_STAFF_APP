@@ -6,7 +6,14 @@
  * - GET /api/maintenances/inspections — danh sách (query tùy chọn).
  */
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE } from "../api/config";
+import { useAuthStore } from "../../store/useAuthStore";
+import i18n from "../i18n";
+import { toAppLocaleCode } from "../utils/resolveLocalizedJsonString";
+import { logFetchAbortTimeout } from "../utils/clientNetworkTimeoutLog";
+import {
+  ASSET_IMAGE_UPLOAD_TIMEOUT_MS,
+  BACKEND_API_BASE,
+} from "../api/config";
 import type {
   AssetEventsApiResponse,
   InspectionApiResponse,
@@ -14,6 +21,33 @@ import type {
   JobApiResponse,
 } from "../types/api";
 import { logInspectionFlowDebug, logInspectionError } from "../utils/inspectionDebugLog";
+
+export interface InspectionHousePhotoFile {
+  uri: string;
+  fileName?: string;
+  mimeType?: string;
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (e: unknown) {
+    const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
+    if (name === "AbortError") {
+      logFetchAbortTimeout(url, timeoutMs);
+      throw new Error(i18n.t("common.server_not_responding"));
+    }
+    throw e;
+  } finally {
+    clearTimeout(id);
+  }
+}
 
 /**
  * Lấy thông tin job theo jobId.
@@ -180,4 +214,60 @@ export const updateJobStatus = async (
     logInspectionError("[Inspection]", "updateJobStatus failed", e);
     throw e;
   }
+};
+
+export const uploadInspectionHousePhotos = async (
+  inspectionId: string,
+  files: InspectionHousePhotoFile[],
+): Promise<InspectionApiResponse> => {
+  const id = String(inspectionId ?? "").trim();
+  if (!id) throw new Error("MISSING_INSPECTION_ID");
+  if (!files?.length) throw new Error("MISSING_FILES");
+
+  const token = useAuthStore.getState().token;
+  if (!token) throw new Error("MISSING_AUTH_TOKEN");
+
+  const url = `${BACKEND_API_BASE}/maintenances/inspections/${encodeURIComponent(id)}/house-photos`;
+  const formData = new FormData();
+  files.forEach((file, idx) => {
+    const name = file.fileName ?? `house-${id}-${idx}.jpg`;
+    const type = file.mimeType ?? "image/jpeg";
+    formData.append(
+      "files",
+      {
+        uri: file.uri,
+        name,
+        type,
+      } as unknown as Blob,
+    );
+  });
+
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Accept-Language": toAppLocaleCode(i18n.language),
+      },
+      body: formData,
+    },
+    ASSET_IMAGE_UPLOAD_TIMEOUT_MS,
+  );
+
+  const rawText = await response.text();
+  let parsed: InspectionApiResponse | null = null;
+  try {
+    parsed = rawText ? (JSON.parse(rawText) as InspectionApiResponse) : null;
+  } catch {
+    parsed = null;
+  }
+
+  if (!response.ok || parsed?.success === false) {
+    throw new Error(parsed?.message || `Upload failed (HTTP ${response.status})`);
+  }
+  if (!parsed?.data) {
+    throw new Error(parsed?.message || "Empty response");
+  }
+  return parsed;
 };

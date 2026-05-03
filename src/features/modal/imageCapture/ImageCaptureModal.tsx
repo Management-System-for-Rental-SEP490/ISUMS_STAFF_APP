@@ -124,6 +124,7 @@ export function ImageCaptureModal({
       try {
         const photo = await cameraRef.current?.takePictureAsync({
           quality: captureQuality,
+          shutterSound: false,
         });
         if (photo?.uri) {
           setLastPickedUri(photo.uri);

@@ -1,7 +1,3 @@
-/**
- * API liên quan đến thiết bị (asset items).
- * GET /api/assets/items, POST, PUT, DELETE /api/assets/items/:id.
- */
 import { isAxiosError } from "axios";
 import axiosClient from "../api/axiosClient";
 import { logInspectionDebug, logInspectionError } from "../utils/inspectionDebugLog";
@@ -52,9 +48,6 @@ import {
 
 export type { AssetItemImageFromApi };
 
-/**
- * Gọi `fetch` với trần thời gian; hết hạn (AbortError) → cùng thông điệp với axios `timeout` / `common.server_not_responding`.
- */
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
@@ -76,24 +69,12 @@ async function fetchWithTimeout(
   }
 }
 
-/**
- * Chuẩn hóa tagValue trước khi gửi lên BE.
- * - Giữ nguyên cấu trúc có khoảng trắng giữa các byte (\"04 9C 59 A2 ...\")
- * - Chỉ trim hai đầu, KHÔNG xóa khoảng trắng, KHÔNG tự ý đổi format.
- * Lý do: BE chấp nhận ID thẻ NFC với hoặc không với khoảng trắng, và logic so khớp nằm phía BE.
- */
 const normalizeTagValueForApi = (raw: string) => raw.trim();
 
-/**
- * Chuẩn hóa tagValue để so sánh trên FE (fallback).
- * - Bỏ hết khoảng trắng và chuyển sang UPPERCASE.
- * - Dùng khi cần so sánh hai mã NFC bất kể đang được lưu dính liền hay có khoảng trắng.
- */
 export function normalizeTagValueForCompare(raw: string): string {
   return String(raw ?? "").replace(/\s+/g, "").toUpperCase();
 }
 
-/** BE trả 409 hoặc message trùng tag khi POST /assets/tags hoặc PUT item. */
 export function isDuplicateTagConflictError(error: unknown): boolean {
   if (!isAxiosError(error)) return false;
   const status = error.response?.status;
@@ -104,10 +85,6 @@ export function isDuplicateTagConflictError(error: unknown): boolean {
   return /duplicate|already.*(assigned|exist)|tag.*(exist|taken)|conflict/i.test(msg);
 }
 
-/**
- * Lấy tagValue đang active từ mảng `tags` (POST /api/assets/tags tạo bản ghi có isActive).
- * Dùng khi BE trả `tags` nhưng chưa đồng bộ `nfcTag`/`qrTag` trên item.
- */
 function pickActiveTagValueFromTags(
   tags: AssetItemFromApi["tags"],
   tagType: "NFC" | "QR_CODE"
@@ -145,9 +122,6 @@ function normalizeEmbeddedCategory(
   };
 }
 
-/**
- * Ưu tiên `translations` (PUT/GET BE) để resolve tên theo locale; sau đó displayName map hoặc chuỗi.
- */
 function pickDisplayStringForResolve(
   raw: AssetItemFromApi & {
     displayName?: unknown;
@@ -172,7 +146,6 @@ function pickDisplayStringForResolve(
   return String(displayRaw);
 }
 
-/** `displayName` dạng object: `en` là bản tiếng Anh canonical khi BE tách map. */
 function canonicalEnglishDisplayNameFromDisplayNameField(displayRaw: unknown): string {
   if (displayRaw == null) return "";
   if (typeof displayRaw === "string") return displayRaw.trim();
@@ -194,9 +167,6 @@ function displayNameFieldToMap(displayRaw: unknown): Record<string, string> | un
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-/**
- * Tên hiển thị thiết bị: ưu tiên `translations[locale]` (và key trong object `displayName`), `displayName` chuỗi/en làm tiếng Anh mặc định.
- */
 function resolveAssetItemDisplayNameForUi(
   raw: AssetItemFromApi & { displayName?: unknown; translations?: Record<string, unknown> | null }
 ): string {
@@ -215,12 +185,6 @@ function resolveAssetItemDisplayNameForUi(
   return resolveLocalizedJsonStringFromI18n(displayForResolve);
 }
 
-/**
- * Chuẩn hóa một item từ BE: đảm bảo nfcTag, qrTag có giá trị dù BE trả về camelCase hay snake_case.
- * API GET /api/assets/items/house/:houseId đã được cập nhật trả về đầy đủ nfcTag, qrTag;
- * nếu BE trả snake_case (nfc_tag, qr_tag) thì map sang camelCase để màn danh sách & chi tiết hiển thị đúng.
- * Response PUT/GET có thể có `translations`, `category` embed — resolve đa ngôn ngữ thống nhất với resolveLocalizedJsonString.
- */
 function normalizeAssetItemFromResponse(
   raw: AssetItemFromApi & {
     nfc_tag?: string | null;
@@ -273,10 +237,6 @@ function normalizeIotControllerHouseData(
   };
 }
 
-/**
- * NFC/QR hiệu lực sau khi gộp trường gốc + tag active trong `tags` — cùng logic {@link normalizeAssetItemFromResponse}.
- * Dùng khi lọc “thiết bị chưa gán tag” (vd. modal gán NFC/QR), tránh lệch với danh sách đã chuẩn hóa.
- */
 export function getResolvedAssetItemTagValues(
   raw: AssetItemFromApi
 ): { nfcTag: string | null; qrTag: string | null } {
@@ -286,11 +246,6 @@ export function getResolvedAssetItemTagValues(
   return { nfcTag: n.nfcTag, qrTag: n.qrTag };
 }
 
-/**
- * BE có thể trả `data` là mảng hoặc gói paginated / lồng nhau.
- * Chuẩn hóa về mảng để hook/UI không gọi `.filter` trên non-array
- * (object truthy làm `?? []` không chạy → lỗi "filter is not a function").
- */
 function coerceAssetItemsArray(raw: unknown): AssetItemFromApi[] {
   if (raw === null || raw === undefined) return [];
   if (Array.isArray(raw)) return raw as AssetItemFromApi[];
@@ -311,9 +266,6 @@ function coerceAssetItemsArray(raw: unknown): AssetItemFromApi[] {
   return [];
 }
 
-/**
- * Dùng tại màn/hook khi đọc `itemsData?.data` từ cache — luôn được mảng (có thể rỗng).
- */
 export function asAssetItemArray(raw: unknown): AssetItemFromApi[] {
   return coerceAssetItemsArray(raw);
 }
@@ -342,11 +294,6 @@ const mapNormalizeAssetItemRow = (i: AssetItemFromApi) =>
     i as AssetItemFromApi & { nfc_tag?: string | null; qr_tag?: string | null }
   );
 
-/**
- * Lấy danh sách thiết bị (GET /api/asset/items), có thể lọc theo houseId và/hoặc categoryId.
- * @param params - houseId, categoryId (optional); không truyền = lấy tất cả.
- * @returns Promise<AssetItemsApiResponse> - data là mảng AssetItemFromApi.
- */
 export const getAssetItems = async (
   params?: AssetItemsParams
 ): Promise<AssetItemsApiResponse> => {
@@ -364,12 +311,6 @@ export const getAssetItems = async (
   return assetItemsFromAxiosBody(response.data, (items) => items.map(mapNormalizeAssetItemRow));
 };
 
-/**
- * Lấy danh sách thiết bị theo houseId (GET /api/assets/items/house/:houseId).
- * Dùng cho tenant: lấy toàn bộ thiết bị thuộc nhà đang thuê.
- * BE đã cập nhật trả về đầy đủ từng item (gồm nfcTag, qrTag) để màn danh sách và chi tiết hiển thị đúng.
- * Response format { data: AssetItemFromApi[], message?, ... }; mảng data được chuẩn hóa (hỗ trợ cả snake_case từ BE).
- */
 export const getAssetItemsByHouseId = async (
   houseId: string
 ): Promise<AssetItemsApiResponse> => {
@@ -379,10 +320,6 @@ export const getAssetItemsByHouseId = async (
   return assetItemsFromAxiosBody(response.data, (items) => items.map(mapNormalizeAssetItemRow));
 };
 
-/**
- * Lấy thiết bị IoT của một nhà (GET /api/assets/iot-devices/house/{houseId}).
- * Response format theo swagger: ApiResponse<{...controller..., devices:[...node...]}>.
- */
 export const getIotDevicesByHouseId = async (
   houseId: string
 ): Promise<IotDevicesByHouseApiResponse> => {
@@ -396,10 +333,6 @@ export const getIotDevicesByHouseId = async (
   };
 };
 
-/**
- * Lấy chi tiết thiết bị theo ID (GET /api/assets/items/:id).
- * Dùng path /assets/... thống nhất với GET /api/assets/items/house/:houseId.
- */
 export const getAssetItemById = async (id: string): Promise<AssetItemFromApi | undefined> => {
   try {
     const response = await axiosClient.get<UpdateAssetItemApiResponse | AssetItemFromApi>(
@@ -434,13 +367,6 @@ export const getAssetItemById = async (id: string): Promise<AssetItemFromApi | u
 };
 
 
-/**
- * Tra cứu thiết bị sau khi quét NFC hoặc QR (GET /api/assets/tags/asset/{tagValue}).
- * `data` trong response có thể là một object (Postman) hoặc mảng (tương thích cũ).
- *
- * Không fallback sang GET /assets/items + quét list: sau khi gỡ tag, endpoint theo tag có thể trả 404
- * trong khi danh sách item vẫn còn trường nfcTag/tags lệch — dễ “tìm thấy” thiết bị dù tag đã detached.
- */
 export const getAssetItemByTag = async (
   tagValue: string
 ): Promise<AssetItemFromApi | undefined> => {
@@ -483,17 +409,11 @@ export const getAssetItemByTag = async (
   }
 };
 
-/** Alias cho backward compatibility nếu cần, hoặc dùng trực tiếp getAssetItemByTag */
 export const getAssetItemByNfcId = getAssetItemByTag;
 
-/** Gửi body POST/PUT asset item dạng snake_case — bật bằng EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE=true */
 const useSnakeCasePutBody =
   typeof process !== "undefined" && process.env?.EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE === "true";
 
-/**
- * Tạo thiết bị mới (POST /api/assets/items).
- * Body camelCase hoặc snake_case (cùng cờ EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE như PUT); gửi cả functionAreaId/functionalAreaId.
- */
 function pickFirstNonEmptyString(
   ...candidates: Array<string | null | undefined>
 ): string | null {
@@ -561,10 +481,6 @@ export const createAssetItem = async (
   return res;
 };
 
-/**
- * Các giá trị hợp lệ cho `status` trên record Java `UpdateAssetItemRequest` (enum AssetStatus).
- * Trạng thái workflow-only từ app (vd. WAITING_MANAGER_CONFIRM) không có trong enum → Jackson không bind được → thường 400/500.
- */
 const ASSET_ITEM_PUT_JAVA_STATUS_VALUES = new Set([
   "AVAILABLE",
   "IN_USE",
@@ -574,9 +490,6 @@ const ASSET_ITEM_PUT_JAVA_STATUS_VALUES = new Set([
   "DELETED",
 ]);
 
-/**
- * Chuẩn hoá map tên hiển thị gửi PUT: bỏ key rỗng; BE nhận `Map<String,String>` (JSON object).
- */
 function pickNonEmptyDisplayNameMap(
   map: AssetItemDisplayNameMap | undefined
 ): Record<string, string> | undefined {
@@ -590,14 +503,6 @@ function pickNonEmptyDisplayNameMap(
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-/**
- * Dựng JSON body PUT khớp Swagger `PUT /api/assets/items/{id}` (ví dụ: functionAreaId, displayName map, serialNumber, nfcId, conditionPercent, note, status).
- * - `displayName`: Map locale → chuỗi; ItemEdit luôn gửi map ít nhất một key (vi/en/ja).
- * - `nfcId`: Swagger có field (chuỗi rỗng khi chưa gán) — gửi rõ để bind DTO Java ổn định.
- * - `functionAreaId`: gửi `""` khi chưa chọn (cùng ví dụ Swagger).
- * - Snake_case: bật cùng cờ `EXPO_PUBLIC_ASSET_PUT_BODY_SNAKE_CASE` như POST create.
- * - Đổi nhà: `transferAssetItemHouse`; gán/gỡ tag: `/api/assets/tags` — không nằm trong PUT này.
- */
 function buildUpdateAssetItemRequestBody(payload: UpdateAssetItemRequest): Record<string, unknown> {
   const functionAreaId = pickFirstNonEmptyString(payload.functionAreaId);
   const noteForApi =
@@ -637,10 +542,6 @@ function buildUpdateAssetItemRequestBody(payload: UpdateAssetItemRequest): Recor
   return body;
 }
 
-/**
- * Cập nhật thiết bị (PUT /api/assets/items/{id}).
- * Body khớp record Java `UpdateAssetItemRequest` (displayName dạng map, functionAreaId, serialNumber, conditionPercent, note, status).
- */
 export const updateAssetItem = async (
   id: string,
   payload: UpdateAssetItemRequest
@@ -670,13 +571,6 @@ export const updateAssetItem = async (
   return res;
 };
 
-/**
- * Batch cập nhật thông tin bảo trì cho nhiều thiết bị.
- * API: PUT /api/assets/items/maintenance/batch
- *
- * Body: **một object** `BatchUpdateAssetRequest` — `{ jobId, updates: [...] }` (BE Java không nhận mảng bọc ngoài).
- * Ảnh gắn sự kiện: POST /assets/events/:eventId/images sau khi có `data.events` (thường khi hoàn tất công việc).
- */
 export const updateAssetItemsMaintenanceBatch = async (
   payload: AssetMaintenanceBatchUpdateRequest
 ): Promise<AssetMaintenanceBatchUpdateApiResponse> => {
@@ -771,10 +665,6 @@ export const updateAssetItemsMaintenanceBatch = async (
   }
 };
 
-/**
- * Đổi nhà cho thiết bị (PUT /api/asset/items/:id/transfer).
- * Body: { newHouseId }. BE sẽ cập nhật houseId và trả lại thiết bị sau khi chuyển.
- */
 export const transferAssetItemHouse = async (
   id: string,
   newHouseId: string
@@ -801,9 +691,6 @@ export const transferAssetItemHouse = async (
   return res;
 };
 
-/**
- * Xóa thiết bị (DELETE /api/asset/items/:id).
- */
 export const deleteAssetItem = async (id: string): Promise<{ success: boolean; message?: string }> => {
   const response = await axiosClient.delete<{ success: boolean; message?: string }>(
     `${BACKEND_API_BASE}/assets/items/${id}`
@@ -811,10 +698,6 @@ export const deleteAssetItem = async (id: string): Promise<{ success: boolean; m
   return response.data;
 };
 
-/**
- * Gán tag NFC hoặc QR vào thiết bị (POST /api/assets/tags).
- * Body: `{ assetId, tagValue, tagType }` với `tagType`: `"NFC"` | `"QR_CODE"`.
- */
 export const attachAssetTag = async (
   payload: AttachAssetTagRequest
 ): Promise<AttachAssetTagApiResponse> => {
@@ -830,10 +713,6 @@ export const attachAssetTag = async (
   return response.data;
 };
 
-/**
- * Gỡ tag NFC hoặc QR khỏi thiết bị (PUT /api/assets/tags/detach/{tagValue}, không body).
- * `tagValue` là đúng chuỗi đã gán (vd. `ISUMS-TAG-001`).
- */
 export const detachAssetTag = async (
   tagValue: string
 ): Promise<DetachAssetTagApiResponse> => {
@@ -844,10 +723,6 @@ export const detachAssetTag = async (
   return response.data;
 };
 
-/**
- * Tháo (deprovision) controller IoT khỏi nhà.
- * API: DELETE /api/assets/houses/{houseId}/iot/deprovision
- */
 export const deprovisionIotControllerByHouseId = async (
   houseId: string
 ): Promise<ApiResponse<string>> => {
@@ -857,11 +732,6 @@ export const deprovisionIotControllerByHouseId = async (
   return response.data;
 };
 
-/**
- * Gắn (provision) controller IoT vào nhà.
- * API: POST /api/assets/houses/{houseId}/iot/provision
- * Body: { deviceId, areaId }
- */
 export const provisionIotControllerByHouseId = async (
   houseId: string,
   payload: IotProvisionRequest
@@ -873,7 +743,6 @@ export const provisionIotControllerByHouseId = async (
   return response.data;
 };
 
-/** Node: xin token provision theo serial. API: POST /api/assets/iot/provision-token */
 export const getIotProvisionTokenBySerial = async (
   payload: IotProvisionTokenRequest
 ): Promise<IotProvisionTokenApiResponse> => {
@@ -884,7 +753,6 @@ export const getIotProvisionTokenBySerial = async (
   return response.data;
 };
 
-/** Node: lấy controller theo house để lấy MAC/deviceId. API: GET /api/assets/houses/{houseId}/iot/controller */
 export const getIotControllerByHouseId = async (
   houseId: string
 ): Promise<IotControllerByHouseApiResponse> => {
@@ -894,7 +762,6 @@ export const getIotControllerByHouseId = async (
   return response.data;
 };
 
-/** Node: gắn node vào house. API: POST /api/assets/houses/{houseId}/iot/provision-node */
 export const provisionIotNodeByHouseId = async (
   houseId: string,
   payload: IotProvisionNodeRequest
@@ -912,7 +779,6 @@ export type AssetItemImageToUpload = {
   mimeType?: string;
 };
 
-/** Gom nhiều lần gọi liên tiếp (cùng asset) trong cửa sổ ngắn → một request / kết quả tái sử dụng. */
 const ASSET_ITEM_IMAGES_DEDUP_MS = 350;
 const assetItemImagesInflight = new Map<string, Promise<AssetItemImageFromApi[]>>();
 const assetItemImagesMicroCache = new Map<
@@ -920,7 +786,6 @@ const assetItemImagesMicroCache = new Map<
   { at: number; data: AssetItemImageFromApi[] }
 >();
 
-/** Sau upload/xóa ảnh phải gọi để GET sau không trả micro-cache cũ (trùng itemId trong <350ms). */
 export const invalidateAssetItemImagesCache = (itemId: string) => {
   const key = String(itemId ?? "").trim();
   if (!key) return;
@@ -928,7 +793,6 @@ export const invalidateAssetItemImagesCache = (itemId: string) => {
   assetItemImagesInflight.delete(key);
 };
 
-/** BE có thể trả camelCase hoặc snake_case — map về AssetItemImageFromApi. */
 function normalizeAssetItemImageRow(raw: unknown): AssetItemImageFromApi | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
@@ -946,10 +810,6 @@ function normalizeAssetItemImageRow(raw: unknown): AssetItemImageFromApi | null 
   };
 }
 
-/**
- * Ảnh từ GET /api/assets/items/:id (trường `images` trên payload item).
- * Dùng khi BE nhúng ảnh trong response asset thay vì gọi GET .../images riêng.
- */
 export function getImagesFromAssetItem(
   asset: AssetItemFromApi | undefined | null,
 ): AssetItemImageFromApi[] {
@@ -959,13 +819,6 @@ export function getImagesFromAssetItem(
     .filter((row): row is AssetItemImageFromApi => row != null);
 }
 
-/**
- * Lấy danh sách ảnh của asset item.
- * Endpoint (theo Postman trong ảnh bạn gửi): GET /api/assets/items/:id/images
- *
- * Cùng một `itemId`, nhiều lần gọi trong ~350ms hoặc trùng lúc request đang chạy sẽ dùng chung một
- * kết quả (giảm GET lặp khi staff inspection / màn chi tiết kích hoạt nhiều effect).
- */
 export const getAssetItemImages = (
   itemId: string,
   cacheBust?: number,
@@ -977,7 +830,6 @@ export const getAssetItemImages = (
   const inflight = assetItemImagesInflight.get(key);
   if (inflight) return inflight;
 
-  // Có cacheBust = caller muốn dữ liệu mới (sau mutation / tránh cache HTTP) — không dùng micro-cache theo itemId.
   const cached = assetItemImagesMicroCache.get(key);
   if (
     cacheBust === undefined &&
@@ -1013,11 +865,6 @@ export const getAssetItemImages = (
   return run;
 };
 
-/**
- * Upload ảnh đính kèm cho asset item.
- * Endpoint (theo Postman trong ảnh bạn gửi): POST /api/assets/items/:id/images
- * FormData key: `files`, mỗi phần tử là file ảnh dạng jpg/png...
- */
 export const uploadAssetItemImages = async (
   itemId: string,
   images: AssetItemImageToUpload[],
@@ -1077,10 +924,6 @@ export const uploadAssetItemImages = async (
   invalidateAssetItemImagesCache(itemId);
 };
 
-/**
- * Upload ảnh gắn với một sự kiện bảo trì (sau batch PUT maintenance).
- * POST /api/assets/events/:eventId/images — form field `files` (lặp key, giống upload item).
- */
 export const uploadAssetEventImages = async (
   eventId: string,
   images: AssetItemImageToUpload[]
@@ -1143,10 +986,6 @@ export const uploadAssetEventImages = async (
   }
 };
 
-/**
- * Xóa 1 ảnh của asset item.
- * Endpoint (theo Postman bạn gửi): DELETE /api/assets/items/:itemId/image/:imageId
- */
 export const deleteAssetItemImage = async (
   itemId: string,
   imageId: string,
@@ -1168,4 +1007,3 @@ export const deleteAssetItemImage = async (
 
   invalidateAssetItemImagesCache(normalizedItemId);
 };
-

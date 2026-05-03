@@ -1,6 +1,3 @@
-/**
- * Luồng kiểm định CHECK_OUT: giống CHECK_IN + baseline từ phiên CHECK_IN (assets/events).
- */
 import React from "react";
 import {
   Image,

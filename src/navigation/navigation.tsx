@@ -25,6 +25,7 @@ import ItemDescriptionScreen from "../features/staff/screens/staffItems/itemDesc
 import WorkSlotDetailScreen from "../features/staff/screens/staffWorkSlot/staffWorkSlotDetail";
 import StaffIssueNoteScreen from "../features/staff/screens/staffWorkSlot/staffIssueNote";
 import InspectionConfirmScreen from "../features/staff/screens/staffWorkSlot/InspectionConfirmScreen";
+import LandlordFaultReportScreen from "../features/staff/screens/staffWorkSlot/LandlordFaultReportScreen";
 import StaffDayOffListScreen from "../features/staff/screens/staffDayOff/staffDayOffList";
 import StaffRequestDayOffScreen from "../features/staff/screens/staffDayOff/staffRequestDayOff";
 import StaffIotListScreen from "../features/staff/screens/staffIoT/staffIotList";
@@ -157,6 +158,7 @@ const Navigation = () => {
                 <Stack.Screen name="TicketDetail" component={TicketDetailScreenWrapper} />
                 <Stack.Screen name="WorkSlotDetail" component={WorkSlotDetailScreen} />
                 <Stack.Screen name="InspectionConfirm" component={InspectionConfirmScreen} />
+                <Stack.Screen name="LandlordFaultReport" component={LandlordFaultReportScreen} />
                 <Stack.Screen name="StaffIssueNote" component={StaffIssueNoteScreen} />
                 <Stack.Screen name="CategoryList" component={CategoryListScreen} />
                 <Stack.Screen name="Category" component={CategoryScreen} />

@@ -36,9 +36,7 @@ export const AUTH_PROFILE_FETCH_TIMEOUT_MS = DATA_LOAD_TIMEOUT_MS;
  */
 export const LOGIN_OAUTH_EXCHANGE_DEADLINE_MS = 90000 as const;
 
-/** Mặc định trùng môi trường Swagger/QA (api-dev). Production: đặt EXPO_PUBLIC_BACKEND_API_PRIMARY. */
 const DEFAULT_PRIMARY = "https://api-dev.isums.pro/api";
-const DEFAULT_FALLBACK = "https://unrestrictable-lan-syzygial.ngrok-free.dev/api";
 
 function readEnvTrimmed(envKey: string, fallback: string): string {
   const v =
@@ -53,14 +51,9 @@ export const PRIMARY_BACKEND_URL = readEnvTrimmed(
   DEFAULT_PRIMARY
 );
 
-export const FALLBACK_BACKEND_URL = readEnvTrimmed(
-  "EXPO_PUBLIC_BACKEND_API_FALLBACK",
-  DEFAULT_FALLBACK
-);
-
+export const FALLBACK_BACKEND_URL = PRIMARY_BACKEND_URL;
 export const BACKEND_URL_PRIMARY = PRIMARY_BACKEND_URL;
-export const BACKEND_URL_FALLBACK = FALLBACK_BACKEND_URL;
-
+export const BACKEND_URL_FALLBACK = PRIMARY_BACKEND_URL;
 export const BACKEND_API_BASE = PRIMARY_BACKEND_URL;
 
 const DEFAULT_IOT_WS =

@@ -1,6 +1,3 @@
-/**
- * Luồng kiểm định CHECK_IN: modal chọn thiết bị + toggle hư hỏng + ảnh phiên.
- */
 import React from "react";
 import {
   Image,
