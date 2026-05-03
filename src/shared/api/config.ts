@@ -21,6 +21,11 @@ export const ASSET_IMAGE_UPLOAD_TIMEOUT_MS = 120_000 as const;
 export const ASSET_ITEM_MUTATION_TIMEOUT_MS = 30_000 as const;
 
 /**
+ * GET /api/issues/tickets/staff — danh sách ticket staff; trần 30s để tránh cắt sớm khi BE/mạng chậm.
+ */
+export const STAFF_ISSUE_TICKETS_LIST_TIMEOUT_MS = 30_000 as const;
+
+/**
  * HTTP tới Keycloak (token / userinfo) — tách khỏi {@link DATA_LOAD_TIMEOUT_MS} vì SSO thường chậm hơn API app;
  * nếu không đặt timeout, axios có thể treo lâu và timer màn Login báo nhầm "quá thời gian".
  */
