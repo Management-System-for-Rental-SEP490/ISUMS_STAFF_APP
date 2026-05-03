@@ -4,7 +4,7 @@
  * - PUT /api/issues/tickets/{ticketId}/status?status={status} - cập nhật trạng thái (nếu BE hỗ trợ)
  */
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE, STAFF_ISSUE_TICKETS_LIST_TIMEOUT_MS } from "../api/config";
+import { BACKEND_API_BASE } from "../api/config";
 import type {
   ApiResponse,
   CreateIssueQuoteApiResponse,
@@ -83,13 +83,10 @@ export const getIssueTicketDataById = async (
 /**
  * Lấy danh sách ticket đã assign cho staff hiện tại.
  * Endpoint: GET /api/issues/tickets/staff
- *
- * Timeout request: `STAFF_ISSUE_TICKETS_LIST_TIMEOUT_MS` (30s) — tránh cắt sớm khi BE/mạng chậm so với trần axios mặc định (`DATA_LOAD_TIMEOUT_MS`).
  */
 export const getIssueTicketsByStaff = async (): Promise<IssueTicketListApiResponse> => {
   const response = await axiosClient.get<IssueTicketListApiResponse>(
-    `${BACKEND_API_BASE}/issues/tickets/staff`,
-    { timeout: STAFF_ISSUE_TICKETS_LIST_TIMEOUT_MS }
+    `${BACKEND_API_BASE}/issues/tickets/staff`
   );
   return response.data;
 };

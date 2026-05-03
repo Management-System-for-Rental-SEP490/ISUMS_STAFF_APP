@@ -38,7 +38,7 @@ import StaffNotificationScreen from "../features/staff/screens/staffnotification
 import { StaffScheduleProvider } from "../features/staff/context/StaffScheduleContext";
 import KeycloakChangePasswordWebViewOverlay from "../shared/components/KeycloakChangePasswordWebViewOverlay";
 import { useNotificationDeviceTokenLifecycle } from "../shared/hooks/useNotificationDeviceTokenLifecycle";
-import { DATA_LOAD_TIMEOUT_MS } from "../shared/api/config";
+import { POST_LOGIN_QUERY_INVALIDATE_DELAY_MS } from "../shared/api/config";
 
 // Wrapper components để bọc Provider cho các screen cần useStaffSchedule
 const BuildingDetailScreenWrapper = () => (
@@ -114,12 +114,12 @@ const Navigation = () => {
     }
   }, [isReady, isLoggedIn, role, t]);
 
-  /** Sau DATA_LOAD_TIMEOUT_MS (4s) từ khi hydrate xong + đã đăng nhập → invalidateQueries (refresh dữ liệu). */
+  /** Sau `POST_LOGIN_QUERY_INVALIDATE_DELAY_MS` kể từ hydrate xong + đã đăng nhập → invalidateQueries (refresh dữ liệu). */
   useEffect(() => {
     if (!isReady || !isLoggedIn) return;
     const id = setTimeout(() => {
       queryClient.invalidateQueries();
-    }, DATA_LOAD_TIMEOUT_MS);
+    }, POST_LOGIN_QUERY_INVALIDATE_DELAY_MS);
     return () => clearTimeout(id);
   }, [isReady, isLoggedIn, queryClient]);
 
