@@ -1,5 +1,5 @@
 /**
- * Khu vực chức năng theo tầng: một khung chứa các chip (không ảnh nền).
+ * Khu vực chức năng theo tầng: dải chip trên nền nhạt (không ảnh nền).
  * Không có khu vực cho tầng/nhà → trả về null (luồng chọn qua dropdown).
  */
 import React, { useMemo } from "react";
