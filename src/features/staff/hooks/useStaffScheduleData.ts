@@ -61,6 +61,9 @@ export function useEnrichedWorkSlotsQuery() {
 /**
  * Slot từ BE (GET .../work_slots/slots/me) theo khoảng ngày. Dùng màn/modal đăng ký khung giờ xử lý issue.
  */
+/** Modal chọn khung giờ gọi 2 nhánh tuần; cache ngắn để reopen nhanh, không chờ refetch không cần thiết. */
+const GENERATED_SLOTS_STALE_MS = 90_000;
+
 export function useGeneratedWorkSlotsQuery(
   startYmd: string,
   endYmd: string,
@@ -103,6 +106,7 @@ export function useGeneratedWorkSlotsQuery(
     },
     enabled: enabled && Boolean(startYmd && endYmd),
     ...scheduleQueryDefaults,
+    staleTime: GENERATED_SLOTS_STALE_MS,
   });
 }
 

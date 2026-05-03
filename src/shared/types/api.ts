@@ -270,9 +270,20 @@ export interface AssetItemFromApi {
   houseId: string;
   categoryId: string;
   category?: AssetCategoryEmbeddedFromApi;
+  /** Tên hiển thị cho thiết bị theo `Accept-Language` / mặc định (chuỗi thuần; PUT request lại dùng object `displayName`). */
   displayName: string;
+  /**
+   * Bản dịch tên thiết bị (PUT/GET) — key có thể là `vi`, `ja`, `en`, `additionalprop1`, …
+   * Cùng mô hình với `nameTranslations` trên category.
+   */
   translations?: Record<string, string>;
   serialNumber: string;
+  /**
+   * Mã NFC (một số bản BE trả `nfcId` thay vì/ song song `nfcTag` + `tags`).
+   * `normalizeAssetItemFromResponse` gộp về `nfcTag` cho UI.
+   */
+  nfcId?: string | null;
+  /** NFC tag ID gắn với thiết bị (từ bảng asset tags), null nếu chưa gán. */
   nfcTag: string | null;
   qrTag: string | null;
   tags?: AssetTagFromApi[];
@@ -310,15 +321,19 @@ export interface CreateAssetItemRequest {
   assetImages: string[];
 }
 
+/**
+ * Body PUT /api/assets/items/{id} (Swagger) — cùng kiểu `displayName` object (Map locale → chuỗi) với
+ * `CreateAssetItemRequest` / POST category; response trả `displayName` chuỗi + `translations` riêng.
+ *
+ * Không gồm `houseId` / `categoryId` (đổi nhà: `transferAssetItemHouse`; danh mục không đổi qua PUT này).
+ * `functionAreaId` gửi kèm theo `buildUpdateAssetItemRequestBody` (chuỗi rỗng khi chưa chọn), trừ khi bỏ hẳn field.
+ */
 export interface UpdateAssetItemRequest {
-  houseId: string;
-  categoryId: string;
   displayName?: AssetItemDisplayNameMap;
   serialNumber: string;
-  nfcTag: string | null;
-  qrTag: string | null;
   nfcId?: string | null;
-  qrId?: string | null;
+  /** Fallback khi build body (ưu tiên `nfcId`) — gọi API chỉ cần một trong hai. */
+  nfcTag?: string | null;
   conditionPercent: number;
   note?: string | null;
   status: string;
@@ -592,6 +607,11 @@ export interface JobApiResponse {
   success: boolean;
 }
 
+// =========================================================
+// Inspection API (GET /api/maintenances/inspections/{id})
+// =========================================================
+
+/** Chi tiết kiểm định (bàn giao); jobId trên lịch = id kiểm định. */
 export interface InspectionFromApi {
   id: string;
   houseId: string;

@@ -69,6 +69,7 @@ export interface ContractRelocationRequestFromApi {
   oldContractNumber?: string | null;
   newContractId?: string | null;
   newContractNumber?: string | null;
+  requestKind?: string | null;
   oldHouseId?: string | null;
   requestedHouseId?: string | null;
   approvedHouseId?: string | null;

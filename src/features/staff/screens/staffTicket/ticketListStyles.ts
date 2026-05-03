@@ -1,5 +1,6 @@
 import { StyleSheet } from "react-native";
 import {
+  BRAND_DANGER,
   brandBlueMutedBg,
   brandPrimary,
   brandSecondary,
@@ -76,6 +77,11 @@ export const ticketListStyles = StyleSheet.create({
     marginBottom: 12,
     gap: 8,
     boxShadow: "0 8px 18px rgba(15,23,42,0.07)",
+  },
+  /** CREATED — ticket vừa tạo: viền đỏ nhận biết nhanh. */
+  cardNewCreatedOutline: {
+    borderWidth: 2,
+    borderColor: BRAND_DANGER,
   },
   cardHeader: {
     flexDirection: "row",

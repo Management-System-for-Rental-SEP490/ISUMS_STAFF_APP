@@ -21,11 +21,13 @@ import {
   neutral,
 } from "../../../shared/theme/color";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 
 const UserProfileScreen = () => {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const navigation = useNavigation<any>();
-  const { user, role, idToken, logout } = useAuthStore();
+  const { user, role } = useAuthStore();
   const {
     data: userInfo,
     isPending: profilePending,
@@ -40,6 +42,9 @@ const UserProfileScreen = () => {
     await refetchProfile();
   }, [refetchProfile]);
 
+  /**
+   * Đăng xuất: màn tải toàn màn trong lúc dọn cache + SSO; sau đó vào Login một lần, không nháy dữ liệu phiên trước.
+   */
   const handleLogout = () => {
     Alert.alert(
       t('profile.logout_confirm_title'),
@@ -51,11 +56,18 @@ const UserProfileScreen = () => {
           style: "destructive",
           onPress: async () => {
             const logoutTimeoutMs = 7000;
-            await Promise.race([
-              logoutKeycloak(idToken),
-              new Promise<void>((resolve) => setTimeout(resolve, logoutTimeoutMs)),
-            ]);
-            logout();
+            const tokenSnapshot = useAuthStore.getState().idToken;
+            useAuthStore.getState().setLogoutUiLocked(true);
+            try {
+              queryClient.clear();
+              useAuthStore.getState().logout();
+              await Promise.race([
+                logoutKeycloak(tokenSnapshot),
+                new Promise<void>((resolve) => setTimeout(resolve, logoutTimeoutMs)),
+              ]);
+            } finally {
+              useAuthStore.getState().setLogoutUiLocked(false);
+            }
           },
         },
       ]

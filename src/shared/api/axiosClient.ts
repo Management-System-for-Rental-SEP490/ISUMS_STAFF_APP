@@ -126,6 +126,7 @@ axiosClient.interceptors.response.use(
       }
     }
 
+    // Quá thời gian chờ phía client (mạng yếu / không phản hồi kịp) — không phải HTTP từ BE; log Metro + device.
     if (isAxiosTimeout(error)) {
       logAxiosClientTimeout(error, DATA_LOAD_TIMEOUT_MS);
       return Promise.reject(new Error(i18n.t("common.server_not_responding")));

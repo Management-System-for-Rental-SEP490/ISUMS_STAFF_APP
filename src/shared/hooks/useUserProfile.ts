@@ -26,20 +26,63 @@ export const ISSUE_TICKET_KEYS = {
   byId: (ticketId: string) => [...ISSUE_TICKET_KEYS.all, ticketId] as const,
 };
 
-/** Danh sách ticket assign cho staff đang đăng nhập. */
-export const useStaffIssueTickets = () => {
+export type UseStaffIssueTicketsOptions = {
+  /**
+   * Khoảng (ms) tự gọi lại GET danh sách khi query đang active.
+   * Dùng khi màn list đang mở để pill status khớp BE (vd. manager approve) mà không cần pull refresh.
+   * Truyền `false` để tắt — thường gắn với `useIsFocused()` để chỉ poll khi tab Ticket là màn đang nhìn thấy.
+   */
+  refetchInterval?: number | false;
+};
+
+/** Chu kỳ poll màn đang mở (ticket list/detail, lịch…) — đồng bộ status từ BE. */
+export const STAFF_ACTIVE_SCREEN_POLL_MS = 30_000;
+
+/**
+ * Danh sách chỉ được refetch nhờ poll định kỳ / kéo làm mới / invalidate — không tự coi "hết fresh" và gọi lại mỗi lần vào tab,
+ * nhưng vẫn cập nhật kịp nhờ `refetchInterval` khi tab đang mở (giống lịch sự kiện trên các app phổ biến).
+ */
+const STAFF_TICKET_LIST_STALE_MS = Number.POSITIVE_INFINITY;
+
+/**
+ * Danh sách ticket assign cho staff đang đăng nhập.
+ *
+ * `staleTime: Infinity` + `refetchOnMount: false`: cache giữ khi chuyển tab / quay lại — không GET lại toàn danh sách mỗi lần vào.
+ * Cập nhật nhờ poll (`refetchInterval` khi tab hiển thị), pull refresh, và `invalidateQueries` sau thao tác.
+ * `retry`: giảm lỗi tải tạm do timeout/mạng.
+ */
+export const useStaffIssueTickets = (options?: UseStaffIssueTicketsOptions) => {
   return useQuery<IssueTicketListItemFromApi[]>({
     queryKey: ISSUE_TICKET_KEYS.byStaff(),
     queryFn: getIssueTicketsDataByStaff,
+    staleTime: STAFF_TICKET_LIST_STALE_MS,
+    gcTime: 5 * 60_000,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    refetchOnMount: false,
+    refetchInterval: options?.refetchInterval ?? false,
+    refetchIntervalInBackground: false,
   });
 };
 
-/** Chi tiết ticket theo ticketId. */
-export const useIssueTicketById = (ticketId: string) => {
+export type UseIssueTicketByIdOptions = {
+  /** Khi màn chi tiết đang focus — poll GET ticket để status/slot cập nhật khớp BE. */
+  refetchInterval?: number | false;
+};
+
+/** Chi tiết ticket theo ticketId — poll tùy chọn khi màn đang mở. */
+export const useIssueTicketById = (ticketId: string, options?: UseIssueTicketByIdOptions) => {
   return useQuery<IssueTicketFromApi | null>({
     queryKey: ISSUE_TICKET_KEYS.byId(ticketId),
     queryFn: () => getIssueTicketDataById(ticketId),
     enabled: Boolean(ticketId),
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 10 * 60_000,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    refetchOnMount: false,
+    refetchInterval: options?.refetchInterval ?? false,
+    refetchIntervalInBackground: false,
   });
 };
 

@@ -875,6 +875,8 @@ export default {
         "error_notes_damage": "破損がある場合はメモを入力してください。",
         "error_no_house_photo": "確認前に住宅の全体写真を最低1枚撮影してください。",
         "report_unlivable": "居住不可をマネージャーに報告",
+        "check_in_success": "検査のチェックインが完了しました。",
+        "check_out_success": "検査のチェックアウトが完了しました。",
     },
     "staff_issue_note": {
         "screen_title": "修繕の記録",

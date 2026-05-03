@@ -874,6 +874,8 @@ export default {
         "error_notes_damage": "Enter notes when damage is reported.",
         "error_no_house_photo": "Please take at least 1 overall house photo before confirming.",
         "report_unlivable": "Report unlivable house to manager",
+        "check_in_success": "Check-in inspection completed.",
+        "check_out_success": "Check-out inspection completed.",
     },
     "staff_issue_note": {
         "screen_title": "Repair Confirmation",

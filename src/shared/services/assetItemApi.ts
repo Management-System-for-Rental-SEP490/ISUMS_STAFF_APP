@@ -44,6 +44,8 @@ import {
   type IotProvisionNodeApiResponse,
   type AssetMaintenanceBatchUpdateRequest,
   type AssetMaintenanceBatchUpdateApiResponse,
+  type AssetMaintenanceBatchUpdateData,
+  type AssetMaintenanceBatchEventRef,
 } from "../types/api";
 
 export type { AssetItemImageFromApi };
@@ -188,13 +190,15 @@ function resolveAssetItemDisplayNameForUi(
 function normalizeAssetItemFromResponse(
   raw: AssetItemFromApi & {
     nfc_tag?: string | null;
+    nfcId?: string | null;
+    nfc_id?: string | null;
     qr_tag?: string | null;
     function_area_id?: string | null;
     functionalAreaId?: string | null;
     functional_area_id?: string | null;
   }
 ): AssetItemFromApi {
-  const nfc = raw.nfcTag ?? raw.nfc_tag ?? null;
+  const nfc = raw.nfcTag ?? raw.nfc_tag ?? raw.nfcId ?? raw.nfc_id ?? null;
   const qr = raw.qrTag ?? raw.qr_tag ?? null;
   let nfcStr = nfc != null ? String(nfc).trim() : "";
   let qrStr = qr != null ? String(qr).trim() : "";
@@ -571,6 +575,40 @@ export const updateAssetItem = async (
   return res;
 };
 
+/**
+ * Chuẩn hóa `data.events` từ PUT maintenance batch: BE có thể trả `assetId`/`eventId` hoặc snake_case.
+ * Mỗi asset đã cập nhật ứng một phần tử — trùng `assetId` chỉ lấy bản ghi đầu (lỗi dữ liệu BE nếu có).
+ * FE cần cặp chuẩn để map ảnh theo từng thiết bị → đúng `eventId` khi POST multipart.
+ */
+function normalizeMaintenanceBatchUpdateData(
+  data: AssetMaintenanceBatchUpdateData | undefined
+): AssetMaintenanceBatchUpdateData | undefined {
+  if (!data || typeof data !== "object") return data;
+  const raw = data.events;
+  if (!Array.isArray(raw) || raw.length === 0) return data;
+  const events: AssetMaintenanceBatchEventRef[] = [];
+  const seenAssetIds = new Set<string>();
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const o = row as unknown as Record<string, unknown>;
+    const assetId = String(o.assetId ?? o.asset_id ?? "").trim();
+    const eventId = String(o.eventId ?? o.event_id ?? "").trim();
+    if (!assetId || !eventId) continue;
+    if (seenAssetIds.has(assetId)) continue;
+    seenAssetIds.add(assetId);
+    events.push({ assetId, eventId });
+  }
+  if (events.length === 0) return data;
+  return { ...data, events };
+}
+
+/**
+ * Batch cập nhật thông tin bảo trì cho nhiều thiết bị.
+ * API: PUT /api/assets/items/maintenance/batch
+ *
+ * Body: **một object** `BatchUpdateAssetRequest` — `{ jobId, updates: [...] }` (BE Java không nhận mảng bọc ngoài).
+ * Ảnh gắn sự kiện: POST /assets/events/:eventId/images sau khi có `data.events` (thường khi hoàn tất công việc).
+ */
 export const updateAssetItemsMaintenanceBatch = async (
   payload: AssetMaintenanceBatchUpdateRequest
 ): Promise<AssetMaintenanceBatchUpdateApiResponse> => {
@@ -654,11 +692,18 @@ export const updateAssetItemsMaintenanceBatch = async (
       throw new Error(parsed.message || "Maintenance batch failed");
     }
 
+    let result = parsed;
+    if (result.data) {
+      const normalized = normalizeMaintenanceBatchUpdateData(result.data);
+      if (normalized) result = { ...result, data: normalized };
+    }
+
     logInspectionDebug("[AssetBatch]", "batch ok", {
       status: response.status,
-      success: parsed.success,
+      success: result.success,
+      eventPairs: result.data?.events?.length ?? 0,
     });
-    return parsed;
+    return result;
   } catch (e: unknown) {
     logInspectionError("[AssetBatch]", "batch failed", e);
     throw e;
@@ -819,6 +864,16 @@ export function getImagesFromAssetItem(
     .filter((row): row is AssetItemImageFromApi => row != null);
 }
 
+/**
+ * Lấy danh sách ảnh của asset item.
+ * Endpoint (theo Postman trong ảnh bạn gửi): GET /api/assets/items/:id/images
+ *
+ * Cùng một `itemId`, nhiều lần gọi trong ~350ms hoặc trùng lúc request đang chạy sẽ dùng chung một
+ * kết quả (giảm GET lặp khi staff inspection / màn chi tiết kích hoạt nhiều effect).
+ *
+ * Lưu ý: gọi có `cacheBust` tạo request riêng — không gộp inflight với lần gọi khác `cacheBust` (tránh
+ * lấy nhầm kết quả GET “trước khi upload” khi gọi GET “sau khi upload” cùng `itemId`).
+ */
 export const getAssetItemImages = (
   itemId: string,
   cacheBust?: number,
@@ -827,7 +882,12 @@ export const getAssetItemImages = (
   const key = itemId.trim();
   const now = Date.now();
 
-  const inflight = assetItemImagesInflight.get(key);
+  const inflightKey =
+    cacheBust !== undefined && cacheBust !== null
+      ? `${key}__bust__${String(cacheBust)}`
+      : key;
+
+  const inflight = assetItemImagesInflight.get(inflightKey);
   if (inflight) return inflight;
 
   const cached = assetItemImagesMicroCache.get(key);
@@ -857,11 +917,11 @@ export const getAssetItemImages = (
     } catch {
       return [];
     } finally {
-      assetItemImagesInflight.delete(key);
+      assetItemImagesInflight.delete(inflightKey);
     }
   })();
 
-  assetItemImagesInflight.set(key, run);
+  assetItemImagesInflight.set(inflightKey, run);
   return run;
 };
 

@@ -876,6 +876,8 @@ export default {
         "error_notes_damage": "Vui lòng nhập ghi chú khi có hư hỏng.",
         "error_no_house_photo": "Vui lòng chụp ít nhất 1 ảnh nhà trước khi xác nhận.",
         "report_unlivable": "Báo nhà không ở được cho manager",
+        "check_in_success": "Đã hoàn tất check-in kiểm định.",
+        "check_out_success": "Đã hoàn tất check-out kiểm định.",
     },
     "staff_issue_note": {
         "screen_title": "Ghi nhận sửa chữa",

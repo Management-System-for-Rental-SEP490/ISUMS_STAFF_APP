@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, FlatList, ListRenderItem, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import { useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -21,6 +21,9 @@ import { useStaffIssueTickets } from "../../../../shared/hooks/useUserProfile";
 import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import { useRefreshControlGate } from "../../../../shared/hooks";
 import Icons from "../../../../shared/theme/icon";
+
+/** Poll danh sách khi đang xem tab Ticket (không mở stack TicketDetail) — cập nhật status từ BE định kỳ. */
+const STAFF_TICKET_LIST_POLL_MS = 30_000;
 
 type TicketListNavProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, "Ticket">,
@@ -51,7 +54,13 @@ export default function TicketListScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<TicketListNavProp>();
-  const { data: ticketsData = [], isLoading, isError, refetch, isRefetching } = useStaffIssueTickets();
+  /** Chỉ poll khi tab Ticket hiển thị (ẩn khi RootStack mở TicketDetail). */
+  const listScreenVisible = useIsFocused();
+  const { data: ticketsData = [], isLoading, isError, refetch } = useStaffIssueTickets({
+    refetchInterval: listScreenVisible ? STAFF_TICKET_LIST_POLL_MS : false,
+  });
+  /** Chỉ bật spinner/overlay khi user kéo refresh — refetch theo chu kỳ hoặc khi focus tab là im lặng. */
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const { data: housesRes } = useHouses();
   const { data: assetsRes } = useAssetItems();
 
@@ -127,7 +136,10 @@ export default function TicketListScreen() {
   }, [sortedTickets.length]);
 
   const onRefresh = useCallback(() => {
-    void refetch();
+    setPullRefreshing(true);
+    void refetch().finally(() => {
+      setPullRefreshing(false);
+    });
   }, [refetch]);
 
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
@@ -150,8 +162,13 @@ export default function TicketListScreen() {
       ? formatStaffTicketListCreatedAt(createdAt, t)
       : t("staff_ticket_list.unknown_time");
 
+    const isCreated = String(item.status || "").toUpperCase() === "CREATED";
+
     return (
-      <Pressable style={ticketListStyles.card} onPress={() => openTicketDetail(item.id)}>
+      <Pressable
+        style={[ticketListStyles.card, isCreated && ticketListStyles.cardNewCreatedOutline]}
+        onPress={() => openTicketDetail(item.id)}
+      >
         <View style={ticketListStyles.cardHeader}>
           <Text style={ticketListStyles.cardMeta}>{assetName}</Text>
           <View style={ticketListStyles.statusPill}>
@@ -238,7 +255,7 @@ export default function TicketListScreen() {
     <View style={ticketListStyles.container}>
       {staffTabHeader}
       <View style={{ flex: 1, position: "relative" }}>
-        <RefreshLogoOverlay visible={isRefetching} />
+        <RefreshLogoOverlay visible={pullRefreshing} />
         <FlatList
           style={{ flex: 1 }}
           data={pagedTickets}
@@ -264,7 +281,7 @@ export default function TicketListScreen() {
           scrollEventThrottle={16}
           refreshControl={
             <PullToRefreshControl
-              refreshing={isRefetching}
+              refreshing={pullRefreshing}
               onRefresh={onRefresh}
               scrollAtTop={scrollAtTop}
             />

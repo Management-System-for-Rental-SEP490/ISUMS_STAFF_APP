@@ -521,14 +521,9 @@ export default function ItemEditScreen() {
     const nameLang = (i18n.language ?? "vi").split("-")[0]?.toLowerCase() ?? "vi";
     const displayNameMapKey = nameLang === "en" ? "en" : nameLang === "ja" ? "ja" : "vi";
     const payload: UpdateAssetItemRequest = {
-      houseId: houseId.trim(),
-      categoryId: categoryId.trim(),
       displayName: { [displayNameMapKey]: trimmedName },
       serialNumber: serialNumber.trim(),
-      nfcTag: trimmedNfcId.length > 0 ? trimmedNfcId : null,
       nfcId: trimmedNfcId.length > 0 ? trimmedNfcId : null,
-      qrTag: trimmedQrId.length > 0 ? trimmedQrId : null,
-      qrId: trimmedQrId.length > 0 ? trimmedQrId : null,
       conditionPercent: percent,
       note: note.trim(),
       status: (() => {
@@ -656,14 +651,9 @@ export default function ItemEditScreen() {
             const delNameLang = (i18n.language ?? "vi").split("-")[0]?.toLowerCase() ?? "vi";
             const delMapKey = delNameLang === "en" ? "en" : delNameLang === "ja" ? "ja" : "vi";
             const payload: UpdateAssetItemRequest = {
-              houseId: houseId.trim(),
-              categoryId: categoryId.trim(),
               displayName: { [delMapKey]: dnTrim },
               serialNumber: serialNumber.trim(),
-              nfcTag: nfcId.trim() ? nfcId.trim() : null,
               nfcId: nfcId.trim() ? nfcId.trim() : null,
-              qrTag: qrId.trim() ? qrId.trim() : null,
-              qrId: qrId.trim() ? qrId.trim() : null,
               conditionPercent: Number.isNaN(percent) ? item.conditionPercent : percent,
               note: note.trim(),
               status: "DISPOSED",

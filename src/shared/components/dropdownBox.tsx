@@ -212,6 +212,22 @@ function sortFilteredItems(items: DropdownBoxItem[], q: string): DropdownBoxItem
   });
 }
 
+/**
+ * Lọc và sắp xếp mục theo cùng quy tắc với ô tìm trong DropdownBox,
+ * để parent có thể phân trang phía client sau khi lọc (vd. danh sách thiết bị dài).
+ * Kết hợp `sectionsExcludedFromSearch` cho section tương ứng để tránh lọc hai lần.
+ */
+export function filterDropdownItemsByQuery<T extends DropdownBoxItem>(
+  items: readonly T[],
+  query: string
+): T[] {
+  if (!norm(query)) return [...items];
+  return sortFilteredItems(
+    items.filter((it) => itemMatches(it, query)),
+    query
+  ) as T[];
+}
+
 function buildSectionBlocks(
   sections: DropdownBoxSection[],
   query: string,

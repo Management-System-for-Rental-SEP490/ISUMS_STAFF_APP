@@ -4,7 +4,7 @@
  * và xử lý refresh token khi 401.
  */
 import axiosClient from "../api/axiosClient";
-import { BACKEND_API_BASE, FALLBACK_BACKEND_URL } from "../api/config";
+import { BACKEND_API_BASE } from "../api/config";
 import { resolveLocalizedJsonStringFromI18n } from "../utils/resolveLocalizedJsonString";
 import { getUserProfile } from "./userApi";
 import type {
@@ -95,7 +95,7 @@ export const getHousesByRegionId = async (regionId: string): Promise<HousesApiRe
 
 /**
  * Danh sách region mà staff được gán (GET /api/houses/regions/staff/{staffId}).
- * `staffId` = `data.id` từ GET /api/users/me. Base: `FALLBACK_BACKEND_URL` khi API chưa merge primary.
+ * `staffId` = `data.id` từ GET /api/users/me.
  */
 export const getRegionsForStaff = async (staffId: string): Promise<HouseRegionFromApi[]> => {
   const url = `${BACKEND_API_BASE}/houses/regions/staff/${encodeURIComponent(staffId)}`;
@@ -142,7 +142,7 @@ function mergeHousesById(lists: HouseFromApi[][]): HouseFromApi[] {
  * 3) Với mỗi regionId: GET /api/houses/region/{regionId} rồi gộp (dedupe).
  */
 export const fetchHousesScopedToStaff = async (): Promise<HousesApiResponse> => {
-  const profile = await getUserProfile({ apiBase: BACKEND_API_BASE });
+  const profile = await getUserProfile();
   const id = profile?.id?.trim() ?? "";
   if (!id) {
     return {

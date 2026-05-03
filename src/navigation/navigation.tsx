@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
@@ -66,6 +66,7 @@ const Navigation = () => {
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
   const user = useAuthStore((state) => state.user);
   const role = useAuthStore((state) => state.role);
+  const wasLoggedInRef = useRef(isLoggedIn);
   const onboardedUsers = useAuthStore((state) => state.onboardedUsers);
   const [isReady, setIsReady] = useState(false);
 
@@ -89,6 +90,15 @@ const Navigation = () => {
     };
     rehydrate();
   }, []);
+
+  /** Giống tenant app: logout → xóa cache query, không để tài khoản sau thấy dữ liệu phiên trước. */
+  useEffect(() => {
+    const prev = wasLoggedInRef.current;
+    if (prev && !isLoggedIn) {
+      queryClient.clear();
+    }
+    wasLoggedInRef.current = isLoggedIn;
+  }, [isLoggedIn, queryClient]);
 
   // Staff app: nếu có session cũ với role tenant (persisted) → logout, xóa session Keycloak và thông báo
   useEffect(() => {
