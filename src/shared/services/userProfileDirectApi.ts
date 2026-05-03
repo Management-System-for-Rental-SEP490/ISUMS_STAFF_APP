@@ -6,8 +6,6 @@ import {
 import type { ApiResponse, UserProfileResponse } from "../types/api";
 
 export type GetUserProfileOptions = {
-  /** Mặc định `BACKEND_API_BASE`; truyền base khác khi /users/me chỉ có trên BE dev/ngrok. */
-  apiBase?: string;
   /** Mặc định {@link DATA_LOAD_TIMEOUT_MS} (`keycloakAuth` dùng {@link AUTH_PROFILE_FETCH_TIMEOUT_MS}, cùng giá trị). */
   timeoutMs?: number;
 };
@@ -19,9 +17,8 @@ export async function getUserProfileWithAccessToken(
   accessToken: string,
   options?: GetUserProfileOptions
 ): Promise<UserProfileResponse | null> {
-  const base = (options?.apiBase ?? BACKEND_API_BASE).replace(/\/$/, "");
+  const base = BACKEND_API_BASE.replace(/\/$/, "");
   const url = `${base}/users/me`;
-  //const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/users/me`;
   try {
     const response = await axios.get<ApiResponse<UserProfileResponse>>(url, {
       timeout: options?.timeoutMs ?? DATA_LOAD_TIMEOUT_MS,

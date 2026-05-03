@@ -4,11 +4,7 @@ import { toAppLocaleCode } from "../utils/resolveLocalizedJsonString";
 import { useAuthStore } from "../../store/useAuthStore";
 import { refreshAccessToken, logoutKeycloak } from "../services/keycloakAuth";
 import { CustomAlert } from "../components/alert";
-import {
-  DATA_LOAD_TIMEOUT_MS,
-  BACKEND_URL_PRIMARY,
-  BACKEND_URL_FALLBACK,
-} from "./config";
+import { DATA_LOAD_TIMEOUT_MS } from "./config";
 import { logAxiosClientTimeout } from "../utils/clientNetworkTimeoutLog";
 
 function isAxiosTimeout(error: unknown): boolean {
@@ -128,19 +124,6 @@ axiosClient.interceptors.response.use(
       } finally {
         isRefreshing = false;
       }
-    }
-
-    // Fallback: nếu request tới primary BE (api-dev) thất bại → thử lại với ngrok
-    // Hết timeout (DATA_LOAD_TIMEOUT_MS) → không fallback để tổng thời gian chờ không vượt giới hạn.
-    const url = originalRequest?.url ?? "";
-    if (
-      !originalRequest._retriedWithFallback &&
-      url.startsWith(BACKEND_URL_PRIMARY) &&
-      !isAxiosTimeout(error)
-    ) {
-      originalRequest._retriedWithFallback = true;
-      originalRequest.url = url.replace(BACKEND_URL_PRIMARY, BACKEND_URL_FALLBACK);
-      return axiosClient(originalRequest);
     }
 
     // Quá thời gian chờ phía client (mạng yếu / không phản hồi kịp) — không phải HTTP từ BE; log Metro + device.

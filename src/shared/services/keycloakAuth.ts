@@ -344,7 +344,7 @@ function impliesStaffAppTechnicalRole(roleNames: string[]): boolean {
  */
 async function resolveStaffAppRoleFromBackend(
   accessToken: string,
-  profileOptions?: Pick<GetUserProfileOptions, "apiBase" | "timeoutMs">
+  profileOptions?: Pick<GetUserProfileOptions, "timeoutMs">
 ): Promise<UserRole> {
   const profile = await getUserProfileWithAccessToken(accessToken, profileOptions);
   if (!profile) {

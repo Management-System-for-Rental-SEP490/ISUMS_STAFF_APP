@@ -1,4 +1,4 @@
-// PRIMARY = API chung (users, houses, schedules, assets…). FALLBACK/ngrok = bản dev cục bộ (axios interceptor).
+// Base Backend API: `EXPO_PUBLIC_BACKEND_API_PRIMARY` (mặc định api-dev nếu thiếu env).
 
 /**
  * Thời gian chờ tối đa (ms) cho mọi luồng tải dữ liệu (axios, pull-to-refresh/refetch, IoT REST usage…).
@@ -36,9 +36,8 @@ export const AUTH_PROFILE_FETCH_TIMEOUT_MS = DATA_LOAD_TIMEOUT_MS;
  */
 export const LOGIN_OAUTH_EXCHANGE_DEADLINE_MS = 90000 as const;
 
-/** Mặc định trùng môi trường Swagger/QA (api-dev). Production: đặt EXPO_PUBLIC_BACKEND_API_PRIMARY. */
-const DEFAULT_PRIMARY = "https://api-dev.isums.pro/api";
-const DEFAULT_FALLBACK = "https://unrestrictable-lan-syzygial.ngrok-free.dev/api";
+/** Mặc định api-dev; production/staging: đặt `EXPO_PUBLIC_BACKEND_API_PRIMARY` trong `.env`. */
+const DEFAULT_BACKEND_API_BASE = "https://api-dev.isums.pro/api";
 
 function readEnvTrimmed(envKey: string, fallback: string): string {
   const v =
@@ -48,20 +47,11 @@ function readEnvTrimmed(envKey: string, fallback: string): string {
   return v || fallback;
 }
 
-export const PRIMARY_BACKEND_URL = readEnvTrimmed(
+/** URL gốc API ứng dụng (ví dụ `https://api-dev.isums.pro/api`). Mọi service dùng constant này. */
+export const BACKEND_API_BASE = readEnvTrimmed(
   "EXPO_PUBLIC_BACKEND_API_PRIMARY",
-  DEFAULT_PRIMARY
+  DEFAULT_BACKEND_API_BASE
 );
-
-export const FALLBACK_BACKEND_URL = readEnvTrimmed(
-  "EXPO_PUBLIC_BACKEND_API_FALLBACK",
-  DEFAULT_FALLBACK
-);
-
-export const BACKEND_URL_PRIMARY = PRIMARY_BACKEND_URL;
-export const BACKEND_URL_FALLBACK = FALLBACK_BACKEND_URL;
-
-export const BACKEND_API_BASE = PRIMARY_BACKEND_URL;
 
 const DEFAULT_IOT_WS =
   "wss://a98erfaotg.execute-api.ap-southeast-1.amazonaws.com/production/";

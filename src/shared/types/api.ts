@@ -896,7 +896,7 @@ export interface JobApiResponse {
 }
 
 // =========================================================
-// Inspection API (GET /api/maintenances/inspections/{id} — base FALLBACK_BACKEND_URL)
+// Inspection API (GET /api/maintenances/inspections/{id})
 // =========================================================
 
 /** Chi tiết kiểm định (bàn giao); jobId trên lịch = id kiểm định. */

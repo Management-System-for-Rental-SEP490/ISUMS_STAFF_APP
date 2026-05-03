@@ -1,21 +1,14 @@
 import axiosClient from "../api/axiosClient";
 import { BACKEND_API_BASE } from "../api/config";
 import type { ApiResponse, UserProfileResponse } from "../types/api";
-import type { GetUserProfileOptions } from "./userProfileDirectApi";
-
 export type { GetUserProfileOptions } from "./userProfileDirectApi";
 export { getUserProfileWithAccessToken } from "./userProfileDirectApi";
 
 /**
- * Lấy thông tin chi tiết user hiện tại (GET /api/users/me).
- * Mặc định dùng `BACKEND_API_BASE`; luồng staff/region có thể truyền `apiBase` khác.
+ * Lấy thông tin chi tiết user hiện tại (GET /api/users/me) trên `BACKEND_API_BASE`.
  */
-export const getUserProfile = async (
-  options?: GetUserProfileOptions
-): Promise<UserProfileResponse | null> => {
-  //const base = (options?.apiBase ?? BACKEND_API_BASE).replace(/\/$/, "");
+export const getUserProfile = async (): Promise<UserProfileResponse | null> => {
   const url = `${BACKEND_API_BASE}/users/me`;
-  //const url = `https://unrestrictable-lan-syzygial.ngrok-free.dev/api/users/me`;
 
   try {
     const response = await axiosClient.get<ApiResponse<UserProfileResponse>>(url);
