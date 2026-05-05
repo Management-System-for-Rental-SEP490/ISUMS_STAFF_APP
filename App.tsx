@@ -18,9 +18,14 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       staleTime: 1000 * 60 * 5,
+      gcTime: 1000 * 60 * 30,
       refetchOnReconnect: true,
       /** Tắt refetch mỗi lần app lên foreground — giảm tải mạng và cảm giác “lag” khi chuyển app. */
       refetchOnWindowFocus: false,
+      refetchOnMount: true,
+    },
+    mutations: {
+      retry: 0,
     },
   },
 });

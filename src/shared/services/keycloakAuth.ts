@@ -241,12 +241,13 @@ export const exchangeCodeForToken = async (code: string): Promise<AuthPayload> =
     console.log("==================================");
     // -----------------
 
-    const userInfo = await getUserInfo(access_token);
-    const role = await resolveStaffAppRoleFromBackend(access_token, {
-      timeoutMs: AUTH_PROFILE_FETCH_TIMEOUT_MS,
-    });
+    const [userInfo, role] = await Promise.all([
+      getUserInfo(access_token),
+      resolveStaffAppRoleFromBackend(access_token, {
+        timeoutMs: AUTH_PROFILE_FETCH_TIMEOUT_MS,
+      }),
+    ]);
 
-    // Extract houseId from attributes (Keycloak usually returns attributes as arrays)
     let houseId: string | undefined;
     const rawHouseId = userInfo.attributes?.houseId || userInfo.houseId;
     if (Array.isArray(rawHouseId)) {
@@ -260,7 +261,7 @@ export const exchangeCodeForToken = async (code: string): Promise<AuthPayload> =
       role: role,
       token: access_token,
       refreshToken: refresh_token,
-      idToken: id_token, // Trả về idToken
+      idToken: id_token,
       houseId: houseId,
     };
   } catch (error: any) {
@@ -380,12 +381,13 @@ export const refreshAccessToken = async (refreshToken: string): Promise<AuthPayl
     );
 
     const { access_token, refresh_token: new_refresh_token, id_token } = response.data;
-    const userInfo = await getUserInfo(access_token);
-    const role = await resolveStaffAppRoleFromBackend(access_token, {
-      timeoutMs: AUTH_PROFILE_FETCH_TIMEOUT_MS,
-    });
+    const [userInfo, role] = await Promise.all([
+      getUserInfo(access_token),
+      resolveStaffAppRoleFromBackend(access_token, {
+        timeoutMs: AUTH_PROFILE_FETCH_TIMEOUT_MS,
+      }),
+    ]);
 
-    // Extract houseId
     let houseId: string | undefined;
     const rawHouseId = userInfo.attributes?.houseId || userInfo.houseId;
     if (Array.isArray(rawHouseId)) {

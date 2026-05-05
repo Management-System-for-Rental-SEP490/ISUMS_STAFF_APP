@@ -115,9 +115,12 @@ const Navigation = () => {
     }
   }, [isReady, isLoggedIn, role, t]);
 
-  /** Sau DATA_LOAD_TIMEOUT_MS (4s) từ khi hydrate xong + đã đăng nhập → invalidateQueries (refresh dữ liệu). */
+  const lastReadyLoggedInRef = useRef<boolean | null>(null);
   useEffect(() => {
-    if (!isReady || !isLoggedIn) return;
+    if (!isReady) return;
+    const prev = lastReadyLoggedInRef.current;
+    lastReadyLoggedInRef.current = isLoggedIn;
+    if (prev !== false || !isLoggedIn) return;
     const id = setTimeout(() => {
       queryClient.invalidateQueries();
     }, DATA_LOAD_TIMEOUT_MS);
