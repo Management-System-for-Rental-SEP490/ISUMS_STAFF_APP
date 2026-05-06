@@ -29,10 +29,12 @@ export const SCHEDULE_DATA_KEYS = {
 };
 
 const scheduleQueryDefaults = {
-  staleTime: 0,
-  refetchOnMount: true as const,
-  refetchOnReconnect: true as const,
-  refetchOnWindowFocus: true as const,
+  staleTime: 60_000,
+  gcTime: 5 * 60_000,
+  refetchOnMount: false as const,
+  refetchOnReconnect: false as const,
+  refetchOnWindowFocus: false as const,
+  retry: 1,
 };
 
 export function useScheduleTemplateQuery(dateYmd: string) {

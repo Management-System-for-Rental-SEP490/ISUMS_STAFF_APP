@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { useTranslation } from "react-i18next";
-import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   PullToRefreshControl,
@@ -49,45 +48,33 @@ export default function StaffDayOffListScreen() {
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<LeaveRequestFromApi[]>([]);
 
-  // React Query: lấy danh sách yêu cầu nghỉ, dữ liệu nền tảng cho màn hình.
   const { data: leaveData, isLoading: queryLoading, refetch } = useLeaveRequests();
   const updateStatusMutation = useUpdateLeaveRequestStatus();
 
-  const fetchData = useCallback(
-    async (cacheBust?: number) => {
-      const staffId = getStaffIdForSchedule();
-      try {
-        // Kết hợp dữ liệu từ React Query với refetch thủ công để đảm bảo luôn mới.
-        const res = await refetch();
-        const apiData = res.data?.data ?? leaveData?.data ?? [];
-        const data = Array.isArray(apiData) ? apiData : [];
-        setItems(data);
-        setError(null);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : t("staff_day_off.load_error");
-        setError(msg);
-        setItems([]);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [t, leaveData, refetch]
-  );
+  useEffect(() => {
+    const apiData = leaveData?.data;
+    if (Array.isArray(apiData)) {
+      setItems(apiData);
+      setError(null);
+    }
+    if (!queryLoading) {
+      setLoading(false);
+    }
+  }, [leaveData, queryLoading]);
 
-  useFocusEffect(
-    useCallback(() => {
-      setLoading(true);
-      fetchData();
-      const interval = setInterval(() => fetchData(), 20000);
-      return () => clearInterval(interval);
-    }, [fetchData])
-  );
-
-  const onRefresh = () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    fetchData();
-  };
+    try {
+      await refetch();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t("staff_day_off.load_error");
+      setError(msg);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetch, t]);
+
+  const fetchData = onRefresh;
 
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
 

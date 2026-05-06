@@ -31,10 +31,13 @@ export const useLeaveRequests = () => {
   return useQuery<LeaveRequestsApiResponse>({
     queryKey: STAFF_LEAVE_KEYS.list(staffId),
     queryFn: () => getLeaveRequestsByStaffId(staffId),
-    staleTime: 0,
-    refetchOnMount: true,
-    refetchOnReconnect: true,
-    refetchOnWindowFocus: true,
+    enabled: Boolean(staffId),
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 };
 
