@@ -58,6 +58,7 @@ import {
 import { useKeyboardBottomInset } from "../../../../shared/hooks/useKeyboardBottomInset";
 import { WorkSlotImageGalleryModal } from "./WorkSlotImageGalleryModal";
 import { inspectionConfirmStyles as styles } from "./inspectionConfirmStyles";
+import { formatVndDisplay, intlNumberLocaleForMoney } from "../../../../shared/utils";
 
 /** Khoảng hở phía trên bàn phím (px), Android — đồng bộ tenant ticket. */
 const ANDROID_KEYBOARD_GAP = 16;
@@ -68,7 +69,7 @@ type RouteProps = RouteProp<RootStackParamList, "InspectionConfirm">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "InspectionConfirm">;
 
 export default function InspectionConfirmScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RouteProps>();
@@ -261,6 +262,17 @@ export default function InspectionConfirmScreen() {
     }, 0);
   }, [banners, hasDamage, isCheckIn, selectedBannerIds]);
 
+  const moneyIntlLocale = useMemo(
+    () => intlNumberLocaleForMoney(i18n.language),
+    [i18n.language]
+  );
+
+  /** Giá banner trong dropdown kiểm định — đồng bộ format VND với màn ghi chú sửa chữa. */
+  const formatQuoteMoney = useCallback(
+    (amount: number | string | null | undefined) => formatVndDisplay(amount, moneyIntlLocale, t),
+    [moneyIntlLocale, t]
+  );
+
   const bannerSections = useMemo<DropdownBoxSection[]>(
     () => [
       {
@@ -270,7 +282,7 @@ export default function InspectionConfirmScreen() {
           id: bn.id,
           label: bn.name,
           detail: t("staff_issue_note.banner_price_label", {
-            price: String(bn.currentPrice),
+            price: formatQuoteMoney(bn.currentPrice),
           }),
         })),
         selectedId: null,
@@ -280,7 +292,7 @@ export default function InspectionConfirmScreen() {
         allLabel: t("staff_issue_note.banner_none"),
       },
     ],
-    [banners, selectedBannerIds, t]
+    [banners, formatQuoteMoney, selectedBannerIds, t]
   );
 
   const bannerSummary = useMemo(() => {
@@ -289,9 +301,9 @@ export default function InspectionConfirmScreen() {
     }
     return t("staff_issue_note.banner_selected_summary", {
       count: selectedBannerIds.length,
-      subtotal: String(deductionAmount),
+      subtotal: formatQuoteMoney(deductionAmount),
     });
-  }, [deductionAmount, selectedBannerIds.length, t]);
+  }, [deductionAmount, formatQuoteMoney, selectedBannerIds.length, t]);
 
   const navigateCalendarAfterCompletion = (startTimeIso: string | null) => {
     let ymd: string | null = startTimeIso ? isoLocalDateToYmd(startTimeIso) : null;

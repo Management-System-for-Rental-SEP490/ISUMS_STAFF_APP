@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -54,6 +54,7 @@ import {
 import { staffFormShape } from "../../../../shared/styles/staffFormShape";
 import Icons from "../../../../shared/theme/icon";
 import { submittedIssueRepairTicketIdsInSession } from "./issueRepairSession";
+import { formatVndDisplay, intlNumberLocaleForMoney } from "../../../../shared/utils";
 
 /** Hiển thị mã tham chiếu ngắn thay vì full UUID (tránh nhấp nháy/chười ở UI). */
 function formatShortAssetRef(assetId: string): string {
@@ -66,7 +67,7 @@ type IssueNoteRouteProp = RouteProp<RootStackParamList, "StaffIssueNote">;
 type IssueNoteNavProp = NativeStackNavigationProp<RootStackParamList, "StaffIssueNote">;
 
 export default function StaffIssueNoteScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const keyboardInset = useKeyboardBottomInset();
   const navigation = useNavigation<IssueNoteNavProp>();
@@ -95,6 +96,17 @@ export default function StaffIssueNoteScreen() {
   const parsedScore = useMemo(() => Number(conditionScore), [conditionScore]);
   const isScoreValid = Number.isFinite(parsedScore) && parsedScore >= 0 && parsedScore <= 100;
 
+  const moneyIntlLocale = useMemo(
+    () => intlNumberLocaleForMoney(i18n.language),
+    [i18n.language]
+  );
+
+  /** Giá banner / tổng báo giá: số nhóm theo locale + đơn vị VND từ i18n (vd. `7.000.000 Đồng`). */
+  const formatQuoteMoney = useCallback(
+    (amount: number | string | null | undefined) => formatVndDisplay(amount, moneyIntlLocale, t),
+    [moneyIntlLocale, t]
+  );
+
   const selectedBannersSubtotal = useMemo(() => {
     return selectedBannerIds.reduce((sum, id) => {
       const b = banners.find((x) => x.id === id);
@@ -109,9 +121,9 @@ export default function StaffIssueNoteScreen() {
     }
     return t("staff_issue_note.banner_selected_summary", {
       count: selectedBannerIds.length,
-      subtotal: String(selectedBannersSubtotal),
+      subtotal: formatQuoteMoney(selectedBannersSubtotal),
     });
-  }, [selectedBannerIds, selectedBannersSubtotal, t]);
+  }, [formatQuoteMoney, selectedBannerIds, selectedBannersSubtotal, t]);
 
   const bannerSections = useMemo<DropdownBoxSection[]>(
     () => [
@@ -122,7 +134,7 @@ export default function StaffIssueNoteScreen() {
           id: bn.id,
           label: bn.name,
           detail: t("staff_issue_note.banner_price_label", {
-            price: String(bn.currentPrice),
+            price: formatQuoteMoney(bn.currentPrice),
           }),
         })),
         selectedId: null,
@@ -132,7 +144,7 @@ export default function StaffIssueNoteScreen() {
         allLabel: t("staff_issue_note.banner_none"),
       },
     ],
-    [banners, selectedBannerIds, t]
+    [banners, formatQuoteMoney, selectedBannerIds, t]
   );
 
   useEffect(() => {
@@ -315,7 +327,9 @@ export default function StaffIssueNoteScreen() {
         CustomAlert.alert(
           t("common.success"),
           total != null
-            ? t("staff_issue_note.update_and_quote_success_with_total", { total: String(total) })
+            ? t("staff_issue_note.update_and_quote_success_with_total", {
+                total: formatQuoteMoney(total),
+              })
             : t("staff_issue_note.update_and_quote_success"),
           [{ text: t("common.close"), onPress: () => navigation.goBack() }]
         );

@@ -1,6 +1,6 @@
 /**
- * Khu vực chức năng một tầng: mái + khung ngoài + sàn trong.
- * **Tất cả khu trên một hàng ngang**, chia đều bề ngang trong khung.
+ * Khu vực chức năng một tầng: một dải nền nhạt + các ô cạnh nhau (không mái, không lồng nhiều viền).
+ * **Tất cả khu trên một hàng ngang**, chia đều bề ngang; chỉ ô đang chọn có viền accent.
  */
 import React from "react";
 import { View, useWindowDimensions, Pressable, StyleSheet, Text } from "react-native";
@@ -9,10 +9,9 @@ import { brandPrimary, brandTintBg, neutral } from "../../../shared/theme/color"
 import { mapLabelForFunctionalArea } from "../../../shared/utils";
 import { appTypography } from "../../../shared/utils/typography";
 
-const OUTER_PAD_X2 = 20;
-const INNER_PAD_X2 = 24;
-const INNER_BORDER_X2 = 2;
-const GAP = 8;
+/** Padding hai bên của dải (px × 2 được trừ khi chia chip). */
+const BAND_PAD_X2 = 20;
+const GAP = 6;
 
 interface FloorPlanSvgProps {
   areas: FunctionalAreaFromApi[];
@@ -28,62 +27,54 @@ const FloorPlanSvg: React.FC<FloorPlanSvgProps> = ({
   accentColor = brandPrimary,
 }) => {
   const { width: screenWidth } = useWindowDimensions();
-  const frameWidth = Math.min(screenWidth - 24, 440);
+  const frameWidth = Math.min(screenWidth - 32, 440);
 
   if (areas.length === 0) {
     return null;
   }
 
-  const innerContentW = frameWidth - OUTER_PAD_X2 - INNER_PAD_X2 - INNER_BORDER_X2;
+  const innerContentW = frameWidth - BAND_PAD_X2;
   const n = areas.length;
   const totalGap = (n - 1) * GAP;
   const baseChipW = Math.max(1, Math.floor((innerContentW - totalGap) / n));
   const lastChipW = baseChipW + (innerContentW - totalGap - baseChipW * n);
 
-  const innerMinH = INNER_PAD_X2 + 48;
-  const roofW = frameWidth * 0.56;
-
   return (
     <View style={styles.container}>
-      <View style={[styles.houseColumn, { width: frameWidth }]}>
-        <View style={[styles.roofCap, { width: roofW, height: 12 }]} />
-        <View style={styles.outerShell}>
-          <View style={[styles.innerFloor, { minHeight: innerMinH }]}>
-            <View style={[styles.chipsRow, { gap: GAP }]}>
-              {areas.map((area, index) => {
-                const isSelected = selectedAreaId === area.id;
-                const label = mapLabelForFunctionalArea(area.name);
-                const cellW = index === n - 1 ? lastChipW : baseChipW;
-                return (
-                  <Pressable
-                    key={area.id}
-                    accessibilityRole="button"
-                    onPress={() => onSelectArea(area.id)}
-                    style={({ pressed }) => [
-                      styles.chip,
-                      { width: cellW },
-                      {
-                        borderColor: isSelected ? accentColor : neutral.border,
-                        backgroundColor: isSelected ? brandTintBg : neutral.surface,
-                      },
-                      pressed && styles.chipPressed,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        appTypography.chip,
-                        styles.chipLabel,
-                        { color: isSelected ? accentColor : neutral.slate900 },
-                      ]}
-                      numberOfLines={2}
-                    >
-                      {label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
+      <View style={[styles.floorBand, { width: frameWidth }]}>
+        <View style={[styles.chipsRow, { gap: GAP }]}>
+          {areas.map((area, index) => {
+            const isSelected = selectedAreaId === area.id;
+            const label = mapLabelForFunctionalArea(area.name);
+            const cellW = index === n - 1 ? lastChipW : baseChipW;
+            return (
+              <Pressable
+                key={area.id}
+                accessibilityRole="button"
+                onPress={() => onSelectArea(area.id)}
+                style={({ pressed }) => [
+                  styles.chip,
+                  { width: cellW },
+                  {
+                    backgroundColor: isSelected ? brandTintBg : neutral.surface,
+                    borderColor: isSelected ? accentColor : "transparent",
+                  },
+                  pressed && styles.chipPressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    appTypography.chip,
+                    styles.chipLabel,
+                    { color: isSelected ? accentColor : neutral.slate900 },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
     </View>
@@ -91,32 +82,14 @@ const FloorPlanSvg: React.FC<FloorPlanSvgProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: { alignItems: "center", paddingVertical: 6 },
-  houseColumn: { alignSelf: "center", alignItems: "center" },
-  roofCap: {
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    borderBottomLeftRadius: 4,
-    borderBottomRightRadius: 4,
-    backgroundColor: neutral.slate300,
-    marginBottom: 2,
-  },
-  outerShell: {
-    width: "100%",
-    borderWidth: 2,
-    borderColor: neutral.slate300,
-    borderRadius: 14,
-    backgroundColor: neutral.backgroundSubtle,
-    paddingTop: 8,
-    paddingHorizontal: 10,
-    paddingBottom: 10,
-  },
-  innerFloor: {
-    borderWidth: 1,
-    borderColor: neutral.border,
+  container: { alignItems: "center", paddingVertical: 4 },
+  /** Một lớp nền nhạt, không viền ngoài — tách chip bằng khoảng trống + nền ô trắng. */
+  floorBand: {
+    alignSelf: "center",
     borderRadius: 12,
-    backgroundColor: neutral.backgroundElevated,
-    padding: 12,
+    backgroundColor: neutral.tileMuted,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
   },
   chipsRow: {
     flexDirection: "row",
@@ -127,8 +100,8 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 8,
     paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 10,
+    borderWidth: 2,
     minHeight: 44,
     justifyContent: "center",
   },

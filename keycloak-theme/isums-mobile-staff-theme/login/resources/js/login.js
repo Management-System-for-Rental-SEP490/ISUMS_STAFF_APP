@@ -226,7 +226,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginButton = document.getElementById('kc-login');
     if (form && loginButton) {
         form.addEventListener('submit', () => {
-            loginButton.disabled = true;
+            loginButton.setAttribute('aria-busy', 'true');
+            loginButton.classList.add('is-submitting');
+            setTimeout(() => { loginButton.disabled = true; }, 0);
         });
     }
 });

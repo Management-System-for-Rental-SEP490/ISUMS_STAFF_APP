@@ -39,7 +39,7 @@ import StaffNotificationScreen from "../features/staff/screens/staffnotification
 import { StaffScheduleProvider } from "../features/staff/context/StaffScheduleContext";
 import KeycloakChangePasswordWebViewOverlay from "../shared/components/KeycloakChangePasswordWebViewOverlay";
 import { useNotificationDeviceTokenLifecycle } from "../shared/hooks/useNotificationDeviceTokenLifecycle";
-import { DATA_LOAD_TIMEOUT_MS } from "../shared/api/config";
+import { POST_LOGIN_QUERY_INVALIDATE_DELAY_MS } from "../shared/api/config";
 
 // Wrapper components để bọc Provider cho các screen cần useStaffSchedule
 const BuildingDetailScreenWrapper = () => (
@@ -123,7 +123,7 @@ const Navigation = () => {
     if (prev !== false || !isLoggedIn) return;
     const id = setTimeout(() => {
       queryClient.invalidateQueries();
-    }, DATA_LOAD_TIMEOUT_MS);
+    }, POST_LOGIN_QUERY_INVALIDATE_DELAY_MS);
     return () => clearTimeout(id);
   }, [isReady, isLoggedIn, queryClient]);
 

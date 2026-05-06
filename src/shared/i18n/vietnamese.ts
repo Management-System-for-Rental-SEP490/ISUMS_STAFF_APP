@@ -29,7 +29,7 @@ export default {
         "camera_no_more_shots": "Không được phép chụp nữa",
         "images_count_of_max": "{{current}}/{{max}}",
         "a11y_brand_go_home": "ISUMS — về trang chủ staff",
-        "currency_vnd_unit": "VNĐ",
+        "currency_vnd_unit": "Đồng",
         "currency_not_available": "—",
         "server_not_responding": "Không nhận được phản hồi từ máy chủ"
     },

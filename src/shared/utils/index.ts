@@ -43,7 +43,11 @@ export {
   formatTimeRangeFromMinutes,
   formatViTicketCreatedAt,
 } from "./dateTimeFormat";
-export { APP_DEFAULT_CURRENCY_CODE, formatVndDisplay } from "./currencyFormat";
+export {
+  APP_DEFAULT_CURRENCY_CODE,
+  formatVndDisplay,
+  intlNumberLocaleForMoney,
+} from "./currencyFormat";
 export {
   buildProposedSlotFramesForDatesYmd,
   buildScheduleTemplateMinuteRanges,
