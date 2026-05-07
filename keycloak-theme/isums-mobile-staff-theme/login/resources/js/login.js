@@ -1,10 +1,22 @@
+function togglePassword() {
+    var passwordInput = document.getElementById('password');
+    var toggleButton = document.querySelector('.toggle-password');
+    if (!passwordInput || !toggleButton) return;
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        toggleButton.textContent = '🙈';
+    } else {
+        passwordInput.type = 'password';
+        toggleButton.textContent = '👁';
+    }
+}
+
 (function syncKeyboardInsetAndScroller() {
     var root = document.documentElement;
     var vv = window.visualViewport;
     var resizeRaf = null;
     var lastInset = -1;
     var adjustTimer = null;
-    /** Một lần chỉnh sau khi viewport/IME ngừng nhảy — tránh caret lệch do scroll chồng chéo */
     var ADJUST_DEBOUNCE_MS = 80;
 
     function getScroller() {
@@ -21,36 +33,28 @@
         }
     }
 
-    /**
-     * Cuộn trong #isums-scroll-root (không window.scroll) — khớp hit-test/caret trên WebView Android.
-     * Đưa ô đang focus + nút submit chính vào vùng nhìn thấy phía trên IME.
-     */
     function comfortScrollLoginForm() {
         if (!window.visualViewport) return;
-        var card = document.querySelector('.card.card-form-first');
+        var card = document.querySelector('main.card, .card.card-form-first, .card');
         if (!card) return;
 
         var el = document.activeElement;
-        if (!el || !el.matches || !el.matches('.card-form-first input.input, .card-form-first textarea')) {
-            return;
-        }
+        if (!el || !el.matches || !el.matches('input.input, textarea, .toggle-password')) return;
 
-        var vv = window.visualViewport;
+        var vv2 = window.visualViewport;
         var margin = 18;
-        var viewTop = vv.offsetTop + margin;
-        var viewBottom = vv.offsetTop + vv.height - margin;
+        var viewTop = vv2.offsetTop + margin;
+        var viewBottom = vv2.offsetTop + vv2.height - margin;
 
         var tops = [];
         var bottoms = [];
         var r0 = el.getBoundingClientRect();
-        tops.push(r0.top);
-        bottoms.push(r0.bottom);
+        tops.push(r0.top); bottoms.push(r0.bottom);
 
-        var btn = card.querySelector('form button.btn-login[type="submit"]');
+        var btn = card.querySelector('form button.btn-login[type="submit"], form input[type="submit"].btn-login');
         if (btn) {
             var rb = btn.getBoundingClientRect();
-            tops.push(rb.top);
-            bottoms.push(rb.bottom);
+            tops.push(rb.top); bottoms.push(rb.bottom);
         }
 
         var unionTop = Math.min.apply(null, tops);
@@ -59,7 +63,6 @@
         var unionH = unionBottom - unionTop;
 
         var delta = 0;
-
         if (unionH > avail - 2) {
             delta = r0.top - viewTop;
         } else {
@@ -68,12 +71,10 @@
             if (deltaMin <= deltaMax) {
                 if (deltaMin > 0) delta = deltaMin;
                 else if (deltaMax < 0) delta = deltaMax;
-                else delta = 0;
             } else {
                 delta = r0.top - viewTop;
             }
         }
-
         applyScrollDelta(delta);
     }
 
@@ -109,126 +110,75 @@
         });
     }
 
-    window.__isumsSyncKeyboardInset = function () {
-        lastInset = -1;
-        setKeyboardInset({ forceScroll: true });
-    };
-
-    if (vv) {
-        vv.addEventListener('resize', scheduleInsetFromResize);
-    }
+    if (vv) vv.addEventListener('resize', scheduleInsetFromResize);
     window.addEventListener('resize', scheduleInsetFromResize);
     setKeyboardInset();
 
-    document.addEventListener(
-        'focusin',
-        function (ev) {
-            var t = ev.target;
-            if (!t || !t.matches || !t.matches('.card-form-first input.input, .card-form-first textarea')) {
-                return;
-            }
-            setKeyboardInset({ forceScroll: true });
-        },
-        true
-    );
+    document.addEventListener('focusin', function (e) {
+        var t = e.target;
+        if (!t || !t.matches || !t.matches('input.input, textarea')) return;
+        setKeyboardInset({ forceScroll: true });
+    }, true);
+
+    document.addEventListener('focusout', function () {
+        setTimeout(setKeyboardInset, 50);
+        setTimeout(setKeyboardInset, 200);
+    }, true);
 })();
 
-(function isumsFormKeyboardLift() {
-    var liftTarget =
-        document.querySelector('.container.container-form-first') ||
-        document.querySelector('.container-form-first');
-    if (!liftTarget) return;
-
-    var card = liftTarget.querySelector('main.card, .card.card-form-first');
-    if (!card) return;
-
-    var FIELD_SEL =
-        '#kc-form-login input, #kc-form-login textarea, #kc-form-login select, ' +
-        '#kc-reset-password-form input, #kc-reset-password-form textarea, #kc-reset-password-form select, ' +
-        '#kc-passwd-update-form input, #kc-passwd-update-form textarea, #kc-passwd-update-form select';
-
-    function isField(el) {
-        if (!el || typeof el.matches !== 'function' || !card.contains(el)) return false;
-        if (!el.matches(FIELD_SEL)) return false;
-        if (el.disabled || el.readOnly) return false;
-        if (el.type === 'hidden') return false;
-        return true;
-    }
-
-    function syncLift() {
-        var a = document.activeElement;
-        liftTarget.classList.remove('isums-keyboard-lift', 'isums-keyboard-lift-reset');
-        if (!isField(a)) return;
-        if (a.closest && a.closest('#kc-reset-password-form')) {
-            liftTarget.classList.add('isums-keyboard-lift-reset');
-        } else {
-            liftTarget.classList.add('isums-keyboard-lift');
-        }
-    }
-
-    document.addEventListener(
-        'focusin',
-        function (e) {
-            if (liftTarget.contains(e.target)) syncLift();
-        },
-        true
-    );
-
-    document.addEventListener(
-        'focusout',
-        function (e) {
-            if (liftTarget.contains(e.target)) {
-                setTimeout(syncLift, 0);
-                setTimeout(syncLift, 50);
-                setTimeout(syncLift, 200);
-            }
-        },
-        true
-    );
-
-    var vv = window.visualViewport;
-    if (vv) {
-        vv.addEventListener('resize', function () {
-            setTimeout(syncLift, 0);
-            setTimeout(syncLift, 100);
-            setTimeout(syncLift, 250);
-        });
-    }
-    window.addEventListener('resize', function () {
-        setTimeout(syncLift, 0);
+(function debugTapOverlay() {
+    if (!/[?&]debug=1\b/.test(location.search)) return;
+    document.addEventListener('DOMContentLoaded', function () {
+        var box = document.createElement('div');
+        box.style.cssText = 'position:fixed;left:8px;top:80px;z-index:2147483647;background:rgba(0,0,0,.85);color:#fff;font:11px/1.3 monospace;padding:8px 10px;border-radius:8px;max-width:90vw;pointer-events:none;white-space:pre-wrap';
+        box.textContent = 'iw=' + window.innerWidth + ' ih=' + window.innerHeight + ' dpr=' + window.devicePixelRatio + ' vvh=' + (window.visualViewport && window.visualViewport.height);
+        document.body.appendChild(box);
+        document.addEventListener('touchstart', function (e) {
+            var t = e.touches[0];
+            var el = document.elementFromPoint(t.clientX, t.clientY);
+            var dot = document.createElement('div');
+            dot.style.cssText = 'position:fixed;left:' + (t.clientX - 12) + 'px;top:' + (t.clientY - 12) + 'px;width:24px;height:24px;border-radius:50%;background:rgba(255,0,0,.6);z-index:2147483646;pointer-events:none';
+            document.body.appendChild(dot);
+            setTimeout(function () { dot.remove(); }, 1500);
+            box.textContent = 'tap (' + Math.round(t.clientX) + ',' + Math.round(t.clientY) + ') -> ' +
+                (el ? (el.tagName + (el.id ? '#' + el.id : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.split(' ').slice(0, 2).join('.') : '')) : 'null') +
+                '\nvvh=' + (window.visualViewport && window.visualViewport.height) + ' ih=' + window.innerHeight + ' inset=' + getComputedStyle(document.documentElement).getPropertyValue('--isums-keyboard-inset');
+        }, true);
     });
-
-    var prevInsetSync = window.__isumsSyncKeyboardInset;
-    window.__isumsSyncKeyboardInset = function () {
-        if (typeof prevInsetSync === 'function') prevInsetSync();
-        setTimeout(syncLift, 0);
-        setTimeout(syncLift, 120);
-    };
 })();
 
-function togglePassword() {
-    const passwordInput = document.getElementById('password');
-    const toggleButton = document.querySelector('.toggle-password');
-
-    if (passwordInput && toggleButton) {
-        if (passwordInput.type === 'password') {
-            passwordInput.type = 'text';
-            toggleButton.textContent = '🙈';
-        } else {
-            passwordInput.type = 'password';
-            toggleButton.textContent = '👁';
+(function initLoginUx() {
+    function ready(fn) {
+        if (document.readyState !== 'loading') fn();
+        else document.addEventListener('DOMContentLoaded', fn);
+    }
+    ready(function () {
+        var form = document.getElementById('kc-form-login');
+        var loginButton = document.getElementById('kc-login');
+        if (form && loginButton) {
+            form.addEventListener('submit', function () {
+                loginButton.setAttribute('aria-busy', 'true');
+                loginButton.classList.add('is-submitting');
+                setTimeout(function () { loginButton.disabled = true; }, 0);
+            });
         }
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    const form = document.getElementById('kc-form-login');
-    const loginButton = document.getElementById('kc-login');
-    if (form && loginButton) {
-        form.addEventListener('submit', () => {
-            loginButton.setAttribute('aria-busy', 'true');
-            loginButton.classList.add('is-submitting');
-            setTimeout(() => { loginButton.disabled = true; }, 0);
-        });
-    }
-});
+        var resetForm = document.getElementById('kc-reset-password-form');
+        if (resetForm) {
+            resetForm.addEventListener('submit', function () {
+                var btn = resetForm.querySelector('button[type="submit"], input[type="submit"]');
+                if (!btn) return;
+                btn.classList.add('is-submitting');
+                setTimeout(function () { btn.disabled = true; }, 0);
+            });
+        }
+        var updateForm = document.getElementById('kc-passwd-update-form');
+        if (updateForm) {
+            updateForm.addEventListener('submit', function () {
+                var btn = updateForm.querySelector('input[name="login"], button[type="submit"]');
+                if (!btn) return;
+                btn.classList.add('is-submitting');
+                setTimeout(function () { btn.disabled = true; }, 0);
+            });
+        }
+    });
+})();

@@ -12,6 +12,7 @@ import { GlobalAlert } from "./src/shared/components/alert";
 import { useAuthStore } from "./src/store/useAuthStore";
 import { RefreshLogoOverlay } from "./src/shared/components/RefreshLogoOverlay";
 import { neutral } from "./src/shared/theme/color";
+import { KeycloakWebViewModal } from "./src/shared/components/KeycloakWebViewModal";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,6 +63,7 @@ export default function App() {
           <Navigation />
           <GlobalAlert />
           <LogoutRouteCoverPortal />
+          <KeycloakWebViewModal />
         </SafeAreaProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>

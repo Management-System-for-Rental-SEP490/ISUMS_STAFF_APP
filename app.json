@@ -28,7 +28,7 @@
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
-      "edgeToEdgeEnabled": true,
+      "edgeToEdgeEnabled": false,
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/logob.png"
@@ -81,6 +81,12 @@
           "photosPermission": "Ứng dụng cần truy cập ảnh để bạn chọn ảnh từ thư viện.",
           "savePhotosPermission": "Ứng dụng cần lưu ảnh bạn chụp vào thư viện ảnh trên máy.",
           "isAccessMediaLocationEnabled": false
+        }
+      ],
+      [
+        "./plugins/withAppAuthRedirectScheme",
+        {
+          "scheme": "com.isums.staff.app"
         }
       ]
     ]

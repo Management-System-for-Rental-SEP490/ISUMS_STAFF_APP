@@ -28,13 +28,16 @@
 <html lang="${locale.currentLanguageTag!'vi'}">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#37b584" media="(prefers-color-scheme: light)" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light only" />
+    <meta name="theme-color" content="#1e3a8a" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1e1b4b" media="(prefers-color-scheme: dark)" />
     <title>${msg("loginPageTitle")}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link href="${url.resourcesPath}/css/login.css" rel="stylesheet" />
+    <#assign _tv = (properties.themeVersion)!'1' />
+    <link href="${url.resourcesPath}/css/login.css?v=${_tv}" rel="stylesheet" />
 </head>
 <body>
     <div id="isums-scroll-root" class="isums-scroll-root">
@@ -56,7 +59,7 @@
         </#if>
     </div>
     </div>
-    <script src="${url.resourcesPath}/js/login.js"></script>
+    <script src="${url.resourcesPath}/js/login.js?v=${_tv}"></script>
 </body>
 </html>
 </#macro>

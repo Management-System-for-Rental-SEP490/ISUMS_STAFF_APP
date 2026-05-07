@@ -7,6 +7,7 @@ import { CustomAlert } from "../shared/components/alert";
 import { logoutKeycloak } from "../shared/services/keycloakAuth";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Login from "../features/screens/authentication/LoginScreen";
+import LoginFormScreen from "../features/screens/authentication/LoginFormScreen";
 import OnBoarding from "../features/screens/onBoarding/onBoarding";
 import { useAuthStore } from "../store/useAuthStore";
 import { RootStackParamList } from "../shared/types";
@@ -203,7 +204,10 @@ const Navigation = () => {
               </>
             )
           ) : (
-            <Stack.Screen name="AuthLogin" component={Login} />
+            <>
+              <Stack.Screen name="AuthLogin" component={Login} />
+              <Stack.Screen name="AuthLoginForm" component={LoginFormScreen} />
+            </>
           )}
         </Stack.Navigator>
       </NavigationContainer>

@@ -4,6 +4,7 @@ import type { AssetCategoryFromApi, AssetItemFromApi, FunctionalAreaFromApi } fr
 
 export type AuthStackParamList = {
   AuthLogin: undefined;
+  AuthLoginForm: undefined;
 };
 
 export type MainTabParamList = {

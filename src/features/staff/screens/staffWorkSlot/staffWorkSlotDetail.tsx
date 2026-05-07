@@ -1787,7 +1787,11 @@ export default function WorkSlotDetailScreen() {
                 </View>
               ) : null}
 
-              {isInspectionSlot && inspectionContractId && job?.status === "IN_PROGRESS" && !activeRelocationStatus ? (
+              {isInspectionSlot
+                && inspectionTypeUpper === "CHECK_IN"
+                && inspectionContractId
+                && job?.status === "IN_PROGRESS"
+                && !activeRelocationStatus ? (
                 <View style={[staffWorkSlotStyles.actionRow, { marginTop: 10 }]}>
                   <TouchableOpacity
                     style={[staffWorkSlotStyles.actionBtn, staffWorkSlotStyles.actionBtnDanger]}
