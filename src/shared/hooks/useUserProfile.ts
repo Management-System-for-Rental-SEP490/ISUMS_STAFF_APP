@@ -1,10 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getUserProfile } from "../services/userApi";
 import {
   getIssueTicketDataById,
-  getIssueTicketsDataByStaff,
+  getIssueTicketsStaffPage,
+  type IssueTicketStaffListPageResult,
 } from "../services/issuesApi";
-import type { IssueTicketFromApi, IssueTicketListItemFromApi } from "../types/api";
+import type { IssueTicketFromApi } from "../types/api";
+import { CLIENT_LIST_PAGE_SIZE } from "../utils/pagination";
 
 // Query Key
 export const USER_KEYS = {
@@ -15,7 +17,7 @@ export const USER_KEYS = {
 // Hook lấy thông tin user
 export const useUserProfile = () => {
   return useQuery({
-    queryKey: USER_KEYS.profile(), 
+    queryKey: USER_KEYS.profile(),
     queryFn: () => getUserProfile(),
   });
 };
@@ -26,11 +28,10 @@ export const ISSUE_TICKET_KEYS = {
   byId: (ticketId: string) => [...ISSUE_TICKET_KEYS.all, ticketId] as const,
 };
 
-export type UseStaffIssueTicketsOptions = {
+export type UseStaffIssueTicketsPageOptions = {
   /**
-   * Khoảng (ms) tự gọi lại GET danh sách khi query đang active.
-   * Dùng khi màn list đang mở để pill status khớp BE (vd. manager approve) mà không cần pull refresh.
-   * Truyền `false` để tắt — thường gắn với `useIsFocused()` để chỉ poll khi tab Ticket là màn đang nhìn thấy.
+   * Khoảng (ms) tự gọi lại GET **trang hiện tại** khi query đang active.
+   * Truyền `false` để tắt — thường gắn với `useIsFocused()` để chỉ poll khi tab Ticket đang nhìn thấy.
    */
   refetchInterval?: number | false;
 };
@@ -39,22 +40,23 @@ export type UseStaffIssueTicketsOptions = {
 export const STAFF_ACTIVE_SCREEN_POLL_MS = 30_000;
 
 /**
- * Danh sách chỉ được refetch nhờ poll định kỳ / kéo làm mới / invalidate — không tự coi "hết fresh" và gọi lại mỗi lần vào tab,
- * nhưng vẫn cập nhật kịp nhờ `refetchInterval` khi tab đang mở (giống lịch sự kiện trên các app phổ biến).
+ * Danh sách ticket staff chỉ refetch nhờ poll / kéo làm mới / invalidate — không tự hết fresh giữa các lần vào tab (per page).
  */
 const STAFF_TICKET_LIST_STALE_MS = Number.POSITIVE_INFINITY;
 
 /**
- * Danh sách ticket assign cho staff đang đăng nhập.
- *
- * `staleTime: Infinity` + `refetchOnMount: false`: cache giữ khi chuyển tab / quay lại — không GET lại toàn danh sách mỗi lần vào.
- * Cập nhật nhờ poll (`refetchInterval` khi tab hiển thị), pull refresh, và `invalidateQueries` sau thao tác.
- * `retry`: giảm lỗi tải tạm do timeout/mạng.
+ * Một trang danh sách ticket assign cho staff (`page` UI **1-based**, `CLIENT_LIST_PAGE_SIZE` phần tử).
+ * Đổi trang pagination → queryKey đổi → GET đúng trang đó; cache theo `(staff, page, size)`.
  */
-export const useStaffIssueTickets = (options?: UseStaffIssueTicketsOptions) => {
-  return useQuery<IssueTicketListItemFromApi[]>({
-    queryKey: ISSUE_TICKET_KEYS.byStaff(),
-    queryFn: getIssueTicketsDataByStaff,
+export const useStaffIssueTicketsPage = (
+  page: number,
+  options?: UseStaffIssueTicketsPageOptions
+) => {
+  const pageSize = CLIENT_LIST_PAGE_SIZE;
+  const stablePage = Math.max(1, Math.floor(page) || 1);
+  return useQuery<IssueTicketStaffListPageResult>({
+    queryKey: [...ISSUE_TICKET_KEYS.byStaff(), stablePage, pageSize],
+    queryFn: () => getIssueTicketsStaffPage(stablePage, pageSize),
     staleTime: STAFF_TICKET_LIST_STALE_MS,
     gcTime: 5 * 60_000,
     retry: 2,
@@ -62,6 +64,7 @@ export const useStaffIssueTickets = (options?: UseStaffIssueTicketsOptions) => {
     refetchOnMount: false,
     refetchInterval: options?.refetchInterval ?? false,
     refetchIntervalInBackground: false,
+    placeholderData: keepPreviousData,
   });
 };
 

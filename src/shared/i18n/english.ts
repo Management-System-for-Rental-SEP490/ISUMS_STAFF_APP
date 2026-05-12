@@ -383,6 +383,7 @@ export default {
         "summary_total": "Total",
         "summary_open": "In progress",
         "summary_done": "Completed",
+        "summary_done_not_available": "—",
         "filter_all": "All",
         "tenant": "tenant",
         "phone_unavailable": "Phone unavailable",

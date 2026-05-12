@@ -384,6 +384,7 @@ export default {
         "summary_total": "合計",
         "summary_open": "対応中",
         "summary_done": "完了",
+        "summary_done_not_available": "—",
         "filter_all": "すべて",
         "tenant": "入居者",
         "phone_unavailable": "電話番号なし",

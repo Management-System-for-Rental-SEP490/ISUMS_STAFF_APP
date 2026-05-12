@@ -73,9 +73,9 @@ export const ticketListStyles = StyleSheet.create({
     backgroundColor: neutral.surface,
     borderRadius: 16,
     borderCurve: "continuous",
-    padding: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     marginBottom: 12,
-    gap: 8,
     boxShadow: "0 8px 18px rgba(15,23,42,0.07)",
   },
   /** CREATED — ticket vừa tạo: viền đỏ nhận biết nhanh. */
@@ -83,23 +83,36 @@ export const ticketListStyles = StyleSheet.create({
     borderWidth: 2,
     borderColor: BRAND_DANGER,
   },
-  cardHeader: {
+  /** Hàng đầu card: tiêu đề + pill trạng thái căn hai bên, căn đỉnh khi title 2 dòng. */
+  cardTopRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "flex-start",
+    gap: 12,
+  },
+  /** Tiêu đề chiếm phần còn lại; minWidth 0 để Text co và ellipsis đúng trong flex row. */
+  cardTitleFlex: {
+    flex: 1,
+    minWidth: 0,
+  },
+  /** Giữ pill không bị ép méo; giới hạn chiều ngang để title vẫn ưu tiên đọc. */
+  statusPillWrap: {
+    flexShrink: 0,
+    maxWidth: "42%",
+    paddingTop: 2,
   },
   ticketId: {
     ...appTypography.badge,
     color: brandPrimary,
   },
   statusPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
     backgroundColor: brandTintBg,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    alignSelf: "flex-end",
   },
   statusPillText: {
     ...appTypography.badge,
@@ -130,7 +143,10 @@ export const ticketListStyles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 4,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: neutral.slate200,
   },
   cardTimeWrap: {
     flexDirection: "row",

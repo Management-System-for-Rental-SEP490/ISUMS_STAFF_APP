@@ -12,8 +12,8 @@ import type {
   IssueBannerFromApi,
   IssueTicketApiResponse,
   IssueTicketFromApi,
-  IssueTicketListApiResponse,
   IssueTicketListItemFromApi,
+  IssueTicketStaffListPagedPayloadFromApi,
   IssueTicketStatusUpdate,
 } from "../types/api";
 
@@ -80,22 +80,121 @@ export const getIssueTicketDataById = async (
   return null;
 };
 
-/**
- * Lấy danh sách ticket đã assign cho staff hiện tại.
- * Endpoint: GET /api/issues/tickets/staff
- */
-export const getIssueTicketsByStaff = async (): Promise<IssueTicketListApiResponse> => {
-  const response = await axiosClient.get<IssueTicketListApiResponse>(
-    `${BACKEND_API_BASE}/issues/tickets/staff`
-  );
-  return response.data;
+/** Kết quả chuẩn hoá một trang danh sách ticket staff (sau GET phân trang). */
+export type IssueTicketStaffListPageResult = {
+  items: IssueTicketListItemFromApi[];
+  totalElements: number;
+  /** Tổng ticket DONE/CLOSED (toàn staff) — chỉ có khi BE trả kèm payload phân trang. */
+  completedElements?: number;
 };
 
-/** Helper lấy data danh sách ticket staff (đã unwrap response). */
-export const getIssueTicketsDataByStaff = async (): Promise<IssueTicketListItemFromApi[]> => {
-  const res = await getIssueTicketsByStaff();
-  if (res?.success && Array.isArray(res.data)) return res.data;
-  return [];
+function sortStaffTicketsNewestFirst(items: IssueTicketListItemFromApi[]): IssueTicketListItemFromApi[] {
+  return [...items].sort((a, b) => {
+    const at = new Date(a.createdAt).getTime();
+    const bt = new Date(b.createdAt).getTime();
+    const na = Number.isNaN(at) ? 0 : at;
+    const nb = Number.isNaN(bt) ? 0 : bt;
+    return nb - na;
+  });
+}
+
+function countStaffTicketsDone(items: IssueTicketListItemFromApi[]): number {
+  return items.filter((t) => {
+    const s = String(t.status || "").toUpperCase();
+    return s === "DONE" || s === "CLOSED";
+  }).length;
+}
+
+/**
+ * Chuẩn hoá body GET `/issues/tickets/staff`:
+ * - Phân trang: `data` là object có `content` | `items` + `totalElements` | `total`.
+ * - Legacy: `data` là mảng đầy đủ → cắt client theo `pageOneBased` / `pageSize` (tạm thời khi BE chưa filter).
+ */
+function parseStaffTicketsListResponse(
+  body: unknown,
+  pageOneBased: number,
+  pageSize: number
+): IssueTicketStaffListPageResult {
+  const pageIndex = Math.max(0, Math.floor(pageOneBased) - 1);
+  const size = Math.max(1, Math.floor(pageSize));
+  const empty = (): IssueTicketStaffListPageResult => ({
+    items: [],
+    totalElements: 0,
+    completedElements: 0,
+  });
+
+  if (!body || typeof body !== "object") return empty();
+  const res = body as { success?: boolean; data?: unknown };
+  if (!res.success || res.data == null) return empty();
+
+  const data = res.data;
+  if (Array.isArray(data)) {
+    const sorted = sortStaffTicketsNewestFirst(data as IssueTicketListItemFromApi[]);
+    const totalElements = sorted.length;
+    const completedElements = countStaffTicketsDone(sorted);
+    const start = pageIndex * size;
+    const items = sorted.slice(start, start + size);
+    return { items, totalElements, completedElements };
+  }
+
+  if (typeof data === "object") {
+    const d = data as IssueTicketStaffListPagedPayloadFromApi;
+    const raw = d.content ?? d.items;
+    const items = Array.isArray(raw) ? sortStaffTicketsNewestFirst(raw) : [];
+    let totalElements =
+      typeof d.totalElements === "number" && Number.isFinite(d.totalElements)
+        ? Math.max(0, Math.floor(d.totalElements))
+        : typeof d.total === "number" && Number.isFinite(d.total)
+          ? Math.max(0, Math.floor(d.total))
+          : items.length;
+    const completedRaw = d.completedElements ?? d.completedTicketCount ?? d.doneCount;
+    const completedElements =
+      typeof completedRaw === "number" && Number.isFinite(completedRaw)
+        ? Math.max(0, Math.floor(completedRaw))
+        : undefined;
+    return { items, totalElements, completedElements };
+  }
+
+  return empty();
+}
+
+/**
+ * Danh sách ticket assign cho staff — một trang (server-side pagination).
+ *
+ * - Query: `page` **0-based** (Spring `Pageable`), `size` = số phần tử/trang (vd. 10).
+ * - Nếu BE trả legacy `data: []` toàn bộ, service vẫn cắt đúng trang trên client cho tới khi BE bật filter.
+ */
+export const getIssueTicketsStaffPage = async (
+  pageOneBased: number,
+  pageSize: number
+): Promise<IssueTicketStaffListPageResult> => {
+  const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
+  const pageIndex = Math.max(0, Math.floor(pageOneBased) - 1);
+  const size = Math.max(1, Math.floor(pageSize));
+  try {
+    const response = await axiosClient.get<unknown>(`${BACKEND_API_BASE}/issues/tickets/staff`, {
+      params: { page: pageIndex, size },
+    });
+    const parsed = parseStaffTicketsListResponse(response.data, pageOneBased, pageSize);
+    if (__DEV__) {
+      const elapsed =
+        (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
+      console.log(
+        `[STAFF_TICKET_LIST_TIMING] GET issues/tickets/staff OK ${elapsed.toFixed(0)}ms http=${response.status} page=${pageOneBased} size=${size} items=${parsed.items.length} total=${parsed.totalElements}`
+      );
+    }
+    return parsed;
+  } catch (e) {
+    if (__DEV__) {
+      const elapsed =
+        (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
+      console.warn(
+        `[STAFF_TICKET_LIST_TIMING] GET issues/tickets/staff FAIL sau ${elapsed.toFixed(0)}ms page=${pageOneBased}`,
+        e
+      );
+    }
+    throw e;
+  }
 };
 
 export interface CreateIssueExecutionPayload {

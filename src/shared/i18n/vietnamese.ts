@@ -383,6 +383,7 @@ export default {
         "summary_total": "Tổng",
         "summary_open": "Đang xử lý",
         "summary_done": "Hoàn tất",
+        "summary_done_not_available": "—",
         "filter_all": "Tất cả",
         "tenant": "người thuê",
         "phone_unavailable": "Chưa có số điện thoại",

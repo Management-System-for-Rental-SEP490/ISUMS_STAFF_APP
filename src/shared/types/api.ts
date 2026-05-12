@@ -82,6 +82,20 @@ export interface IssueTicketListApiResponse {
   success: boolean;
 }
 
+/**
+ * Payload phân trang cho GET /issues/tickets/staff (Spring `Page` hoặc tương đương).
+ * BE có thể dùng `content` hoặc `items`; `completedElements` là tùy chọn (ô thống kê “đã xong”).
+ */
+export interface IssueTicketStaffListPagedPayloadFromApi {
+  content?: IssueTicketListItemFromApi[];
+  items?: IssueTicketListItemFromApi[];
+  totalElements?: number;
+  total?: number;
+  completedElements?: number;
+  completedTicketCount?: number;
+  doneCount?: number;
+}
+
 export interface IssueBannerFromApi {
   id: string;
   name: string;
