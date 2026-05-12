@@ -56,7 +56,7 @@ import {
 import Icons from "../../../../shared/theme/icon";
 import { iconStyles } from "../../../../shared/styles/iconStyles";
 import { staffWorkSlotStyles } from "./staffWorkSlotStyles";
-import { brandTintBg, neutral } from "../../../../shared/theme/color";
+import { brandTintBg, BRAND_DANGER, neutral } from "../../../../shared/theme/color";
 import {
   formatDdMmYyyy,
   formatDdMmYyyyHms24,
@@ -182,6 +182,21 @@ export default function WorkSlotDetailScreen() {
   const route = useRoute<WorkSlotDetailRouteProp>();
   const navigation = useNavigation<NavProp>();
   const { slot } = route.params;
+
+  /** Mốc thời gian mount component — dùng để tính "từ lúc mở màn đến khi load xong". */
+  const mountAtRef = useRef<number>(Date.now());
+  useEffect(() => {
+    const mountAt = mountAtRef.current;
+    console.log(
+      `[WorkSlotDetail] 🚀 Mở màn: slotId=${slot.id}, task=${slot.task}, ticketId=${slot.ticketId ?? "none"}`
+    );
+    return () => {
+      console.log(
+        `[WorkSlotDetail] 🔴 Đóng màn: slotId=${slot.id}, tổng lifetime=${Date.now() - mountAt}ms`
+      );
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   /** Đồng bộ `status` (và giờ/ngày nếu cache lịch có) — `route.params.slot` không cập nhật sau BE. */
   const [displaySlot, setDisplaySlot] = useState<WorkSlotDetailSlotParam>(() => route.params.slot);
   useEffect(() => {
@@ -209,9 +224,14 @@ export default function WorkSlotDetailScreen() {
   const refreshDisplaySlotFromScheduleCache = useCallback(async () => {
     const staffId = getStaffIdForSchedule();
     if (!staffId) return;
+    const t0 = Date.now();
+    console.log(`[WorkSlotDetail]   → invalidate schedule cache bắt đầu: +${t0 - mountAtRef.current}ms`);
     await invalidateStaffStatusCaches(queryClient, { staffId });
+    const t1 = Date.now();
+    console.log(`[WorkSlotDetail]   → invalidate schedule cache xong: +${t1 - mountAtRef.current}ms, took=${t1 - t0}ms`);
     const rows = queryClient.getQueryData<WorkSlot[]>(SCHEDULE_DATA_KEYS.workSlots(staffId));
     const found = rows?.find((s) => s.id === slot.id);
+    console.log(`[WorkSlotDetail] ✅ refreshScheduleCache xong: +${Date.now() - mountAtRef.current}ms, foundSlot=${!!found}`);
     applyWorkSlotRowToDisplay(found ?? null);
   }, [applyWorkSlotRowToDisplay, queryClient, slot.id]);
 
@@ -226,6 +246,11 @@ export default function WorkSlotDetailScreen() {
 
   const isIssueSlot = String(slot.task || "").toUpperCase() === "ISSUE";
   const isInspectionSlot = String(slot.task || "").toUpperCase() === "INSPECTION";
+
+  /**
+   * Phần "Thông tin công việc" mặc định đóng — nội dung chỉ hiển thị khi user bấm mở (API đã chạy ngầm).
+   */
+  const [jobSectionExpanded, setJobSectionExpanded] = useState(false);
 
   const [job, setJob] = useState<JobFromApi | null>(null);
   const [inspectionNote, setInspectionNote] = useState<string | null>(null);
@@ -380,8 +405,11 @@ export default function WorkSlotDetailScreen() {
     if (isIssueSlot) {
       setInspectionNote(null);
       setInspectionType(null);
+      const t0 = Date.now();
+      console.log(`[WorkSlotDetail]   → GET issue ticket bắt đầu: +${t0 - mountAtRef.current}ms, ticketId=${slot.ticketId}`);
       try {
         const res = await getIssueTicketById(slot.ticketId);
+        console.log(`[WorkSlotDetail] ✅ GET issue ticket xong: +${Date.now() - mountAtRef.current}ms, took=${Date.now() - t0}ms, success=${res?.success}`);
         if (!res?.success || !res?.data) return;
         setTicket(res.data);
         setJob(null);
@@ -390,15 +418,18 @@ export default function WorkSlotDetailScreen() {
           (st === "IN_PROGRESS" || st === "WAITING_STAFF_COMPLETION") &&
             submittedIssueRepairTicketIdsInSession.has(res.data.id)
         );
-      } catch {
-        /* ignore */
+      } catch (e) {
+        console.log(`[WorkSlotDetail] ❌ GET issue ticket lỗi: took=${Date.now() - t0}ms, err=${String(e)}`);
       }
       return;
     }
 
     if (isInspectionSlot) {
+      const t0 = Date.now();
+      console.log(`[WorkSlotDetail]   → GET inspection bắt đầu: +${t0 - mountAtRef.current}ms, ticketId=${slot.ticketId}`);
       try {
         const res = await getInspectionById(slot.ticketId);
+        console.log(`[WorkSlotDetail] ✅ GET inspection xong: +${Date.now() - mountAtRef.current}ms, took=${Date.now() - t0}ms, success=${res?.success}`);
         if (!res?.success || !res?.data) return;
         setJob(mapInspectionToJobFromApi(res.data));
         setTicket(null);
@@ -408,21 +439,24 @@ export default function WorkSlotDetailScreen() {
         setInspectionType(tp ? tp : null);
         const cid = res.data.contractId?.trim();
         setInspectionContractId(cid && cid.length > 0 ? cid : null);
-      } catch {
-        /* ignore */
+      } catch (e) {
+        console.log(`[WorkSlotDetail] ❌ GET inspection lỗi: took=${Date.now() - t0}ms, err=${String(e)}`);
       }
       return;
     }
 
     setInspectionNote(null);
     setInspectionType(null);
+    const t0 = Date.now();
+    console.log(`[WorkSlotDetail]   → GET job bắt đầu: +${t0 - mountAtRef.current}ms, ticketId=${slot.ticketId}`);
     try {
       const res = await getJobById(slot.ticketId);
+      console.log(`[WorkSlotDetail] ✅ GET job xong: +${Date.now() - mountAtRef.current}ms, took=${Date.now() - t0}ms, success=${res?.success}`);
       if (!res?.success || !res?.data) return;
       setJob(res.data);
       setTicket(null);
-    } catch {
-      /* ignore */
+    } catch (e) {
+      console.log(`[WorkSlotDetail] ❌ GET job lỗi: took=${Date.now() - t0}ms, err=${String(e)}`);
     }
   }, [isInspectionSlot, isIssueSlot, slot.ticketId]);
 
@@ -1066,9 +1100,13 @@ export default function WorkSlotDetailScreen() {
     setLoading(true);
 
     const run = async () => {
+      const t0 = Date.now();
+      console.log(`[WorkSlotDetail]   → Bắt đầu load dữ liệu: +${t0 - mountAtRef.current}ms, ticketId=${slot.ticketId}, issue=${isIssueSlot}, inspection=${isInspectionSlot}`);
       try {
         if (isIssueSlot) {
+          const apiT0 = Date.now();
           const res = await getIssueTicketById(slot.ticketId!);
+          console.log(`[WorkSlotDetail]   → GET issue ticket (initial): took=${Date.now() - apiT0}ms, success=${res?.success}`);
           if (cancelled || !res?.success || !res?.data) return;
           const issue = res.data;
           setTicket(issue);
@@ -1083,7 +1121,9 @@ export default function WorkSlotDetailScreen() {
         }
 
         if (isInspectionSlot) {
+          const apiT0 = Date.now();
           const res = await getInspectionById(slot.ticketId!);
+          console.log(`[WorkSlotDetail]   → GET inspection (initial): took=${Date.now() - apiT0}ms, success=${res?.success}`);
           if (cancelled || !res?.success || !res?.data) return;
           const nextJob = mapInspectionToJobFromApi(res.data);
           setJob(nextJob);
@@ -1099,7 +1139,9 @@ export default function WorkSlotDetailScreen() {
           return;
         }
 
+        const apiT0 = Date.now();
         const res = await getJobById(slot.ticketId!);
+        console.log(`[WorkSlotDetail]   → GET job (initial): took=${Date.now() - apiT0}ms, success=${res?.success}`);
         if (cancelled || !res?.success || !res?.data) return;
         const nextJob = res.data;
         setJob(nextJob);
@@ -1124,9 +1166,13 @@ export default function WorkSlotDetailScreen() {
           setJob(null);
           setInspectionNote(null);
           setInspectionType(null);
+          console.log(`[WorkSlotDetail] ❌ Load dữ liệu lỗi: +${Date.now() - mountAtRef.current}ms, err=${String(err)}`);
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          console.log(`[WorkSlotDetail] ✅ Load dữ liệu hoàn tất (loading=false): tổng +${Date.now() - mountAtRef.current}ms`);
+          setLoading(false);
+        }
       }
     };
 
@@ -1494,9 +1540,15 @@ export default function WorkSlotDetailScreen() {
       if (isInspectionSlot) {
         pushInspectionFlowDebugSession();
       }
+      const focusAt = Date.now();
+      console.log(`[WorkSlotDetail]   → useFocusEffect kích hoạt: +${focusAt - mountAtRef.current}ms`);
       void (async () => {
+        const t0 = Date.now();
         await refetchItem();
+        console.log(`[WorkSlotDetail]   → refetchItem xong: +${Date.now() - mountAtRef.current}ms, took=${Date.now() - t0}ms`);
+        const t1 = Date.now();
         await refreshDisplaySlotFromScheduleCache();
+        console.log(`[WorkSlotDetail] ✅ Focus sequence hoàn tất: tổng focus=${Date.now() - focusAt}ms, elapsed=+${Date.now() - mountAtRef.current}ms`);
       })();
       const pollId = setInterval(() => {
         void refetchItem();
@@ -1592,13 +1644,31 @@ export default function WorkSlotDetailScreen() {
         <WorkSlotDetailWorkSlotSection t={t} slot={displaySlot} slotStatusLabel={slotStatusLabel} />
 
         <View style={staffWorkSlotStyles.section}>
-          <View style={[staffWorkSlotStyles.sectionHeader, { borderBottomColor: brandTintBg }]}>
-            <View style={[iconStyles.workSlotSectionIconWrap, iconStyles.workSlotSectionIconWrapJob]}>
-              <Icons.assignment size={20} color={neutral.iconMuted} />
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={() => setJobSectionExpanded((v) => !v)}
+            style={[staffWorkSlotStyles.sectionHeader, { borderBottomColor: jobSectionExpanded ? brandTintBg : "transparent", flexDirection: "column", alignItems: "stretch" }]}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={[iconStyles.workSlotSectionIconWrap, iconStyles.workSlotSectionIconWrapJob]}>
+                <Icons.assignment size={20} color={neutral.iconMuted} />
+              </View>
+              <Text style={staffWorkSlotStyles.sectionTitle}>{t("staff_work_slot_detail.job_section")}</Text>
             </View>
-            <Text style={staffWorkSlotStyles.sectionTitle}>{t("staff_work_slot_detail.job_section")}</Text>
-          </View>
-          {loading ? (
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 6, gap: 4 }}>
+              <Text style={{ fontSize: 13, color: neutral.slate500 }}>
+                {jobSectionExpanded
+                  ? t("staff_work_slot_detail.job_section_collapse")
+                  : t("staff_work_slot_detail.job_section_expand")}
+              </Text>
+              {jobSectionExpanded ? (
+                <Icons.expandLess size={18} color={neutral.slate500} />
+              ) : (
+                <Icons.chevronDown size={18} color={neutral.slate500} />
+              )}
+            </View>
+          </TouchableOpacity>
+          {jobSectionExpanded && (loading ? (
             <View style={[staffWorkSlotStyles.loadingWrap, { position: "relative", minHeight: 200 }]}>
               <RefreshLogoOverlay visible mode="page" />
             </View>
@@ -1919,22 +1989,34 @@ export default function WorkSlotDetailScreen() {
                 && inspectionContractId
                 && job?.status === "IN_PROGRESS"
                 && !activeRelocationStatus ? (
-                <View style={[staffWorkSlotStyles.actionRow, { marginTop: 10 }]}>
+                <View style={{ width: "100%", alignItems: "center", marginTop: 14 }}>
                   <TouchableOpacity
-                    style={[staffWorkSlotStyles.actionBtn, staffWorkSlotStyles.actionBtnDanger]}
-                    onPress={() =>
-                      navigation.navigate("LandlordFaultReport", {
-                        contractId: inspectionContractId,
-                        houseId: currentHouseId,
-                        houseName: currentHouseName,
-                      })
-                    }
+                    onPress={() => {
+                      CustomAlert.alert(
+                        t("staff_work_slot_detail.unlivable_report_alert_title"),
+                        "",
+                        [
+                          { text: t("profile.cancel"), style: "cancel" },
+                          {
+                            text: t("common.continue"),
+                            onPress: () =>
+                              navigation.navigate("LandlordFaultReport", {
+                                contractId: inspectionContractId,
+                                houseId: currentHouseId,
+                                houseName: currentHouseName,
+                              }),
+                          },
+                        ],
+                        { type: "warning" },
+                      );
+                    }}
                     disabled={updateLoading}
-                    activeOpacity={0.85}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("staff_work_slot_detail.btn_report_unlivable")}
+                    hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
                   >
-                    <Text style={staffWorkSlotStyles.actionBtnText}>
-                      {t("staff_work_slot_detail.btn_report_unlivable")}
-                    </Text>
+                    <Icons.warningTriangle size={30} color={BRAND_DANGER} />
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -1975,7 +2057,7 @@ export default function WorkSlotDetailScreen() {
             <View style={staffWorkSlotStyles.emptyCard}>
               <Text style={staffWorkSlotStyles.emptyText}>{t("staff_work_slot_detail.no_job")}</Text>
             </View>
-          )}
+          ))}
         </View>
       </ScrollView>
       </View>

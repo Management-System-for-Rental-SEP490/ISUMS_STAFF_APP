@@ -70,6 +70,10 @@ const Icons = {
   chevronDown: ({ size = 24, color = 'black' }: IconProps = {}) => (
     <Ionicons name="chevron-down" size={size} color={color} />
   ),
+  /** Tam giác cảnh báo (báo nhà không ở được — WorkSlot detail). */
+  warningTriangle: ({ size = 24, color = 'black' }: IconProps = {}) => (
+    <MaterialIcons name="warning" size={size} color={color} />
+  ),
   logOut: ({ size = 24, color = 'black' }: IconProps = {}) => (
     <Ionicons name="log-out-outline" size={size} color={color} />
   ),
