@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import {
   useQuery,
   useMutation,
@@ -37,10 +38,14 @@ import type {
  * Tham số cho hook useAssetItems.
  * - `houseId`: lọc thiết bị theo nhà.
  * - `categoryId`: lọc thiết bị theo danh mục (string hoặc null).
+ * - `enabled`: mặc định true — tắt để không fetch (giữ cache nếu có).
+ * - `requireHouse`: true → chỉ GET theo nhà; chưa có `houseId` hợp lệ thì query idle (không dùng byCategory toàn hệ thống).
  */
 export type UseAssetItemsParams = {
   houseId?: string;
   categoryId?: string | null;
+  enabled?: boolean;
+  requireHouse?: boolean;
 };
 
 /**
@@ -169,23 +174,42 @@ export const IOT_DEVICE_KEYS = {
  *   `useAssetItems({ houseId })`
  * - Filter cả house + category (lấy theo house rồi lọc category phía client):
  *   `useAssetItems({ houseId, categoryId })`
+ * - Chỉ theo nhà, chưa biết id (màn Thiết bị đang hydrate):
+ *   `useAssetItems({ houseId: id ?? '', requireHouse: true, enabled: Boolean(id) })`
  */
 export const useAssetItems = (params: UseAssetItemsParams = {}) => {
   const { i18n } = useTranslation();
-  const { houseId, categoryId } = params;
+  const {
+    houseId,
+    categoryId,
+    enabled: enabledFromCaller = true,
+    requireHouse = false,
+  } = params;
 
-  // Chọn queryKey phù hợp với loại filter.
-  const queryKey = houseId
-    ? ([...ASSET_ITEM_KEYS.byHouse(houseId, categoryId), i18n.language] as const)
-    : ([...ASSET_ITEM_KEYS.byCategory(categoryId), i18n.language] as const);
+  const trimmed =
+    typeof houseId === "string" ? houseId.trim() : houseId != null ? String(houseId).trim() : "";
+  const hasHouse = trimmed.length > 0;
+
+  /** Idle: không gọi API; tránh coi "không có houseId" là byCategory. */
+  const queryKey = hasHouse
+    ? ([...ASSET_ITEM_KEYS.byHouse(trimmed, categoryId), i18n.language] as const)
+    : requireHouse
+      ? ([...ASSET_ITEM_KEYS.base, "idle", i18n.language] as const)
+      : ([...ASSET_ITEM_KEYS.byCategory(categoryId), i18n.language] as const);
+
+  const enabled = requireHouse ? enabledFromCaller && hasHouse : enabledFromCaller;
 
   return useQuery<AssetItemsApiResponse, unknown, AssetItemsApiResponse, readonly unknown[]>({
     queryKey,
     /** Luôn coi dữ liệu thiết bị là stale: cập nhật ngoài app (Swagger/BE) vẫn thấy sau khi refetch — không giữ cache 5 phút từ QueryClient global. */
     staleTime: 0,
+    enabled,
     queryFn: async () => {
-      if (houseId) {
-        const res = await getAssetItemsByHouseId(houseId);
+      if (requireHouse && !hasHouse) {
+        return { data: [] };
+      }
+      if (hasHouse) {
+        const res = await getAssetItemsByHouseId(trimmed);
         if (categoryId && Array.isArray(res.data)) {
           return {
             ...res,
@@ -335,14 +359,38 @@ export const useAssetItemsAllHouses = (
       retry: 1,
       /** Cùng endpoint với `useAssetItems({ houseId })` — tránh cùng queryKey nhưng queryFn khác (GET ?houseId= vs /house/:id) làm cache TanStack Query sai / trống. */
       queryFn: async () => {
-        const res = await getAssetItemsByHouseId(houseId);
-        if (categoryId && Array.isArray(res.data)) {
-          return {
-            ...res,
-            data: res.data.filter((item) => item.categoryId === categoryId),
-          };
+        const t0 = globalThis.performance?.now?.() ?? Date.now();
+        try {
+          const res = await getAssetItemsByHouseId(houseId);
+          const itemCount = Array.isArray(res.data) ? res.data.length : 0;
+          if (typeof __DEV__ !== "undefined" && __DEV__) {
+            const ms = (globalThis.performance?.now?.() ?? Date.now()) - t0;
+            // eslint-disable-next-line no-console
+            console.log("[StaffDevices] GET asset items by house OK", {
+              houseId,
+              ms: Math.round(ms),
+              itemCount,
+            });
+          }
+          if (categoryId && Array.isArray(res.data)) {
+            return {
+              ...res,
+              data: res.data.filter((item) => item.categoryId === categoryId),
+            };
+          }
+          return res;
+        } catch (err) {
+          if (typeof __DEV__ !== "undefined" && __DEV__) {
+            const ms = (globalThis.performance?.now?.() ?? Date.now()) - t0;
+            // eslint-disable-next-line no-console
+            console.log("[StaffDevices] GET asset items by house FAIL", {
+              houseId,
+              ms: Math.round(ms),
+              message: err instanceof Error ? err.message : String(err),
+            });
+          }
+          throw err;
         }
-        return res;
       },
     })),
   });
@@ -361,6 +409,29 @@ export const useAssetItemsAllHouses = (
   const isError = queries.some((q) => q.isError);
   const isRefetching = queries.some((q) => q.isRefetching);
   const refetch = () => Promise.all(queries.map((q) => q.refetch()));
+
+  /**
+   * Log dev khi cả lô query theo nhà đã kết thúc (spinner items tắt) — giúp đối chiếu với từng dòng GET ở trên.
+   */
+  const prevItemsLoading = useRef(false);
+  useEffect(() => {
+    if (typeof __DEV__ === "undefined" || !__DEV__) return;
+    if (houseIds.length === 0) {
+      prevItemsLoading.current = isLoading;
+      return;
+    }
+    if (prevItemsLoading.current && !isLoading) {
+      const errCount = queries.filter((q) => q.isError).length;
+      // eslint-disable-next-line no-console
+      console.log("[StaffDevices] all house item queries settled", {
+        houseCount: houseIds.length,
+        mergedItemCount: merged.length,
+        errorQueries: errCount,
+      });
+    }
+    prevItemsLoading.current = isLoading;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `queries` không đưa vào deps (đổi ref mỗi render); chỉ đọc khi `isLoading` vừa chuyển false.
+  }, [houseIds.length, isLoading, merged.length]);
 
   return {
     data: { data: merged } as AssetItemsApiResponse,

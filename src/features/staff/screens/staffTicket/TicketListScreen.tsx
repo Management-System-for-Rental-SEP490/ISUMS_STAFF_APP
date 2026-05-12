@@ -17,6 +17,7 @@ import { useStaffIssueTicketsPage } from "../../../../shared/hooks/useUserProfil
 import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import { useRefreshControlGate } from "../../../../shared/hooks";
 import Icons from "../../../../shared/theme/icon";
+import { useAuthStore } from "../../../../store/useAuthStore";
 
 /** Poll danh sách khi đang xem tab Ticket (không mở stack TicketDetail) — cập nhật status từ BE định kỳ. */
 const STAFF_TICKET_LIST_POLL_MS = 30_000;
@@ -89,14 +90,39 @@ export default function TicketListScreen() {
     setListPage((p) => Math.min(Math.max(1, p), ticketTotalPages));
   }, [ticketTotalPages]);
 
-  /** Theo dõi thời điểm vào màn / tab Ticket để đối chiếu với log API `[STAFF_TICKET_LIST_TIMING]`. */
+  /** Theo dõi thời điểm vào màn / tab Ticket để đối chiếu với log API `[TICKET LIST]`. */
   const ticketListMountAtRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (!__DEV__) return;
     if (!listScreenVisible) return;
     ticketListMountAtRef.current =
       typeof performance !== "undefined" ? performance.now() : Date.now();
-    console.log("[STAFF_TICKET_LIST_TIMING] TicketListScreen focused (tab visible)");
+
+    const { token, user, userId } = useAuthStore.getState();
+    let tokenDesc = "none";
+    if (token) {
+      try {
+        const b64 = token.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/") ?? "";
+        const payload = JSON.parse(
+          typeof atob === "function"
+            ? atob(b64)
+            : Buffer.from(b64, "base64").toString()
+        ) as { exp?: number };
+        if (payload.exp) {
+          const secsLeft = Math.round((payload.exp * 1000 - Date.now()) / 1000);
+          const expDesc = secsLeft > 0 ? `exp in ${secsLeft}s` : `EXPIRED ${Math.abs(secsLeft)}s ago`;
+          tokenDesc = `${token.slice(0, 14)}... (${expDesc})`;
+        } else {
+          tokenDesc = `${token.slice(0, 14)}... (no exp claim)`;
+        }
+      } catch {
+        tokenDesc = `${token.slice(0, 14)}... (decode fail)`;
+      }
+    }
+    console.log(
+      `[TICKET LIST] --- tab focused --- user=${user ?? "?"} uid=${userId ?? "?"} | ${tokenDesc}`
+    );
   }, [listScreenVisible]);
 
   useEffect(() => {
@@ -104,28 +130,38 @@ export default function TicketListScreen() {
     const mountAt = ticketListMountAtRef.current;
     const sinceFocusMs =
       mountAt != null && typeof performance !== "undefined"
-        ? performance.now() - mountAt
-        : undefined;
-    console.log("[STAFF_TICKET_LIST_TIMING] query snapshot", {
-      status,
-      fetchStatus,
-      isPending,
-      isLoading,
-      isFetching,
-      failureCount,
-      failureReason,
-      errorMessage: error instanceof Error ? error.message : String(error ?? ""),
-      ticketCount: sortedTickets.length,
-      totalElements,
-      listPage,
-      dataUpdatedAt,
-      sinceFocusMs: sinceFocusMs != null ? Math.round(sinceFocusMs) : undefined,
-    });
+        ? Math.round(performance.now() - mountAt)
+        : null;
+
+    const stateTag =
+      isPending ? "pending"
+      : isError ? "ERROR"
+      : isFetching ? "fetching"
+      : "ok";
+
+    const updatedTime =
+      dataUpdatedAt > 0
+        ? new Date(dataUpdatedAt).toLocaleTimeString("vi-VN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          })
+        : null;
+
+    const parts: string[] = [
+      `[TICKET LIST] [${stateTag}]`,
+      `fetch=${fetchStatus}`,
+      `page=${listPage}`,
+      `items=${sortedTickets.length}/${totalElements}`,
+    ];
+    if (updatedTime) parts.push(`updated=${updatedTime}`);
+    if (sinceFocusMs != null) parts.push(`+${sinceFocusMs}ms`);
+    if (failureCount > 0) parts.push(`retries=${failureCount}`);
+    if (isError) parts.push(`err=${error instanceof Error ? error.message : String(error ?? "")}`);
+
+    console.log(parts.join(" | "));
     if (isError) {
-      console.warn("[STAFF_TICKET_LIST_TIMING] danh sách ticket lỗi sau các lần thử", {
-        failureCount,
-        failureReason,
-      });
+      console.warn("[TICKET LIST] fetch failed:", { failureCount, failureReason });
     }
   }, [
     status,

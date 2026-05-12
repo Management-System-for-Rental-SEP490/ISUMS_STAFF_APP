@@ -14,18 +14,21 @@ import type {
  * Hook dùng React Query để lấy danh sách danh mục thiết bị (asset categories).
  *
  * - Dùng cho dropdown chọn loại thiết bị, thanh filter category, v.v.
- * - Dùng staleTime mặc định global; sau create/update category mutation vẫn invalidate để list cập nhật.
+ * - `options.enabled` mặc định true — tắt khi cần lazy-load (vd. màn Thiết bị chỉ fetch sau khi đã chọn chip nhà).
+ * - Sau create/update category mutation vẫn invalidate để list cập nhật.
  */
 export const ASSET_CATEGORY_KEYS = {
   /** Key gốc cho queries về asset categories. */
   all: ["assetCategories"] as const,
 };
 
-export const useAssetCategories = () => {
+export const useAssetCategories = (options?: { enabled?: boolean }) => {
   const { i18n } = useTranslation();
   return useQuery({
     queryKey: [...ASSET_CATEGORY_KEYS.all, i18n.language],
     queryFn: getAssetCategories,
+    /** Mặc định true; trường hợp màn Thiết bị: chỉ tải danh mục sau khi đã chọn chip nhà (tránh GET song song không cần thiết). */
+    enabled: options?.enabled !== false,
   });
 };
 

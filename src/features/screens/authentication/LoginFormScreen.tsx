@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -45,6 +45,8 @@ const LoginFormScreen = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  const passwordRef = useRef<TextInput>(null);
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -137,8 +139,8 @@ const LoginFormScreen = () => {
       style={[loginStyles.container, { flex: 1, paddingTop: insets.top }]}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={0}
         style={{ flex: 1 }}
       >
         <ScrollView
@@ -147,7 +149,6 @@ const LoginFormScreen = () => {
             { paddingBottom: insets.bottom + 32 },
           ]}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
           automaticallyAdjustKeyboardInsets
         >
@@ -197,6 +198,7 @@ const LoginFormScreen = () => {
                 autoComplete="username"
                 textContentType="username"
                 returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
                 style={loginFormStyles.input}
                 editable={!submitting && !googleLoading}
               />
@@ -210,6 +212,7 @@ const LoginFormScreen = () => {
                 style={loginFormStyles.leftIcon}
               />
               <TextInput
+                ref={passwordRef}
                 value={password}
                 onChangeText={(v) => {
                   setPassword(v);

@@ -220,7 +220,9 @@ export const exchangeCodeForToken = async (code: string): Promise<AuthPayload> =
 
     // --- DEBUG LOG ---
     console.log("====== KEYCLOAK TOKEN DEBUG ======");
-    console.log("Access Token nhận được từ App:", access_token);
+    console.log("access_token :", access_token);
+    console.log("refresh_token:", refresh_token);
+    console.log("id_token     :", id_token);
     const debugClaims = decodeJWT(access_token);
     console.log("Token Issuer (iss):", debugClaims?.iss);
     console.log("Token Audience (aud):", debugClaims?.aud);
@@ -302,6 +304,11 @@ export async function signInWithDirectGrant(
     refresh_token = response.data.refresh_token;
     id_token = response.data.id_token;
     console.log(`[LOGIN TIMING] ✅ Keycloak token xong: +${Date.now() - t0}ms`);
+    console.log("====== DIRECT GRANT TOKEN ======");
+    console.log("access_token :", access_token);
+    console.log("refresh_token:", refresh_token);
+    console.log("id_token     :", id_token);
+    console.log("================================");
   } catch (error: any) {
     const desc = error?.response?.data?.error_description as string | undefined;
     const code = error?.response?.data?.error as string | undefined;

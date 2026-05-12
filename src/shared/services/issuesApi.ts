@@ -5,6 +5,7 @@
  */
 import axiosClient from "../api/axiosClient";
 import { BACKEND_API_BASE } from "../api/config";
+import { useAuthStore } from "../../store/useAuthStore";
 import type {
   ApiResponse,
   CreateIssueQuoteApiResponse,
@@ -75,9 +76,30 @@ export const updateIssueTicketStatus = async (
 export const getIssueTicketDataById = async (
   ticketId: string
 ): Promise<IssueTicketFromApi | null> => {
-  const res = await getIssueTicketById(ticketId);
-  if (res?.success && res.data) return res.data;
-  return null;
+  const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
+  try {
+    const res = await getIssueTicketById(ticketId);
+    if (__DEV__) {
+      const elapsed =
+        (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
+      const ok = Boolean(res?.success && res.data);
+      console.log(
+        `[STAFF_TICKET_DETAIL_TIMING] GET issues/tickets/:id ${ok ? "OK" : "empty"} ${elapsed.toFixed(0)}ms ticketId=${String(ticketId).slice(0, 8)}…`
+      );
+    }
+    if (res?.success && res.data) return res.data;
+    return null;
+  } catch (e) {
+    if (__DEV__) {
+      const elapsed =
+        (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
+      console.warn(
+        `[STAFF_TICKET_DETAIL_TIMING] GET issues/tickets/:id FAIL sau ${elapsed.toFixed(0)}ms ticketId=${String(ticketId).slice(0, 8)}…`,
+        e
+      );
+    }
+    throw e;
+  }
 };
 
 /** Kết quả chuẩn hoá một trang danh sách ticket staff (sau GET phân trang). */
@@ -171,6 +193,15 @@ export const getIssueTicketsStaffPage = async (
   const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
   const pageIndex = Math.max(0, Math.floor(pageOneBased) - 1);
   const size = Math.max(1, Math.floor(pageSize));
+
+  if (__DEV__) {
+    const { token } = useAuthStore.getState();
+    const tokenDesc = token ? `${token.slice(0, 14)}...` : "NONE (no auth)";
+    console.log(
+      `[TICKET LIST] --> GET /issues/tickets/staff page=${pageOneBased} size=${size} | token=${tokenDesc}`
+    );
+  }
+
   try {
     const response = await axiosClient.get<unknown>(`${BACKEND_API_BASE}/issues/tickets/staff`, {
       params: { page: pageIndex, size },
@@ -180,7 +211,7 @@ export const getIssueTicketsStaffPage = async (
       const elapsed =
         (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
       console.log(
-        `[STAFF_TICKET_LIST_TIMING] GET issues/tickets/staff OK ${elapsed.toFixed(0)}ms http=${response.status} page=${pageOneBased} size=${size} items=${parsed.items.length} total=${parsed.totalElements}`
+        `[TICKET LIST] <-- GET /issues/tickets/staff ${elapsed.toFixed(0)}ms HTTP ${response.status} | ${parsed.items.length}/${parsed.totalElements} items`
       );
     }
     return parsed;
@@ -189,7 +220,7 @@ export const getIssueTicketsStaffPage = async (
       const elapsed =
         (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
       console.warn(
-        `[STAFF_TICKET_LIST_TIMING] GET issues/tickets/staff FAIL sau ${elapsed.toFixed(0)}ms page=${pageOneBased}`,
+        `[TICKET LIST] <-- GET /issues/tickets/staff FAIL ${elapsed.toFixed(0)}ms page=${pageOneBased}`,
         e
       );
     }

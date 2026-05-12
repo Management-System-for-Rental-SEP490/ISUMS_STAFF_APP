@@ -1,9 +1,9 @@
 /**
  * Màn hình danh sách thiết bị (Staff).
- * - Chỉ thiết bị thuộc nhà phụ trách (GET /assets/items/house/:id gộp).
- * - Lọc danh mục + dropdown có tìm kiếm; mở chỉnh sửa cho thiết bị trong khu vực phụ trách.
+ * - Chọn một nhà trong thẩm quyền (chips); GET /assets/items/house/:id **chỉ cho nhà đang chọn** — không gộp mọi nhà.
+ * - Dropdown có tìm kiếm + phân trang; mở chỉnh sửa cho thiết bị trong khu vực phụ trách.
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MainTabParamList, RootStackParamList } from "../../../../shared/types";
 import {
   useAssetCategories,
-  useAssetItemsAllHouses,
+  useAssetItems,
   useHouses,
   useRefreshControlGate,
   asAssetItemArray,
@@ -50,11 +50,19 @@ export default function ItemListScreen() {
   const token = useAuthStore((s) => s.token);
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
 
+  const [selectedHouseId, setSelectedHouseId] = useState<string | null>(null);
+
+  /**
+   * Chỉ tải danh mục sau khi đã có nhà được chọn (chip) — không GET categories trước khi commit nhà mặc định.
+   */
   const {
     data: categoriesData,
     refetch: refetchCategories,
     isRefetching: categoriesRefetching,
-  } = useAssetCategories();
+    isPending: categoriesPending,
+  } = useAssetCategories({
+    enabled: isLoggedIn && Boolean(token) && Boolean(selectedHouseId),
+  });
   const categories = categoriesData?.data ?? [];
 
   const {
@@ -68,12 +76,18 @@ export default function ItemListScreen() {
     () => new Set(staffHouses.map((h: HouseFromApi) => h.id).filter(Boolean)),
     [staffHouses]
   );
-  const staffHouseIds = useMemo(
-    () => staffHouses.map((h: HouseFromApi) => h.id).filter(Boolean),
+
+  /** Nhà sắp xếp theo tên — thứ tự chips cố định, mặc định nhà đầu danh sách này. */
+  const staffHousesSorted = useMemo(
+    () =>
+      [...staffHouses]
+        .filter((h: HouseFromApi) => Boolean(h?.id))
+        .sort((a, b) =>
+          (a.name ?? "").localeCompare(b.name ?? "", undefined, { sensitivity: "base" })
+        ),
     [staffHouses]
   );
 
-  /** Chỉ cần nhà từ `useHouses` — mọi thiết bị list đều theo `staffHouseIds`; bỏ GET /houses toàn hệ thống (tiết kiệm 1 request mỗi lần vào màn). */
   const houseById = useMemo(() => {
     const map = new Map<string, HouseFromApi>();
     for (const h of staffHouses) {
@@ -82,88 +96,106 @@ export default function ItemListScreen() {
     return map;
   }, [staffHouses]);
 
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  /**
+   * Đồng bộ nhà đang chọn với danh sách nhà từ API: mặc định nhà đầu (đã sort);
+   * giữ lựa chọn cũ nếu vẫn còn trong danh sách.
+   *
+   * `useAssetItems` chỉ bật khi `selectedHouseId !== null` — không fetch asset theo fallback nhà đầu
+   * trước khi state chip được gán; đổi sang nhà khác thì query key đổi → chỉ tải đúng nhà đó (cache RQ giữ lại khi quay lại chip cũ).
+   */
+  useEffect(() => {
+    if (staffHousesSorted.length === 0) {
+      setSelectedHouseId(null);
+      return;
+    }
+    setSelectedHouseId((prev) => {
+      if (prev && staffHousesSorted.some((h) => h.id === prev)) return prev;
+      return staffHousesSorted[0]!.id;
+    });
+  }, [staffHousesSorted]);
+
   /** Mỗi lần vào màn (focus) tăng để DropdownBox luôn mở panel danh sách — kể cả khi tab giữ component mounted. */
   const [itemListDropdownExpandSig, setItemListDropdownExpandSig] = useState(0);
 
-  /**
-   * Luôn tải thiết bị theo nhà không gắn `selectedCategoryId` vào query key —
-   * nếu truyền category vào hook, đổi chip danh mục làm TanStack Query coi là query mới (`isLoading` → màn loading).
-   * Lọc theo danh mục chỉ trong `categoryFilteredRows` (client, dữ liệu đã có).
-   */
+  const housesListReady = !housesPending && staffHouses.length > 0;
+  /** Khoảng khắc sau khi có danh sách nhà nhưng effect chưa gán nhà mặc định — che spinner, không fetch asset/categories. */
+  const selectionHydrating = housesListReady && selectedHouseId == null;
+
+  const itemsQueryEnabled =
+    isLoggedIn &&
+    Boolean(token) &&
+    housesListReady &&
+    selectedHouseId != null &&
+    staffHouseIdSet.has(selectedHouseId);
+
   const {
     data: itemsData,
-    isLoading,
+    isLoading: itemsLoading,
     isError,
     refetch,
     isRefetching: itemsRefetching,
-  } = useAssetItemsAllHouses(staffHouseIds, null);
+  } = useAssetItems({
+    houseId: selectedHouseId ?? "",
+    categoryId: null,
+    requireHouse: true,
+    enabled: itemsQueryEnabled,
+  });
   const rawItems: AssetItemFromApi[] = asAssetItemArray(itemsData?.data);
 
   /**
-   * Full-page loading: chờ danh sách nhà (lần đầu) trước khi gộp query theo từng nhà — tránh UI “trống” hoặc chỉ spinner overlay
-   * khi `staffHouseIds` chưa kịp có từ `useHouses`; đồng thời giữ spinner khi đang tải thiết bị (có ít nhất một nhà).
+   * Theo dõi lần đầu nhà mặc định tải xong — từ đó trở đi, chuyển chip chỉ hiện overlay trên vùng danh sách,
+   * không che toàn màn (user vẫn thấy chips và có thể chuyển lại nhà khác).
    */
+  const hasLoadedFirstHouseRef = useRef(false);
+  useEffect(() => {
+    if (!hasLoadedFirstHouseRef.current && itemsData !== undefined) {
+      hasLoadedFirstHouseRef.current = true;
+    }
+  }, [itemsData]);
+
+  /** Che toàn màn chỉ khi: đang tải nhà, chờ effect gán nhà, hoặc items của nhà đầu chưa về lần nào. */
   const showFullPageLoading =
     (isLoggedIn && Boolean(token) && housesPending) ||
-    (staffHouseIds.length > 0 && isLoading);
+    selectionHydrating ||
+    (!hasLoadedFirstHouseRef.current && itemsQueryEnabled && itemsLoading);
+
+  /** Overlay nhỏ trên vùng danh sách khi đổi chip sang nhà chưa có cache — chips vẫn hiển thị. */
+  const showHouseSwitchLoading = hasLoadedFirstHouseRef.current && itemsQueryEnabled && itemsLoading;
 
   const openCreateItem = () => {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate("ItemCreate");
   };
 
-  const sortItemsForStaff = useCallback(
+  const sortItemsInHouse = useCallback(
     (items: AssetItemFromApi[]) =>
-      [...items].sort((a, b) => {
-        const nameA = houseById.get(a.houseId)?.name ?? a.houseId;
-        const nameB = houseById.get(b.houseId)?.name ?? b.houseId;
-        if (nameA !== nameB) return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
-        return (a.displayName ?? "").localeCompare(b.displayName ?? "", undefined, { sensitivity: "base" });
-      }),
-    [houseById]
+      [...items].sort((a, b) =>
+        (a.displayName ?? "").localeCompare(b.displayName ?? "", undefined, { sensitivity: "base" })
+      ),
+    []
   );
 
-  /** Nhóm thiết bị theo category (chỉ nhà phụ trách). */
-  const itemsByCategory = useMemo(() => {
-    const map = new Map<string, AssetItemFromApi[]>();
-    for (const item of rawItems) {
-      const list = map.get(item.categoryId) ?? [];
-      list.push(item);
-      map.set(item.categoryId, list);
+  const categoryNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of categories) {
+      map.set(c.id, c.name);
     }
-    const result: { categoryId: string; categoryName: string; items: AssetItemFromApi[] }[] = [];
-    for (const cat of categories) {
-      const items = map.get(cat.id);
-      if (items?.length) {
-        result.push({ categoryId: cat.id, categoryName: cat.name, items: sortItemsForStaff(items) });
-        map.delete(cat.id);
-      }
-    }
-    for (const [categoryId, items] of map) {
-      result.push({
-        categoryId,
-        categoryName: t("staff_item_list.category_other"),
-        items: sortItemsForStaff(items),
-      });
-    }
-    return result;
-  }, [rawItems, categories, sortItemsForStaff, t]);
+    return map;
+  }, [categories]);
 
-  /** Hàng phẳng chỉ lọc theo danh mục (tìm thiết bị do DropdownBox xử lý). */
-  const categoryFilteredRows: ItemListRow[] = useMemo(() => {
-    const rows: ItemListRow[] = [];
-    for (const g of itemsByCategory) {
-      if (selectedCategoryId && g.categoryId !== selectedCategoryId) continue;
-      for (const item of g.items) {
-        rows.push({ item, categoryName: g.categoryName });
-      }
-    }
-    return rows;
-  }, [itemsByCategory, selectedCategoryId]);
+  const listRows: ItemListRow[] = useMemo(() => {
+    const sorted = sortItemsInHouse(rawItems);
+    return sorted.map((item) => ({
+      item,
+      categoryName:
+        item.category?.name ??
+        categoryNameById.get(item.categoryId) ??
+        t("staff_item_list.category_other"),
+    }));
+  }, [rawItems, sortItemsInHouse, categoryNameById, t]);
 
-  const selectedCategoryName = selectedCategoryId
-    ? categories.find((c) => c.id === selectedCategoryId)?.name ?? ""
-    : (t("staff_home.all_devices_category_all") as string);
+  const selectedHouseName = selectedHouseId
+    ? houseById.get(selectedHouseId)?.name ?? selectedHouseId
+    : "";
 
   const getHouseName = useCallback(
     (houseId: string) => houseById.get(houseId)?.name ?? houseId,
@@ -186,7 +218,7 @@ export default function ItemListScreen() {
   );
 
   /**
-   * Một thiết bị (trong nhà được phân công staff) → mục `DropdownBox` chi tiết thẻ;
+   * Một thiết bị → mục `DropdownBox` chi tiết thẻ;
    * tái dùng cho lọc tìm (cùng quy tắc ô search) rồi phân trang 10/thẻ một trang.
    */
   const mapRowToDeviceDropdownItem = useCallback(
@@ -223,8 +255,8 @@ export default function ItemListScreen() {
   const [listPage, setListPage] = useState(1);
 
   const deviceItemsFull = useMemo(
-    () => categoryFilteredRows.map(mapRowToDeviceDropdownItem),
-    [categoryFilteredRows, mapRowToDeviceDropdownItem]
+    () => listRows.map(mapRowToDeviceDropdownItem),
+    [listRows, mapRowToDeviceDropdownItem]
   );
 
   const devicesAfterSearch = useMemo(
@@ -241,15 +273,15 @@ export default function ItemListScreen() {
 
   useEffect(() => {
     setListPage(1);
-  }, [selectedCategoryId, deviceListSearchQuery, categoryFilteredRows.length]);
+  }, [selectedHouseId, deviceListSearchQuery, listRows.length]);
 
   const listCombinedSections: DropdownBoxSection[] = useMemo(() => {
-    const categorySection: DropdownBoxSection = {
-      id: "category",
-      title: t("staff_item_list.filter_category_label"),
-      items: categories.map((cat) => ({ id: cat.id, label: cat.name })),
-      selectedId: selectedCategoryId,
-      showAllOption: true,
+    const houseSection: DropdownBoxSection = {
+      id: "house",
+      title: t("staff_item_list.filter_house_label"),
+      items: staffHousesSorted.map((h) => ({ id: h.id, label: h.name ?? h.id })),
+      selectedId: selectedHouseId,
+      showAllOption: false,
       itemLayout: "chips",
     };
     const deviceSection: DropdownBoxSection = {
@@ -260,17 +292,17 @@ export default function ItemListScreen() {
       showAllOption: false,
       itemLayout: "card",
     };
-    return [categorySection, deviceSection];
-  }, [categories, deviceItemsPaged, selectedCategoryId, t]);
+    return [houseSection, deviceSection];
+  }, [staffHousesSorted, deviceItemsPaged, selectedHouseId, t]);
 
   const onListCombinedSelect = useCallback(
     (sectionId: string, itemId: string | null) => {
-      if (sectionId === "category") {
-        setSelectedCategoryId(itemId);
+      if (sectionId === "house") {
+        if (itemId && staffHouseIdSet.has(itemId)) setSelectedHouseId(itemId);
         return;
       }
       if (sectionId !== "device" || !itemId) return;
-      const row = categoryFilteredRows.find((r) => r.item.id === itemId);
+      const row = listRows.find((r) => r.item.id === itemId);
       if (!row) return;
       if (staffHouseIdSet.has(row.item.houseId)) {
         navigation
@@ -282,7 +314,7 @@ export default function ItemListScreen() {
           ?.navigate("ItemDescription", { item: row.item, hideEdit: true });
       }
     },
-    [categoryFilteredRows, navigation, staffHouseIdSet]
+    [listRows, navigation, staffHouseIdSet]
   );
 
   const staffTabHeader = (
@@ -293,7 +325,7 @@ export default function ItemListScreen() {
     />
   );
 
-  const listRefreshing = housesRefetching || categoriesRefetching || itemsRefetching;
+  const listRefreshing = housesRefetching || categoriesRefetching || itemsRefetching || showHouseSwitchLoading;
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
   const onPullRefresh = useCallback(() => {
     return Promise.all([refetchHouses(), refetchCategories(), refetch()]);
@@ -309,12 +341,74 @@ export default function ItemListScreen() {
     }, [])
   );
 
+  useEffect(() => {
+    if (typeof __DEV__ === "undefined" || !__DEV__) return;
+    // eslint-disable-next-line no-console
+    console.log("[StaffDevices] ItemListScreen state", {
+      housesPending,
+      houseCount: staffHousesSorted.length,
+      selectedHouseId,
+      itemsQueryLoading: itemsLoading,
+      showFullPageLoading,
+      showHouseSwitchLoading,
+      rawItemCount: rawItems.length,
+      isError,
+    });
+  }, [
+    housesPending,
+    staffHousesSorted.length,
+    selectedHouseId,
+    itemsLoading,
+    showFullPageLoading,
+    showHouseSwitchLoading,
+    rawItems.length,
+    isError,
+  ]);
+
   if (showFullPageLoading) {
     return (
       <View style={itemScreenStyles.container}>
         {staffTabHeader}
         <View style={{ flex: 1, position: "relative" }}>
           <RefreshLogoOverlay visible mode="page" labelKey="home.loading_data" />
+        </View>
+        <StaffScreenActionFab
+          insetAboveTabBar
+          onPress={openCreateItem}
+          accessibilityLabel={t("staff_home.add_menu_create_device")}
+        />
+      </View>
+    );
+  }
+
+  if (!housesPending && isLoggedIn && Boolean(token) && staffHouses.length === 0) {
+    return (
+      <View style={itemScreenStyles.container}>
+        {staffTabHeader}
+        <View style={{ flex: 1, position: "relative" }}>
+          <RefreshLogoOverlay visible={listRefreshing} />
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={[
+              itemScreenStyles.scrollContent,
+              {
+                flexGrow: 1,
+                justifyContent: "center",
+                paddingBottom: 24 + insets.bottom + 72,
+              },
+            ]}
+            onScroll={onScrollForRefreshGate}
+            scrollEventThrottle={16}
+            refreshControl={
+              <PullToRefreshControl
+                refreshing={listRefreshing}
+                onRefresh={onPullRefresh}
+                scrollAtTop={scrollAtTop}
+              />
+            }
+          >
+            <Text style={itemScreenStyles.emptyText}>{t("staff_item_list.no_houses_assigned")}</Text>
+          </ScrollView>
         </View>
         <StaffScreenActionFab
           insetAboveTabBar
@@ -393,7 +487,7 @@ export default function ItemListScreen() {
           <View style={itemScreenStyles.filterWrap}>
           <DropdownBox
             sections={listCombinedSections}
-            summary={`${t("staff_item_list.filter_category_label")}: ${selectedCategoryName}`}
+            summary={`${t("staff_item_list.filter_house_label")}: ${selectedHouseName}`}
             onSelect={onListCombinedSelect}
             onSearchChange={setDeviceListSearchQuery}
             sectionsExcludedFromSearch={["device"]}
@@ -402,14 +496,14 @@ export default function ItemListScreen() {
             searchAutoFocus={false}
             defaultExpanded
             expandSignal={itemListDropdownExpandSig}
-            stayExpandedOnSelectForSections={["category"]}
+            stayExpandedOnSelectForSections={["house"]}
             itemLayout="chips"
             resultsMaxHeight={560}
             resultsHeightRatio={0.66}
           />
         </View>
 
-        {categoryFilteredRows.length === 0 ? (
+        {!showHouseSwitchLoading && listRows.length === 0 ? (
           <Text style={itemScreenStyles.emptyText}>{t("staff_item_list.empty")}</Text>
         ) : null}
 
