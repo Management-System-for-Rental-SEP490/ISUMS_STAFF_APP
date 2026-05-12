@@ -132,11 +132,9 @@ const Header = ({
   const greetingLine =
     greetingKey != null ? t(greetingKey, { name: displayWelcomeName }) : "";
 
-  const statusBarBg = variant === "water" ? waterHeaderGradient[0] : brandGradient[0];
-
   return (
     <View style={headerStyles.container}>
-      <StatusBar barStyle="light-content" translucent={false} backgroundColor={statusBarBg} />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <LinearGradient
         colors={gradientMaps[variant]}
         start={{ x: 0, y: 0 }}
