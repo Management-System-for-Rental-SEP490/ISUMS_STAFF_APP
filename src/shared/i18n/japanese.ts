@@ -192,8 +192,12 @@ export default {
         "add_menu_assign_nfc": "NFCを割り当て",
         "add_menu_assign_qr": "QRコードを割り当て",
         "house_picker_collapsed": "担当建物 · {{count}}件",
+        "house_picker_not_loaded": "タップして建物一覧を表示",
         "house_picker_search_placeholder": "タップして名前・住所で検索…",
-        "house_picker_device_prefix": "デバイス数:"
+        "house_picker_device_prefix": "デバイス数:",
+        "region_section_title": "エリア",
+        "all_regions": "すべて",
+        "no_houses_in_region": "このエリアに建物はありません"
     },
     "staff_category": {
         "title": "資産カテゴリを作成",

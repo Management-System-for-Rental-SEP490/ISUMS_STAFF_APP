@@ -2,7 +2,7 @@
  * Màn hình Home dành cho Staff (technical).
  * Tóm tắt việc hôm nay & ngày mai + nhà thuộc thẩm quyền + thao tác nhanh + chân trang.
  */
-import React, { useMemo, useCallback, useRef, useEffect } from "react";
+import React, { useMemo, useCallback, useRef, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -37,6 +37,7 @@ import { getWorkSlotVisual } from "../../data/workSlotTheme";
 import { useStaffSchedule } from "../../context/StaffScheduleContext"; // context lịch đã lấy dữ liệu thật từ BE
 import {
   useHouses,
+  useRegionsForStaff,
   useAssetItemsAllHouses,
   useRefreshControlGate,
   asAssetItemArray,
@@ -118,17 +119,25 @@ export default function StaffHomeScreen() {
   const { workSlots } = useStaffSchedule();
   const invalidateScheduleRelated = useInvalidateScheduleRelatedQueries();
 
-  // React Query: nhà theo region của staff (regions/staff → houses/region/{id}), qua useHouses.
-  const { data, isLoading, isError, refetch, isRefetching: housesRefetching, isStale } = useHouses();
+  /**
+   * Latch: một khi dropdown đã mở lần đầu, giữ `true` để query không bị disable lại
+   * khi dropdown đóng (dữ liệu vẫn được cache và dùng cho lần mở tiếp theo).
+   */
+  const [houseDropdownActivated, setHouseDropdownActivated] = useState(false);
+  /** Chip khu vực đang chọn để lọc danh sách nhà trong dropdown. `null` = tất cả. */
+  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
+
+  // Lazy: chỉ fetch nhà và khu vực khi dropdown được mở lần đầu.
+  const { data, isLoading: housesLoading, isError, refetch, isRefetching: housesRefetching, isStale } = useHouses({ enabled: houseDropdownActivated });
+  const { data: regionsData } = useRegionsForStaff({ enabled: houseDropdownActivated });
 
   useFocusEffect(
     useCallback(() => {
       invalidateScheduleRelated();
-      if (isStale) void refetch();
-    }, [invalidateScheduleRelated, isStale, refetch])
+      if (houseDropdownActivated && isStale) void refetch();
+    }, [invalidateScheduleRelated, isStale, refetch, houseDropdownActivated])
   );
   const buildings: HouseFromApi[] = data?.data ?? [];
-  const loading = isLoading;
 
   const openBuildingDetail = useCallback(
     (house: HouseFromApi) => {
@@ -270,6 +279,8 @@ export default function StaffHomeScreen() {
   const onHousePickerExpandedChange = useCallback(
     (expanded: boolean) => {
       if (!expanded) return;
+      // Kích hoạt lazy load lần đầu khi dropdown được mở.
+      setHouseDropdownActivated(true);
       scrollHousePickerShellIntoView();
     },
     [scrollHousePickerShellIntoView]
@@ -336,50 +347,82 @@ export default function StaffHomeScreen() {
   }, [rawItems]);
 
   const housePickerSections = useMemo((): DropdownBoxSection[] => {
-    if (buildings.length === 0) return [];
-    return [
-      {
-        id: "house",
-        title: t("dropdown_box.section_house"),
-        itemLayout: "card",
-        items: buildings.map((b) => {
-          const addrLine = [b.address, b.ward, b.commune, b.city].filter(Boolean).join(" · ");
-          const count = itemCountByHouseId.get(b.id) ?? 0;
-          return {
-            id: b.id,
-            label: b.name,
-            detail: [b.name, addrLine].filter(Boolean).join(" · "),
-            cardMeta: addrLine || undefined,
-            cardFooter: `${t("staff_home.house_picker_device_prefix")} ${count}`,
-          };
-        }),
-        selectedId: null,
-        showAllOption: false,
-      },
-    ];
-  }, [buildings, itemCountByHouseId, t]);
+    // Section chips khu vực — chỉ render nếu có ít nhất 2 khu vực (1 khu vực thì chip lọc vô nghĩa).
+    const regionSection: DropdownBoxSection | null =
+      regionsData && regionsData.length >= 2
+        ? {
+            id: "region",
+            title: t("staff_home.region_section_title"),
+            itemLayout: "chips",
+            items: regionsData.map((r) => ({ id: r.id, label: r.name })),
+            selectedId: selectedRegionId,
+            showAllOption: true,
+            allLabel: t("staff_home.all_regions"),
+          }
+        : null;
 
-  const housePickerCollapsedSummary = useMemo(
-    () => t("staff_home.house_picker_collapsed", { count: buildings.length }),
-    [buildings.length, t]
-  );
+    // Lọc nhà theo chip đang chọn; nếu chưa chọn chip nào thì hiện tất cả.
+    const filteredBuildings = selectedRegionId
+      ? buildings.filter((b) => b.regionId === selectedRegionId)
+      : buildings;
+
+    const houseSection: DropdownBoxSection = {
+      id: "house",
+      title: t("dropdown_box.section_house"),
+      itemLayout: "card",
+      items: filteredBuildings.map((b) => {
+        const addrLine = [b.address, b.ward, b.commune, b.city].filter(Boolean).join(" · ");
+        const count = itemCountByHouseId.get(b.id) ?? 0;
+        return {
+          id: b.id,
+          label: b.name,
+          detail: [b.name, addrLine].filter(Boolean).join(" · "),
+          cardMeta: addrLine || undefined,
+          cardFooter: `${t("staff_home.house_picker_device_prefix")} ${count}`,
+        };
+      }),
+      selectedId: null,
+      showAllOption: false,
+      keepEmpty: true,
+      emptyHint: housesLoading
+        ? t("common.loading")
+        : t("staff_home.no_houses_in_region"),
+    };
+
+    return regionSection ? [regionSection, houseSection] : [houseSection];
+  }, [buildings, regionsData, selectedRegionId, housesLoading, itemCountByHouseId, t]);
+
+  const housePickerCollapsedSummary = useMemo(() => {
+    if (!houseDropdownActivated || housesLoading) {
+      return t("staff_home.house_picker_not_loaded");
+    }
+    return t("staff_home.house_picker_collapsed", { count: buildings.length });
+  }, [houseDropdownActivated, housesLoading, buildings.length, t]);
 
   const onHousePickerSelect = useCallback(
     (sectionId: string, itemId: string | null) => {
-      if (sectionId !== "house" || itemId == null) return;
-      const house = buildings.find((b) => b.id === itemId);
-      if (house) openBuildingDetail(house);
+      if (sectionId === "region") {
+        // Chip khu vực: cập nhật bộ lọc, không đóng dropdown.
+        setSelectedRegionId(itemId);
+        return;
+      }
+      if (sectionId === "house" && itemId != null) {
+        const house = buildings.find((b) => b.id === itemId);
+        if (house) openBuildingDetail(house);
+      }
     },
     [buildings, openBuildingDetail]
   );
 
-  const listRefreshing = housesRefetching || itemsRefetching;
+  const listRefreshing = (houseDropdownActivated && housesRefetching) || itemsRefetching;
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
 
   const onPullRefresh = useCallback(async () => {
     invalidateScheduleRelated();
-    await Promise.all([refetch(), refetchAllItems()]);
-  }, [invalidateScheduleRelated, refetch, refetchAllItems]);
+    if (houseDropdownActivated) {
+      await Promise.all([refetch(), refetchAllItems()]);
+    }
+  }, [invalidateScheduleRelated, refetch, refetchAllItems, houseDropdownActivated]);
 
   // Tóm tắt lịch trên Home: chỉ **hôm nay và ngày mai** (so khóa DD/MM trùng workSlotUtils).
   // Chỉ ca đã có ticketId; sắp xếp theo thứ rồi khung giờ.
@@ -421,11 +464,8 @@ export default function StaffHomeScreen() {
   }, [sortedSchedule]);
 
   const renderScheduleSlotRow = (item: WorkSlot, isLastOverall: boolean) => {
-    const houseName =
-      (item.houseId && buildings.find((b) => b.id === item.houseId)?.name) ||
-      item.buildingName ||
-      "";
     const visual = getWorkSlotVisual(item.slotType);
+    const taskLabel = item.taskKey ? t(item.taskKey) : item.task;
     return (
       <TouchableOpacity
         key={item.id}
@@ -444,15 +484,14 @@ export default function StaffHomeScreen() {
         onPress={() => navigateToWorkSlot(item)}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel={`${DAY_LABELS[item.dayOfWeek] ?? ""} ${item.date} ${item.timeRange}, ${houseName}`}
+        accessibilityLabel={`${DAY_LABELS[item.dayOfWeek] ?? ""} ${item.date} ${item.timeRange}, ${taskLabel}`}
       >
         <Text style={staffHomeStyles.scheduleCellTimeOnly}>{item.timeRange}</Text>
-        <Text style={staffHomeStyles.scheduleCellBuilding}>{houseName}</Text>
         <Text
           style={[staffHomeStyles.scheduleCellTask, { color: visual.accent, fontWeight: "700" }]}
           numberOfLines={3}
         >
-          {item.taskKey ? t(item.taskKey) : item.task}
+          {taskLabel}
         </Text>
       </TouchableOpacity>
     );
@@ -490,9 +529,6 @@ export default function StaffHomeScreen() {
         <View style={staffHomeStyles.scheduleTableHeader}>
           <Text style={staffHomeStyles.scheduleColTime}>
             {t("staff_home.schedule_col_time")}
-          </Text>
-          <Text style={staffHomeStyles.scheduleColBuilding}>
-            {t("staff_home.schedule_col_building")}
           </Text>
           <Text style={staffHomeStyles.scheduleColTask}>
             {t("staff_home.schedule_col_task")}
@@ -554,18 +590,20 @@ export default function StaffHomeScreen() {
             }}
           >
             <DropdownBox
-            sections={housePickerSections}
-            summary={housePickerCollapsedSummary}
-            onSelect={onHousePickerSelect}
-            style={{ marginBottom: 0 }}
-            itemLayout="card"
-            searchAutoFocus={false}
-            searchPlaceholder={t("staff_home.house_picker_search_placeholder")}
-            onSearchInputFocus={scrollHousePickerIntoView}
-            onExpandedChange={onHousePickerExpandedChange}
-            triggerAccent
-            keyboardAvoiding={false}
-          />
+              sections={housePickerSections}
+              summary={housePickerCollapsedSummary}
+              onSelect={onHousePickerSelect}
+              style={{ marginBottom: 0 }}
+              itemLayout="card"
+              searchAutoFocus={false}
+              searchPlaceholder={t("staff_home.house_picker_search_placeholder")}
+              onSearchInputFocus={scrollHousePickerIntoView}
+              onExpandedChange={onHousePickerExpandedChange}
+              stayExpandedOnSelectForSections={["region"]}
+              sectionsExcludedFromSearch={["region"]}
+              triggerAccent
+              keyboardAvoiding={false}
+            />
           </View>
         ) : null}
       </View>
@@ -687,24 +725,6 @@ export default function StaffHomeScreen() {
       </View>
     </View>
   );
-
-  if (loading) {
-    return (
-      <View style={staffHomeStyles.container}>
-        <Header
-          variant="default"
-          staffTabWelcome
-          showActionButton
-          actionIcon="notification"
-          onActionPress={openStaffNotifications}
-          actionAccessibilityLabel={t("profile.notifications")}
-        />
-        <View style={[staffHomeStyles.loadingContainer, { position: "relative" }]}>
-          <RefreshLogoOverlay visible mode="page" labelKey="home.loading_data" />
-        </View>
-      </View>
-    );
-  }
 
   if (isError) {
     return (

@@ -14,7 +14,7 @@ import { ticketListStyles } from "./ticketListStyles";
 import { brandPrimary, brandSecondary, neutral } from "../../../../shared/theme/color";
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
 import { formatStaffTicketListCreatedAt, getTotalPages, slicePage } from "../../../../shared/utils";
-import { ASSET_ITEM_KEYS, useAssetItems } from "../../../../shared/hooks/useAssetItems";
+import { ASSET_ITEM_KEYS } from "../../../../shared/hooks/useAssetItems";
 import { getAssetItemById } from "../../../../shared/services/assetItemApi";
 import { useHouses } from "../../../../shared/hooks/useHouses";
 import { useStaffIssueTickets } from "../../../../shared/hooks/useUserProfile";
@@ -62,7 +62,6 @@ export default function TicketListScreen() {
   /** Chỉ bật spinner/overlay khi user kéo refresh — refetch theo chu kỳ hoặc khi focus tab là im lặng. */
   const [pullRefreshing, setPullRefreshing] = useState(false);
   const { data: housesRes } = useHouses();
-  const { data: assetsRes } = useAssetItems();
 
   const houseNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -72,44 +71,6 @@ export default function TicketListScreen() {
     });
     return map;
   }, [housesRes?.data]);
-
-  const assetNameByIdFromList = useMemo(() => {
-    const map = new Map<string, string>();
-    const assets = Array.isArray(assetsRes?.data) ? assetsRes.data : [];
-    assets.forEach((asset) => {
-      map.set(asset.id, asset.displayName);
-    });
-    return map;
-  }, [assetsRes?.data]);
-
-  const assetIdsNeedingDetailFetch = useMemo(() => {
-    const ids = new Set<string>();
-    const tickets = Array.isArray(ticketsData) ? ticketsData : [];
-    tickets.forEach((ticket) => {
-      const id = String(ticket.assetId ?? "").trim();
-      if (id && !assetNameByIdFromList.has(id)) ids.add(id);
-    });
-    return Array.from(ids);
-  }, [ticketsData, assetNameByIdFromList]);
-
-  const assetDetailQueries = useQueries({
-    queries: assetIdsNeedingDetailFetch.map((assetId) => ({
-      queryKey: ASSET_ITEM_KEYS.byId(assetId),
-      queryFn: async () => (await getAssetItemById(assetId)) ?? null,
-      enabled: Boolean(assetId),
-      staleTime: 5 * 60 * 1000,
-    })),
-  });
-
-  const assetNameById = useMemo(() => {
-    const map = new Map(assetNameByIdFromList);
-    assetIdsNeedingDetailFetch.forEach((id, index) => {
-      const row = assetDetailQueries[index]?.data;
-      const name = row?.displayName?.trim();
-      if (name) map.set(id, name);
-    });
-    return map;
-  }, [assetNameByIdFromList, assetIdsNeedingDetailFetch, assetDetailQueries]);
 
   const sortedTickets = useMemo(() => {
     return [...ticketsData].sort((a, b) => {
@@ -121,6 +82,35 @@ export default function TicketListScreen() {
   const [listPage, setListPage] = useState(1);
   const ticketTotalPages = getTotalPages(sortedTickets.length);
   const pagedTickets = useMemo(() => slicePage(sortedTickets, listPage), [sortedTickets, listPage]);
+
+  /** Chỉ assetId trên trang hiện tại — tránh GET toàn bộ catalog + N+1 trên cả danh sách. */
+  const assetIdsNeedingDetailFetch = useMemo(() => {
+    const ids = new Set<string>();
+    pagedTickets.forEach((ticket) => {
+      const id = String(ticket.assetId ?? "").trim();
+      if (id) ids.add(id);
+    });
+    return Array.from(ids);
+  }, [pagedTickets]);
+
+  const assetDetailQueries = useQueries({
+    queries: assetIdsNeedingDetailFetch.map((assetId) => ({
+      queryKey: ASSET_ITEM_KEYS.byId(assetId),
+      queryFn: async () => (await getAssetItemById(assetId)) ?? null,
+      enabled: Boolean(assetId),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+
+  const assetNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    assetIdsNeedingDetailFetch.forEach((id, index) => {
+      const row = assetDetailQueries[index]?.data;
+      const name = row?.displayName?.trim();
+      if (name) map.set(id, name);
+    });
+    return map;
+  }, [assetIdsNeedingDetailFetch, assetDetailQueries]);
 
   const summary = useMemo(() => {
     const total = sortedTickets.length;

@@ -211,12 +211,16 @@ export type AuthPayload = {
   username: string;
   role: UserRole;
   token: string;
-  idToken?: string; // Thêm idToken để dùng cho logout
-  // refreshToken là một chuỗi (string) được sử dụng để lấy lại (làm mới) access token khi access token hết hạn. 
-  // Nó giúp người dùng không cần đăng nhập lại mỗi khi phiên làm việc (session) bị timeout.
+  idToken?: string;
   refreshToken?: string;
   /** ID căn nhà mà user (tenant) đang thuê. */
   houseId?: string;
+  /**
+   * ID nội bộ của user trong BE (GET /api/users/me → data.id).
+   * Khác với JWT `sub` — dùng để gọi các API scope theo staffId (regions, work slots...).
+   * Cache lại lúc đăng nhập để tránh gọi lại GET /users/me khi vào Home.
+   */
+  userId?: string;
 };
 
 /** Phiên WebView Keycloak toàn cục (đổi MK / sau này logout-account), giống overlay đăng nhập. */
@@ -229,12 +233,17 @@ export type AuthState = {
   user: string | null;
   role: UserRole | null;
   token: string | null;
-  idToken: string | null; // Thêm vào state
+  idToken: string | null;
   refreshToken: string | null;
   /** ID căn nhà của tenant (nếu có). */
   houseId: string | null;
+  /**
+   * ID nội bộ BE (GET /api/users/me → data.id), cache lúc đăng nhập.
+   * Dùng để bỏ qua bước GET /users/me khi vào Home.
+   */
+  userId: string | null;
   isLoggedIn: boolean;
-  onboardedUsers: string[]; // Danh sách username đã xem onboarding
+  onboardedUsers: string[];
   keycloakInAppSession: KeycloakInAppSession | null;
   setKeycloakInAppSession: (s: KeycloakInAppSession | null) => void;
   /**
@@ -244,7 +253,7 @@ export type AuthState = {
   setLogoutUiLocked: (locked: boolean) => void;
   login: (data: AuthPayload) => void;
   logout: () => void;
-  completeOnboarding: () => void; // Hàm xác nhận user hiện tại đã xem xong
+  completeOnboarding: () => void;
   setHouseId: (id: string | null) => void;
 };
 export type RegisterState = {

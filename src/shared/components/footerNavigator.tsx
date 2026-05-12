@@ -4,7 +4,11 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Icons from "../theme/icon";
 import { IconProps, MainTabParamList, RootStackParamList } from "../types";
-import { NavigationProp, RouteProp } from "@react-navigation/native";
+import {
+  getFocusedRouteNameFromRoute,
+  NavigationProp,
+  RouteProp,
+} from "@react-navigation/native";
 import UserProfileScreen from "../../features/screens/user/UserProfileScreen";
 import { iconStyles } from "../styles/iconStyles";
 import footerStyles from "../styles/footerStyles";
@@ -82,6 +86,8 @@ const createScreenOptions = (bottomInset: number) => ({
   route: RouteProp<MainTabParamList, keyof MainTabParamList>;
 }) => ({
   headerShown: false,
+  /** Chỉ mount màn tab khi user vào tab lần đầu — giảm GET ban đầu (Ticket, Devices…). */
+  lazy: true,
   tabBarActiveTintColor: brandPrimary,
   tabBarInactiveTintColor: "#9ca3af",
   tabBarStyle: [
@@ -215,12 +221,19 @@ const CalendarTabListener = ({
 //   </Tab.Navigator>
 // );
 
-/** Tab Navigator cho Staff: Home (lịch + asset), Calendar, Ticket, Thiết bị (danh sách), Profile */
-export const StaffTabs = () => {
+type MainStackRouteProp = RouteProp<RootStackParamList, "Main">;
+
+/**
+ * Tab Staff: `route` từ Stack `Main` để biết tab con đang focus — bật query enrich work slots
+ * chỉ khi Calendar hoặc Dashboard (tránh 1+N+M request khi đứng ở Ticket/Profile/Devices).
+ */
+export const StaffTabs = ({ route }: { route: MainStackRouteProp }) => {
   const { t } = useTranslation(); // Trigger re-render khi đổi ngôn ngữ
   const insets = useSafeAreaInsets();
+  const focusedTab = getFocusedRouteNameFromRoute(route) ?? "Dashboard";
+  const workSlotsQueryEnabled = focusedTab === "Calendar" || focusedTab === "Dashboard";
   return (
-    <StaffScheduleProvider>
+    <StaffScheduleProvider workSlotsQueryEnabled={workSlotsQueryEnabled}>
       <Tab.Navigator screenOptions={createScreenOptions(insets.bottom)} initialRouteName="Dashboard">
         <Tab.Screen name="Ticket" component={TicketListScreen} />
         <Tab.Screen

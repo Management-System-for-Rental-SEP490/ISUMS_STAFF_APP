@@ -41,16 +41,17 @@ import { StaffScheduleProvider } from "../features/staff/context/StaffScheduleCo
 import KeycloakChangePasswordWebViewOverlay from "../shared/components/KeycloakChangePasswordWebViewOverlay";
 import { useNotificationDeviceTokenLifecycle } from "../shared/hooks/useNotificationDeviceTokenLifecycle";
 import { POST_LOGIN_QUERY_INVALIDATE_DELAY_MS } from "../shared/api/config";
+import { invalidatePostLoginStaffDomainCaches } from "../features/staff/hooks/useStaffScheduleData";
 
 // Wrapper components để bọc Provider cho các screen cần useStaffSchedule
 const BuildingDetailScreenWrapper = () => (
-  <StaffScheduleProvider>
+  <StaffScheduleProvider workSlotsQueryEnabled={false}>
     <BuildingDetailScreen />
   </StaffScheduleProvider>
 );
 
 const TicketDetailScreenWrapper = () => (
-  <StaffScheduleProvider>
+  <StaffScheduleProvider workSlotsQueryEnabled={false}>
     <TicketDetailScreen />
   </StaffScheduleProvider>
 );
@@ -123,7 +124,7 @@ const Navigation = () => {
     lastReadyLoggedInRef.current = isLoggedIn;
     if (prev !== false || !isLoggedIn) return;
     const id = setTimeout(() => {
-      queryClient.invalidateQueries();
+      void invalidatePostLoginStaffDomainCaches(queryClient);
     }, POST_LOGIN_QUERY_INVALIDATE_DELAY_MS);
     return () => clearTimeout(id);
   }, [isReady, isLoggedIn, queryClient]);

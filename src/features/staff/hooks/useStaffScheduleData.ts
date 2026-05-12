@@ -2,6 +2,7 @@
  * React Query cho mẫu lịch + work slots (enrich). Đồng bộ lại khi app active / mạng trở lại (refetchOnWindowFocus, refetchOnReconnect).
  */
 import { useCallback } from "react";
+import type { QueryClient } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getCurrentScheduleTemplate,
@@ -14,7 +15,10 @@ import {
   mergeGeneratedWorkSlotsDays,
 } from "../../../shared/utils";
 import { STAFF_LEAVE_KEYS } from "../../../shared/hooks/useStaffLeave";
-import { fetchEnrichedWorkSlotsForStaff } from "../data/workSlotEnrichment";
+import { ASSET_ITEM_KEYS } from "../../../shared/hooks/useAssetItems";
+import { HOUSES_KEYS } from "../../../shared/hooks/useHouses";
+import { ISSUE_TICKET_KEYS, USER_KEYS } from "../../../shared/hooks/useUserProfile";
+import { fetchRawWorkSlotsForStaff } from "../data/workSlotEnrichment";
 import type {
   GeneratedWorkSlotsDayFromApi,
   ScheduleTemplateData,
@@ -50,14 +54,90 @@ export function useScheduleTemplateQuery(dateYmd: string) {
   });
 }
 
-export function useEnrichedWorkSlotsQuery() {
+export type UseEnrichedWorkSlotsQueryOptions = {
+  /**
+   * Khi false: query không chạy. Dùng khi tab Staff không cần lịch (Ticket/Devices/Profile).
+   */
+  enabled?: boolean;
+};
+
+/**
+ * Work slots của staff — chỉ 1 request, không enrich.
+ * Home (bảng tóm tắt) và Calendar chỉ cần `jobType`, `startTime`, `endTime`.
+ * WorkSlotDetailScreen tự fetch dữ liệu chi tiết khi cần.
+ */
+export function useEnrichedWorkSlotsQuery(options?: UseEnrichedWorkSlotsQueryOptions) {
   const staffId = getStaffIdForSchedule();
+  const enabled = options?.enabled !== false;
   return useQuery({
     queryKey: SCHEDULE_DATA_KEYS.workSlots(staffId),
-    queryFn: () => fetchEnrichedWorkSlotsForStaff(staffId),
-    enabled: Boolean(staffId),
+    queryFn: () => fetchRawWorkSlotsForStaff(staffId),
+    enabled: Boolean(staffId) && enabled,
     ...scheduleQueryDefaults,
   });
+}
+
+export type InvalidateStaffStatusCachesOpts = {
+  staffId: string;
+  /** GET chi tiết ticket (modal / detail). */
+  ticketId?: string;
+  /** Danh sách ticket staff — sau đổi trạng thái issue liên quan slot. */
+  issueTicketListToo?: boolean;
+  /** Khớp queryKey `useGeneratedWorkSlotsQuery` (đăng ký slot issue). */
+  generatedRange?: { startYmd: string; endYmd: string };
+};
+
+/**
+ * Sau mutation job / inspection / issue ảnh hưởng lịch: invalidate **có chừng** thay vì `SCHEDULE_DATA_KEYS.all`
+ * để Calendar/Home cập nhật nhanh mà không refetch mọi template/generatedSlots.
+ *
+ * Thứ tự: work slots (nguồn truth trạng thái ca) → optional generated range → ticket by id → list staff.
+ * `await` để màn gọi xong (vd. WorkSlot detail) có thể `getQueryData` ngay sau đó.
+ */
+export async function invalidateStaffStatusCaches(
+  queryClient: QueryClient,
+  opts: InvalidateStaffStatusCachesOpts
+): Promise<void> {
+  const tasks: Promise<unknown>[] = [
+    queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.workSlots(opts.staffId) }),
+  ];
+  if (opts.generatedRange) {
+    const { startYmd, endYmd } = opts.generatedRange;
+    tasks.push(
+      queryClient.invalidateQueries({
+        queryKey: SCHEDULE_DATA_KEYS.generatedSlots(startYmd, endYmd),
+      })
+    );
+  }
+  if (opts.ticketId?.trim()) {
+    tasks.push(
+      queryClient.invalidateQueries({ queryKey: ISSUE_TICKET_KEYS.byId(opts.ticketId.trim()) })
+    );
+  }
+  if (opts.issueTicketListToo) {
+    tasks.push(queryClient.invalidateQueries({ queryKey: ISSUE_TICKET_KEYS.byStaff() }));
+  }
+  await Promise.all(tasks);
+}
+
+const NOTIFICATION_STAFF_PREFIX = ["notifications", "app", "staff"] as const;
+
+/**
+ * Sau đăng nhập: invalidate theo domain Staff thay vì `queryClient.invalidateQueries()` không filter
+ * (tránh refetch mọi query không liên quan).
+ */
+export async function invalidatePostLoginStaffDomainCaches(
+  queryClient: QueryClient
+): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: HOUSES_KEYS.all }),
+    queryClient.invalidateQueries({ queryKey: ASSET_ITEM_KEYS.base }),
+    queryClient.invalidateQueries({ queryKey: ISSUE_TICKET_KEYS.all }),
+    queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all }),
+    queryClient.invalidateQueries({ queryKey: STAFF_LEAVE_KEYS.all }),
+    queryClient.invalidateQueries({ queryKey: USER_KEYS.all }),
+    queryClient.invalidateQueries({ queryKey: [...NOTIFICATION_STAFF_PREFIX] }),
+  ]);
 }
 
 /**
@@ -112,11 +192,17 @@ export function useGeneratedWorkSlotsQuery(
   });
 }
 
-/** Invalidate toàn bộ query lịch + leave (dùng khi vào tab Home/Calendar để BE vừa lên vẫn kéo được dữ liệu). */
+/**
+ * Khi vào tab Lịch (focus): làm mới work slots + leave — không invalidate template/generatedSlots
+ * để tránh bão refetch không cần cho thẻ slot trên lịch.
+ */
 export function useInvalidateScheduleRelatedQueries() {
   const queryClient = useQueryClient();
   return useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
+    const staffId = getStaffIdForSchedule();
+    if (staffId) {
+      void queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.workSlots(staffId) });
+    }
     void queryClient.invalidateQueries({ queryKey: STAFF_LEAVE_KEYS.all });
   }, [queryClient]);
 }

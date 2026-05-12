@@ -63,7 +63,7 @@ export async function signInWithAppAuth(locale?: string, idpHint?: string): Prom
 
   return {
     username: userInfo.preferred_username || userInfo.name || "user",
-    role,
+    role: role.role,
     token: result.accessToken,
     refreshToken: result.refreshToken ?? undefined,
     idToken: result.idToken ?? undefined,

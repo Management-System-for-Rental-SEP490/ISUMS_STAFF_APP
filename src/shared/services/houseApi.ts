@@ -7,6 +7,7 @@ import axiosClient from "../api/axiosClient";
 import { BACKEND_API_BASE } from "../api/config";
 import { resolveLocalizedJsonStringFromI18n } from "../utils/resolveLocalizedJsonString";
 import { getUserProfile } from "./userApi";
+import { useAuthStore } from "../../store/useAuthStore";
 import type {
   HousesApiResponse,
   HouseDetailApiResponse,
@@ -137,13 +138,28 @@ function mergeHousesById(lists: HouseFromApi[][]): HouseFromApi[] {
 
 /**
  * Lấy danh sách nhà chỉ thuộc các region mà staff hiện tại phụ trách.
- * 1) GET /api/users/me → `data.id` (user id trong hệ thống BE, không dùng claim JWT).
+ * 1) Ưu tiên đọc `userId` đã cache trong AuthStore (lưu lúc đăng nhập) để bỏ qua bước GET /users/me.
+ *    Nếu store chưa có (app cũ chưa migrate) mới fallback về GET /api/users/me.
  * 2) GET /api/houses/regions/staff/{userId}
  * 3) Với mỗi regionId: GET /api/houses/region/{regionId} rồi gộp (dedupe).
  */
 export const fetchHousesScopedToStaff = async (): Promise<HousesApiResponse> => {
-  const profile = await getUserProfile();
-  const id = profile?.id?.trim() ?? "";
+  const h0 = Date.now();
+  console.log(`[HOME TIMING] fetchHousesScopedToStaff bắt đầu lúc ${new Date(h0).toISOString()}`);
+
+  const cachedUserId = useAuthStore.getState().userId?.trim();
+  let id: string;
+
+  if (cachedUserId) {
+    console.log(`[HOME TIMING] userId lấy từ cache store (bỏ qua /users/me): "${cachedUserId}"`);
+    id = cachedUserId;
+  } else {
+    console.log(`[HOME TIMING] userId chưa có trong store, gọi GET /users/me...`);
+    const profile = await getUserProfile();
+    id = profile?.id?.trim() ?? "";
+    console.log(`[HOME TIMING] ✅ GET /users/me xong: +${Date.now() - h0}ms, id="${id}"`);
+  }
+
   if (!id) {
     return {
       data: [],
@@ -154,6 +170,8 @@ export const fetchHousesScopedToStaff = async (): Promise<HousesApiResponse> => 
   }
 
   const regions = await getRegionsForStaff(id);
+  console.log(`[HOME TIMING] ✅ GET regions xong: +${Date.now() - h0}ms, số region=${regions.length}`);
+
   const regionIdList = regions.map((r) => r.id).filter(Boolean);
 
   if (regionIdList.length === 0) {
@@ -165,10 +183,25 @@ export const fetchHousesScopedToStaff = async (): Promise<HousesApiResponse> => 
     };
   }
 
-  const perRegion = await Promise.all(regionIdList.map((rid) => getHousesByRegionId(rid)));
+  // Gọi tuần tự từng region để tránh server dev bị quá tải khi nhận nhiều request đồng thời.
+  // Mỗi request xong mới gọi tiếp → server xử lý nhẹ hơn, tổng thời gian thực tế thường nhanh hơn song song.
+  const perRegion: HousesApiResponse[] = [];
+  for (const rid of regionIdList) {
+    const result = await getHousesByRegionId(rid);
+    // Gắn regionId vào từng nhà để hỗ trợ lọc theo khu vực ở client (chips trong dropdown).
+    const taggedData = (result.data ?? []).map((h) => ({
+      ...h,
+      regionId: h.regionId || rid,
+    }));
+    perRegion.push({ ...result, data: taggedData });
+    console.log(`[HOME TIMING]   → region ${rid} xong: +${Date.now() - h0}ms, số nhà=${taggedData.length}`);
+  }
+  console.log(`[HOME TIMING] ✅ GET houses xong (${regionIdList.length} region tuần tự): +${Date.now() - h0}ms`);
+
   const merged = mergeHousesById(perRegion.map((r) => r.data));
   const allOk = perRegion.every((r) => r.success);
 
+  console.log(`[HOME TIMING] ✅ fetchHousesScopedToStaff hoàn tất: tổng +${Date.now() - h0}ms, số nhà=${merged.length}`);
   return {
     data: merged.map(localizeHouseFromApi),
     message: perRegion.find((r) => r.message)?.message ?? "Success",

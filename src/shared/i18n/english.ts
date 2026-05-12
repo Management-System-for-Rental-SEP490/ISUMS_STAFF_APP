@@ -191,8 +191,12 @@ export default {
         "add_menu_assign_nfc": "Assign NFC",
         "add_menu_assign_qr": "Assign QR Code",
         "house_picker_collapsed": "Buildings in your area · {{count}}",
+        "house_picker_not_loaded": "Tap to view building list",
         "house_picker_search_placeholder": "Tap to search by name or address…",
-        "house_picker_device_prefix": "Devices:"
+        "house_picker_device_prefix": "Devices:",
+        "region_section_title": "Zone",
+        "all_regions": "All",
+        "no_houses_in_region": "No buildings in this zone"
     },
     "staff_category": {
         "title": "Create asset category",

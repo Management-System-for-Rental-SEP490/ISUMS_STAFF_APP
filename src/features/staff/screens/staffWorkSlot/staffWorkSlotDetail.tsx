@@ -33,6 +33,7 @@ import {
   updateJobStatus,
 } from "../../../../shared/services/maintenanceApi";
 import { getActiveRelocationByContractId } from "../../../../shared/services/relocationApi";
+import { getStaffIdForSchedule } from "../../../../shared/services/scheduleApi";
 import { CustomAlert } from "../../../../shared/components/alert";
 import {
   PullToRefreshControl,
@@ -61,7 +62,11 @@ import {
   formatDdMmYyyyHms24,
   formatYmdStringToDdMmYyyy,
 } from "../../../../shared/utils";
-import { SCHEDULE_DATA_KEYS } from "../../hooks/useStaffScheduleData";
+import type { WorkSlot } from "../../data/mockStaffData";
+import {
+  invalidateStaffStatusCaches,
+  SCHEDULE_DATA_KEYS,
+} from "../../hooks/useStaffScheduleData";
 import {
   isoLocalDateToYmd,
   waitForWorkSlotCompletionSync,
@@ -165,6 +170,7 @@ function compareFloor(a: string, b: string): number {
 
 type WorkSlotDetailRouteProp = RouteProp<RootStackParamList, "WorkSlotDetail">;
 type NavProp = NativeStackNavigationProp<RootStackParamList, "WorkSlotDetail">;
+type WorkSlotDetailSlotParam = RootStackParamList["WorkSlotDetail"]["slot"];
 
 const submittedMaintenanceJobIdsInSession = new Set<string>();
 
@@ -176,6 +182,48 @@ export default function WorkSlotDetailScreen() {
   const route = useRoute<WorkSlotDetailRouteProp>();
   const navigation = useNavigation<NavProp>();
   const { slot } = route.params;
+  /** Đồng bộ `status` (và giờ/ngày nếu cache lịch có) — `route.params.slot` không cập nhật sau BE. */
+  const [displaySlot, setDisplaySlot] = useState<WorkSlotDetailSlotParam>(() => route.params.slot);
+  useEffect(() => {
+    setDisplaySlot(route.params.slot);
+  }, [route.params.slot]);
+
+  /**
+   * Ghi `status` (và timeRange/date nếu có) từ hàng lịch đã enrich trong React Query — không đổi identity slot từ route.
+   */
+  const applyWorkSlotRowToDisplay = useCallback((row: WorkSlot | null | undefined) => {
+    if (!row?.status) return;
+    setDisplaySlot((prev) => {
+      const st = String(row.status).trim();
+      if (prev.status === st && (!row.timeRange || row.timeRange === prev.timeRange)) return prev;
+      return {
+        ...prev,
+        status: st,
+        ...(row.timeRange ? { timeRange: row.timeRange } : {}),
+        ...(row.date ? { date: row.date } : {}),
+      };
+    });
+  }, []);
+
+  /** Invalidate work slots rồi đọc cache — dùng khi focus màn sau khi BE đổi trạng thái ca. */
+  const refreshDisplaySlotFromScheduleCache = useCallback(async () => {
+    const staffId = getStaffIdForSchedule();
+    if (!staffId) return;
+    await invalidateStaffStatusCaches(queryClient, { staffId });
+    const rows = queryClient.getQueryData<WorkSlot[]>(SCHEDULE_DATA_KEYS.workSlots(staffId));
+    const found = rows?.find((s) => s.id === slot.id);
+    applyWorkSlotRowToDisplay(found ?? null);
+  }, [applyWorkSlotRowToDisplay, queryClient, slot.id]);
+
+  /** Poll nhẹ: chỉ đọc cache đã có, không invalidate mỗi chu kỳ. */
+  const pullSlotStatusFromCache = useCallback(() => {
+    const staffId = getStaffIdForSchedule();
+    if (!staffId) return;
+    const rows = queryClient.getQueryData<WorkSlot[]>(SCHEDULE_DATA_KEYS.workSlots(staffId));
+    const found = rows?.find((s) => s.id === slot.id);
+    applyWorkSlotRowToDisplay(found ?? null);
+  }, [applyWorkSlotRowToDisplay, queryClient, slot.id]);
+
   const isIssueSlot = String(slot.task || "").toUpperCase() === "ISSUE";
   const isInspectionSlot = String(slot.task || "").toUpperCase() === "INSPECTION";
 
@@ -380,10 +428,17 @@ export default function WorkSlotDetailScreen() {
 
   const onDetailRefresh = useCallback(() => {
     setDetailRefreshing(true);
-    void refetchItem()
-      .catch(() => {})
-      .finally(() => setDetailRefreshing(false));
-  }, [refetchItem]);
+    void (async () => {
+      try {
+        await refetchItem();
+        await refreshDisplaySlotFromScheduleCache();
+      } catch {
+        /* ignore */
+      } finally {
+        setDetailRefreshing(false);
+      }
+    })();
+  }, [refetchItem, refreshDisplaySlotFromScheduleCache]);
 
   useEffect(() => {
     if (!isInspectionSlot || !job?.id) return;
@@ -430,7 +485,7 @@ export default function WorkSlotDetailScreen() {
     (startTimeIso: string | null) => {
       let ymd: string | null = startTimeIso ? isoLocalDateToYmd(startTimeIso) : null;
       if (!ymd) {
-        const parts = slot.date.split("/");
+        const parts = displaySlot.date.split("/");
         if (parts.length === 2) {
           const day = parseInt(parts[0], 10);
           const month = parseInt(parts[1], 10);
@@ -445,7 +500,7 @@ export default function WorkSlotDetailScreen() {
         params: ymd ? { focusDateYmd: ymd, focusWorkSlotId: slot.id } : { focusWorkSlotId: slot.id },
       });
     },
-    [navigation, slot.date, slot.id]
+    [navigation, displaySlot.date, slot.id]
   );
 
   const handleIssuePaymentEntryPress = async () => {
@@ -471,6 +526,14 @@ export default function WorkSlotDetailScreen() {
           (nst === "IN_PROGRESS" || nst === "WAITING_STAFF_COMPLETION") &&
             submittedIssueRepairTicketIdsInSession.has(fresh.data.id)
         );
+      }
+      const staffIdRepair = getStaffIdForSchedule();
+      if (staffIdRepair) {
+        void invalidateStaffStatusCaches(queryClient, {
+          staffId: staffIdRepair,
+          ticketId: ticket.id,
+          issueTicketListToo: true,
+        });
       }
       setIssuePaymentModalVisible(true);
     } catch (err) {
@@ -500,6 +563,14 @@ export default function WorkSlotDetailScreen() {
         );
       } else {
         void refetchItem();
+      }
+      const staffIdAfterCash = getStaffIdForSchedule();
+      if (staffIdAfterCash) {
+        void invalidateStaffStatusCaches(queryClient, {
+          staffId: staffIdAfterCash,
+          ticketId: ticket.id,
+          issueTicketListToo: true,
+        });
       }
       CustomAlert.alert(t("staff_work_slot_detail.update_success"), "", [{ text: t("common.close") }]);
     } catch (err) {
@@ -531,8 +602,21 @@ export default function WorkSlotDetailScreen() {
               scheduleSlotId: slot.id,
               jobId: ticketIdForSync,
               kind: "issue",
-            }).then(() => {
-              queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
+            }).then(async ({ apiSlot }) => {
+              if (apiSlot?.status) {
+                setDisplaySlot((prev) => ({
+                  ...prev,
+                  status: String(apiSlot.status ?? prev.status),
+                }));
+              }
+              const staffId = getStaffIdForSchedule();
+              if (staffId) {
+                await invalidateStaffStatusCaches(queryClient, {
+                  staffId,
+                  ticketId: ticketIdForSync,
+                  issueTicketListToo: true,
+                });
+              }
               void refetchItem();
             });
           },
@@ -560,8 +644,21 @@ export default function WorkSlotDetailScreen() {
         scheduleSlotId: slot.id,
         jobId: ticket.id,
         kind: "issue",
-      }).then(() => {
-        queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
+      }).then(async ({ apiSlot }) => {
+        if (apiSlot?.status) {
+          setDisplaySlot((prev) => ({
+            ...prev,
+            status: String(apiSlot.status ?? prev.status),
+          }));
+        }
+        const staffId = getStaffIdForSchedule();
+        if (staffId) {
+          await invalidateStaffStatusCaches(queryClient, {
+            staffId,
+            ticketId: ticket.id,
+            issueTicketListToo: true,
+          });
+        }
         void refetchItem();
       });
     } catch (err) {
@@ -589,6 +686,14 @@ export default function WorkSlotDetailScreen() {
       try {
         await updateIssueTicketStatus(ticket.id, newStatus);
         CustomAlert.alert(t("staff_work_slot_detail.update_success"), "", [{ text: t("common.close") }]);
+        const staffId = getStaffIdForSchedule();
+        if (staffId) {
+          void invalidateStaffStatusCaches(queryClient, {
+            staffId,
+            ticketId: ticket.id,
+            issueTicketListToo: true,
+          });
+        }
         void refetchItem();
       } catch (err) {
         CustomAlert.alert(t("staff_work_slot_detail.update_error"), err instanceof Error ? err.message : "", [{ text: t("common.close") }]);
@@ -672,8 +777,17 @@ export default function WorkSlotDetailScreen() {
           scheduleSlotId: slot.id,
           jobId: job.id,
           kind: isInspectionSlot ? "inspection" : "maintenance",
-        }).then(() => {
-          queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
+        }).then(async ({ apiSlot }) => {
+          if (apiSlot?.status) {
+            setDisplaySlot((prev) => ({
+              ...prev,
+              status: String(apiSlot.status ?? prev.status),
+            }));
+          }
+          const staffId = getStaffIdForSchedule();
+          if (staffId) {
+            await invalidateStaffStatusCaches(queryClient, { staffId });
+          }
           void refetchItem();
         });
       } else {
@@ -1355,12 +1469,12 @@ export default function WorkSlotDetailScreen() {
     t,
   ]);
 
-  const slotStatusLabel = getJobStatusLabel(slot.status, t);
+  const slotStatusLabel = getJobStatusLabel(displaySlot.status, t);
   const itemStatusLabel = isIssueSlot
     ? ticket
       ? getIssueStatusLabel(ticket.status, t)
-      : getJobStatusLabel(slot.status, t)
-    : getJobStatusLabel(job?.status ?? slot.status, t);
+      : getJobStatusLabel(displaySlot.status, t)
+    : getJobStatusLabel(job?.status ?? displaySlot.status, t);
 
   const hasDetailItem = isIssueSlot ? !!ticket : !!job;
   const issueTicketStatusNorm =
@@ -1380,9 +1494,13 @@ export default function WorkSlotDetailScreen() {
       if (isInspectionSlot) {
         pushInspectionFlowDebugSession();
       }
-      void refetchItem();
+      void (async () => {
+        await refetchItem();
+        await refreshDisplaySlotFromScheduleCache();
+      })();
       const pollId = setInterval(() => {
         void refetchItem();
+        pullSlotStatusFromCache();
       }, STAFF_ACTIVE_SCREEN_POLL_MS);
       return () => {
         clearInterval(pollId);
@@ -1390,7 +1508,14 @@ export default function WorkSlotDetailScreen() {
           popInspectionFlowDebugSession();
         }
       };
-    }, [slot.ticketId, isIssueSlot, isInspectionSlot, refetchItem])
+    }, [
+      slot.ticketId,
+      isIssueSlot,
+      isInspectionSlot,
+      refetchItem,
+      refreshDisplaySlotFromScheduleCache,
+      pullSlotStatusFromCache,
+    ])
   );
 
   useFocusEffect(
@@ -1464,7 +1589,7 @@ export default function WorkSlotDetailScreen() {
           </Text>
         </View> */}
 
-        <WorkSlotDetailWorkSlotSection t={t} slot={slot} slotStatusLabel={slotStatusLabel} />
+        <WorkSlotDetailWorkSlotSection t={t} slot={displaySlot} slotStatusLabel={slotStatusLabel} />
 
         <View style={staffWorkSlotStyles.section}>
           <View style={[staffWorkSlotStyles.sectionHeader, { borderBottomColor: brandTintBg }]}>
@@ -1591,7 +1716,9 @@ export default function WorkSlotDetailScreen() {
                 label={isIssueSlot ? t("staff_ticket_detail.status") : t("staff_work_slot_detail.job_status")}
                 value={itemStatusLabel}
                 isStatus
-                statusRaw={isIssueSlot ? ticket?.status ?? slot.status : job?.status ?? slot.status}
+                statusRaw={
+                  isIssueSlot ? ticket?.status ?? displaySlot.status : job?.status ?? displaySlot.status
+                }
               />
               {canShowActions ? (
                 <View style={[staffWorkSlotStyles.actionRow, { marginTop: 16 }]}>

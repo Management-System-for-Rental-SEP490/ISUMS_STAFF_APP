@@ -228,7 +228,7 @@ export const exchangeCodeForToken = async (code: string): Promise<AuthPayload> =
     console.log("==================================");
     // -----------------
 
-    const [userInfo, role] = await Promise.all([
+    const [userInfo, { role, userId }] = await Promise.all([
       getUserInfo(access_token),
       resolveStaffAppRoleFromBackend(access_token, {
         timeoutMs: AUTH_PROFILE_FETCH_TIMEOUT_MS,
@@ -245,11 +245,12 @@ export const exchangeCodeForToken = async (code: string): Promise<AuthPayload> =
 
     return {
       username: userInfo.preferred_username || userInfo.name || "user",
-      role: role,
+      role,
       token: access_token,
       refreshToken: refresh_token,
       idToken: id_token,
-      houseId: houseId,
+      houseId,
+      userId,
     };
   } catch (error: any) {
     console.error("[Keycloak] Lỗi exchangeCodeForToken:", error?.response?.data || error?.message || error);
@@ -285,6 +286,10 @@ export async function signInWithDirectGrant(
   let access_token: string;
   let refresh_token: string | undefined;
   let id_token: string | undefined;
+
+  const t0 = Date.now();
+  console.log(`[LOGIN TIMING] Bắt đầu đăng nhập lúc ${new Date(t0).toISOString()}`);
+
   try {
     const response = await axios.post(tokenUrl, params, {
       headers: {
@@ -296,6 +301,7 @@ export async function signInWithDirectGrant(
     access_token = response.data.access_token;
     refresh_token = response.data.refresh_token;
     id_token = response.data.id_token;
+    console.log(`[LOGIN TIMING] ✅ Keycloak token xong: +${Date.now() - t0}ms`);
   } catch (error: any) {
     const desc = error?.response?.data?.error_description as string | undefined;
     const code = error?.response?.data?.error as string | undefined;
@@ -312,14 +318,18 @@ export async function signInWithDirectGrant(
     throw new Error(error?.message || "Đăng nhập thất bại");
   }
 
-  const userInfo = await getUserInfo(access_token);
-  const role = await resolveStaffAppRoleFromBackend(access_token);
+  const [userInfo, { role, userId }] = await Promise.all([
+    getUserInfo(access_token),
+    resolveStaffAppRoleFromBackend(access_token),
+  ]);
+  console.log(`[LOGIN TIMING] ✅ getUserInfo + /users/me xong (song song): +${Date.now() - t0}ms`);
 
   let houseId: string | undefined;
   const rawHouseId = userInfo.attributes?.houseId || userInfo.houseId;
   if (Array.isArray(rawHouseId)) houseId = rawHouseId[0];
   else if (typeof rawHouseId === "string") houseId = rawHouseId;
 
+  console.log(`[LOGIN TIMING] ✅ signInWithDirectGrant hoàn tất: tổng +${Date.now() - t0}ms`);
   return {
     username: userInfo.preferred_username || userInfo.name || username,
     role,
@@ -327,6 +337,7 @@ export async function signInWithDirectGrant(
     refreshToken: refresh_token,
     idToken: id_token,
     houseId,
+    userId,
   };
 }
 
@@ -398,12 +409,13 @@ function impliesStaffAppTechnicalRole(roleNames: string[]): boolean {
 }
 
 /**
- * Role ứng dụng staff: chỉ từ GET /api/users/me — không dùng realm_access / resource_access / groups Keycloak.
+ * Role + userId ứng dụng staff: chỉ từ GET /api/users/me — không dùng realm_access / resource_access / groups Keycloak.
+ * Trả về cả `userId` (data.id của BE) để lưu vào AuthStore, tránh gọi lại /users/me khi vào Home.
  */
 export async function resolveStaffAppRoleFromBackend(
   accessToken: string,
   profileOptions?: Pick<GetUserProfileOptions, "timeoutMs">
-): Promise<UserRole> {
+): Promise<{ role: UserRole; userId: string | undefined }> {
   const profile = await getUserProfileWithAccessToken(accessToken, profileOptions);
   if (!profile) {
     throw new Error(
@@ -411,10 +423,10 @@ export async function resolveStaffAppRoleFromBackend(
     );
   }
   const beRoles = profile.roles;
-  if (beRoles?.length && impliesStaffAppTechnicalRole(beRoles)) {
-    return "technical";
-  }
-  return "tenant";
+  const role: UserRole =
+    beRoles?.length && impliesStaffAppTechnicalRole(beRoles) ? "technical" : "tenant";
+  const userId = typeof profile.id === "string" && profile.id.trim() ? profile.id.trim() : undefined;
+  return { role, userId };
 }
 
 // Làm mới token bằng refresh token
@@ -438,7 +450,7 @@ export const refreshAccessToken = async (refreshToken: string): Promise<AuthPayl
     );
 
     const { access_token, refresh_token: new_refresh_token, id_token } = response.data;
-    const [userInfo, role] = await Promise.all([
+    const [userInfo, { role, userId }] = await Promise.all([
       getUserInfo(access_token),
       resolveStaffAppRoleFromBackend(access_token, {
         timeoutMs: AUTH_PROFILE_FETCH_TIMEOUT_MS,
@@ -455,13 +467,12 @@ export const refreshAccessToken = async (refreshToken: string): Promise<AuthPayl
 
     return {
       username: userInfo.preferred_username || userInfo.name || "user",
-      role: role,
+      role,
       token: access_token,
-      // Keycloak có thể trả về refresh token mới hoặc không (nếu cấu hình Refresh Token Rotation)
-      // Nếu không có mới, dùng lại cái cũ
       refreshToken: new_refresh_token || refreshToken,
       idToken: id_token,
-      houseId: houseId,
+      houseId,
+      userId,
     };
   } catch (error: any) {
     const errorMessage = error.response?.data?.error_description

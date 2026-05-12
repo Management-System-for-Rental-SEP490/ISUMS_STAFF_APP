@@ -47,7 +47,8 @@ import {
 import { brandPrimary, neutral } from "../../../../shared/theme/color";
 import Icons from "../../../../shared/theme/icon";
 import { ImageCaptureModal } from "../../../modal/imageCapture/ImageCaptureModal";
-import { SCHEDULE_DATA_KEYS } from "../../hooks/useStaffScheduleData";
+import { invalidateStaffStatusCaches } from "../../hooks/useStaffScheduleData";
+import { getStaffIdForSchedule } from "../../../../shared/services/scheduleApi";
 import { isoLocalDateToYmd, waitForWorkSlotCompletionSync } from "../../utils/workSlotCompletionSync";
 import {
   logInspectionDebug,
@@ -371,8 +372,11 @@ export default function InspectionConfirmScreen() {
           scheduleSlotId,
           jobId: inspectionId,
           kind: "inspection",
-        }).then(() => {
-          queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all });
+        }).then(async () => {
+          const staffId = getStaffIdForSchedule();
+          if (staffId) {
+            await invalidateStaffStatusCaches(queryClient, { staffId });
+          }
         });
       };
       CustomAlert.alert(

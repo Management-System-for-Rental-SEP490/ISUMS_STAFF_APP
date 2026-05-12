@@ -43,8 +43,9 @@ const useAuthStore = create<AuthState>()(
       idToken: null,
       refreshToken: null,
       houseId: null,
+      userId: null,
       isLoggedIn: false,
-      onboardedUsers: [], // Danh sách các user đã xem Intro
+      onboardedUsers: [],
       keycloakInAppSession: null,
       setKeycloakInAppSession: (s) => set({ keycloakInAppSession: s }),
       logoutUiLocked: false,
@@ -62,10 +63,10 @@ const useAuthStore = create<AuthState>()(
           idToken: data.idToken ?? null,
           refreshToken: data.refreshToken ?? null,
           houseId: data.houseId ?? null,
+          userId: data.userId ?? null,
           isLoggedIn: true,
           logoutUiLocked: false,
-          // Giữ nguyên onboardedUsers
-          onboardedUsers: state.onboardedUsers, 
+          onboardedUsers: state.onboardedUsers,
         }));
       },
 
@@ -85,6 +86,7 @@ const useAuthStore = create<AuthState>()(
           idToken: null,
           refreshToken: null,
           houseId: null,
+          userId: null,
           isLoggedIn: false,
           // Đảm bảo đóng overlay WebView Keycloak nếu còn mở khi logout.
           keycloakInAppSession: null,
@@ -109,15 +111,16 @@ const useAuthStore = create<AuthState>()(
     {
       name: "auth-storage-v2", // Đổi tên key để reset data cũ (tránh lỗi conflict type)
       storage: createJSONStorage(() => AsyncStorage), // lưu vào ổ cứng điện thoại
-      partialize: (state) => ({ // chọn lọc những gì muốn lưu
+      partialize: (state) => ({
         user: state.user,
         role: state.role,
         token: state.token,
         idToken: state.idToken,
         refreshToken: state.refreshToken,
         houseId: state.houseId,
+        userId: state.userId,
         isLoggedIn: state.isLoggedIn,
-        onboardedUsers: state.onboardedUsers, // lưu xuống ổ cứng
+        onboardedUsers: state.onboardedUsers,
       }),
       merge: (persistedState, currentState) =>
         ({

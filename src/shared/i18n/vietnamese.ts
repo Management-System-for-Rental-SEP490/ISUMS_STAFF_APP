@@ -191,8 +191,12 @@ export default {
         "add_menu_assign_nfc": "Gán NFC",
         "add_menu_assign_qr": "Gán QR Code",
         "house_picker_collapsed": "Nhà thuộc thẩm quyền · {{count}} căn",
+        "house_picker_not_loaded": "Nhấn để xem danh sách nhà",
         "house_picker_search_placeholder": "Chạm để tìm theo tên hoặc địa chỉ…",
-        "house_picker_device_prefix": "Số thiết bị:"
+        "house_picker_device_prefix": "Số thiết bị:",
+        "region_section_title": "Khu vực",
+        "all_regions": "Tất cả",
+        "no_houses_in_region": "Không có nhà trong khu vực này"
     },
     "staff_category": {
         "title": "Tạo danh mục thiết bị",

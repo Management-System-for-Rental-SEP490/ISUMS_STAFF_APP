@@ -9,9 +9,9 @@ export const DATA_LOAD_TIMEOUT_MS = 30_000 as const;
 
 /**
  * Sau hydrate + đã đăng nhập: trì hoãn trước khi `invalidateQueries` (navigation).
- * Tách khỏi {@link DATA_LOAD_TIMEOUT_MS} để độ trễ UI không bị kéo dài theo trần HTTP.
+ * 300ms đủ để navigator/stack ổn định mà không làm trì hoãn lần fetch đầu tiên vào Home.
  */
-export const POST_LOGIN_QUERY_INVALIDATE_DELAY_MS = 6000 as const;
+export const POST_LOGIN_QUERY_INVALIDATE_DELAY_MS = 300 as const;
 
 /** Cùng giá trị với {@link DATA_LOAD_TIMEOUT_MS} — `axios` dùng làm `timeout` (hủy request nếu quá lâu). */
 export const API_REQUEST_TIMEOUT_MS = DATA_LOAD_TIMEOUT_MS;

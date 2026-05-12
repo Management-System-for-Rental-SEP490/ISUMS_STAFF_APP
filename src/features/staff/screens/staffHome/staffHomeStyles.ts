@@ -207,14 +207,17 @@ export const staffHomeStyles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: 12,
   },
+  /** Bảng tóm tắt 2 cột: giờ (~40%) / công việc (~60%), đồng bộ với scheduleCellTimeOnly + scheduleCellTask */
   scheduleColTime: {
-    width: "30%",
+    flex: 2,
+    flexBasis: 0,
+    minWidth: 92,
     fontSize: 12,
     fontWeight: "700",
     color: neutral.heading,
     borderRightWidth: 1,
     borderRightColor: neutral.slate200,
-    paddingRight: 8,
+    paddingRight: 10,
   },
   scheduleColBuilding: {
     flex: 1,
@@ -227,12 +230,13 @@ export const staffHomeStyles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   scheduleColTask: {
-    flex: 1,
+    flex: 3,
+    flexBasis: 0,
     minWidth: 0,
     fontSize: 12,
     fontWeight: "700",
     color: neutral.heading,
-    paddingLeft: 8,
+    paddingLeft: 10,
   },
   /** Vùng cuộn nội dung bảng tóm tắt (maxHeight gán từ màn hình trong TSX). */
   scheduleSummaryScroll: {
@@ -272,11 +276,12 @@ export const staffHomeStyles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   scheduleCellTask: {
-    flex: 1,
+    flex: 3,
+    flexBasis: 0,
     minWidth: 0,
     fontSize: 13,
     color: neutral.textSecondary,
-    paddingLeft: 8,
+    paddingLeft: 10,
     lineHeight: 18,
   },
   /** Nhóm các ca cùng một ngày (chỉ bọc layout, không thêm viền để tránh đôi với dòng ca) */
@@ -304,13 +309,15 @@ export const staffHomeStyles = StyleSheet.create({
     alignItems: "flex-start",
   },
   scheduleCellTimeOnly: {
-    width: "30%",
+    flex: 2,
+    flexBasis: 0,
+    minWidth: 92,
     fontSize: 13,
     fontWeight: "600",
     color: neutral.textBody,
     borderRightWidth: 1,
     borderRightColor: neutral.slate200,
-    paddingRight: 8,
+    paddingRight: 10,
   },
   /** Card một căn nhà + danh sách asset */
   buildingCard: {

@@ -53,7 +53,7 @@ import {
 import { ISSUE_TICKET_KEYS, STAFF_ACTIVE_SCREEN_POLL_MS, useIssueTicketById } from "../../../../shared/hooks/useUserProfile";
 import { useHouses, useHouseById } from "../../../../shared/hooks/useHouses";
 import { useAssetItemById } from "../../../../shared/hooks/useAssetItems";
-import { SCHEDULE_DATA_KEYS } from "../../hooks/useStaffScheduleData";
+import { invalidateStaffStatusCaches } from "../../hooks/useStaffScheduleData";
 import {
   confirmStaffWorkSlotForJob,
   getStaffIdForSchedule,
@@ -252,17 +252,16 @@ export default function TicketDetailScreen() {
         { type: "success" }
       );
 
-      void queryClient.invalidateQueries({ queryKey: ISSUE_TICKET_KEYS.byId(ticketId) });
-      void queryClient.invalidateQueries({ queryKey: ISSUE_TICKET_KEYS.byStaff() });
-      void queryClient.invalidateQueries({
-        queryKey: SCHEDULE_DATA_KEYS.generatedSlots(generatedRange.startYmd, generatedRange.endYmd),
-      });
-      const staffId = getStaffIdForSchedule();
-      if (staffId) {
-        void queryClient.invalidateQueries({
-          queryKey: SCHEDULE_DATA_KEYS.workSlots(staffId),
+      void (async () => {
+        const staffId = getStaffIdForSchedule();
+        if (!staffId) return;
+        await invalidateStaffStatusCaches(queryClient, {
+          staffId,
+          ticketId,
+          issueTicketListToo: true,
+          generatedRange,
         });
-      }
+      })();
     },
     onError: () => {
       CustomAlert.alert(

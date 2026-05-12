@@ -51,12 +51,22 @@ function queryErrToMessage(err: unknown): string | null {
   return err instanceof Error ? err.message : String(err);
 }
 
-export function StaffScheduleProvider({ children }: { children: React.ReactNode }) {
+export function StaffScheduleProvider({
+  children,
+  workSlotsQueryEnabled = true,
+}: {
+  children: React.ReactNode;
+  /**
+   * false: không chạy enrich work slots (1+N+M). Dùng cho provider bọc màn stack không cần lịch;
+   * tab chính bật theo Calendar/Dashboard từ `footerNavigator`.
+   */
+  workSlotsQueryEnabled?: boolean;
+}) {
   const queryClient = useQueryClient();
   const [templateQueryDate, setTemplateQueryDate] = useState(getMondayOfCurrentWeek);
 
   const templateQuery = useScheduleTemplateQuery(templateQueryDate);
-  const workSlotsQuery = useEnrichedWorkSlotsQuery();
+  const workSlotsQuery = useEnrichedWorkSlotsQuery({ enabled: workSlotsQueryEnabled });
   const leaveQuery = useLeaveRequests();
 
   const refetchTemplate = useCallback(
