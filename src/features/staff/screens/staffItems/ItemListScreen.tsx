@@ -1,6 +1,7 @@
 /**
  * Màn hình danh sách thiết bị (Staff).
- * - Chọn một nhà trong thẩm quyền (chips); GET /assets/items/house/:id **chỉ cho nhà đang chọn** — không gộp mọi nhà.
+ * - Chips lọc theo **khu vực (region)** thay vì nhà đơn lẻ; mỗi chip → GET asset của TẤT CẢ nhà thuộc region đó (song song).
+ * - Lúc vào mặc định region đầu tiên được chọn và load trước; sau khi xong, tự động prefetch background cho các region còn lại.
  * - Dropdown có tìm kiếm + phân trang; mở chỉnh sửa cho thiết bị trong khu vực phụ trách.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -18,7 +19,8 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MainTabParamList, RootStackParamList } from "../../../../shared/types";
 import {
   useAssetCategories,
-  useAssetItems,
+  useAssetItemsAllHouses,
+  useRegionsForStaff,
   useHouses,
   useRefreshControlGate,
   asAssetItemArray,
@@ -28,7 +30,7 @@ import { itemScreenStyles } from "./itemScreenStyles";
 import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import Header from "../../../../shared/components/header";
 import { StaffScreenActionFab } from "../../../../shared/components/StaffScreenActionFab";
-import type { AssetItemFromApi, HouseFromApi } from "../../../../shared/types/api";
+import type { AssetItemFromApi, HouseFromApi, HouseRegionFromApi } from "../../../../shared/types/api";
 import { normalizeAssetItemStatusFromApi } from "../../../../shared/types/api";
 import {
   DropdownBox,
@@ -50,10 +52,24 @@ export default function ItemListScreen() {
   const token = useAuthStore((s) => s.token);
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
 
-  const [selectedHouseId, setSelectedHouseId] = useState<string | null>(null);
+  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
+  /** Bật background prefetch sau khi region đầu tiên đã tải xong lần đầu. */
+  const [backgroundEnabled, setBackgroundEnabled] = useState(false);
 
   /**
-   * Chỉ tải danh mục sau khi đã có nhà được chọn (chip) — không GET categories trước khi commit nhà mặc định.
+   * Lấy danh sách region (khu vực) của staff — dùng làm chips lọc thay cho chips nhà.
+   * Mỗi chip region → load asset của TẤT CẢ nhà thuộc region đó.
+   */
+  const {
+    data: regionsData,
+    refetch: refetchRegions,
+    isRefetching: regionsRefetching,
+    isPending: regionsPending,
+  } = useRegionsForStaff();
+  const regions: HouseRegionFromApi[] = regionsData ?? [];
+
+  /**
+   * Chỉ tải danh mục sau khi đã có region được chọn (chip).
    */
   const {
     data: categoriesData,
@@ -61,7 +77,7 @@ export default function ItemListScreen() {
     isRefetching: categoriesRefetching,
     isPending: categoriesPending,
   } = useAssetCategories({
-    enabled: isLoggedIn && Boolean(token) && Boolean(selectedHouseId),
+    enabled: isLoggedIn && Boolean(token) && Boolean(selectedRegionId),
   });
   const categories = categoriesData?.data ?? [];
 
@@ -77,17 +93,6 @@ export default function ItemListScreen() {
     [staffHouses]
   );
 
-  /** Nhà sắp xếp theo tên — thứ tự chips cố định, mặc định nhà đầu danh sách này. */
-  const staffHousesSorted = useMemo(
-    () =>
-      [...staffHouses]
-        .filter((h: HouseFromApi) => Boolean(h?.id))
-        .sort((a, b) =>
-          (a.name ?? "").localeCompare(b.name ?? "", undefined, { sensitivity: "base" })
-        ),
-    [staffHouses]
-  );
-
   const houseById = useMemo(() => {
     const map = new Map<string, HouseFromApi>();
     for (const h of staffHouses) {
@@ -96,71 +101,126 @@ export default function ItemListScreen() {
     return map;
   }, [staffHouses]);
 
+  /** Region sắp xếp theo tên — thứ tự chips cố định. */
+  const regionsSorted = useMemo(
+    () =>
+      [...regions]
+        .filter((r: HouseRegionFromApi) => Boolean(r?.id))
+        .sort((a, b) =>
+          (a.name ?? "").localeCompare(b.name ?? "", undefined, { sensitivity: "base" })
+        ),
+    [regions]
+  );
+
+  const regionById = useMemo(() => {
+    const map = new Map<string, HouseRegionFromApi>();
+    for (const r of regionsSorted) {
+      if (r?.id) map.set(r.id, r);
+    }
+    return map;
+  }, [regionsSorted]);
+
   /**
-   * Đồng bộ nhà đang chọn với danh sách nhà từ API: mặc định nhà đầu (đã sort);
-   * giữ lựa chọn cũ nếu vẫn còn trong danh sách.
-   *
-   * `useAssetItems` chỉ bật khi `selectedHouseId !== null` — không fetch asset theo fallback nhà đầu
-   * trước khi state chip được gán; đổi sang nhà khác thì query key đổi → chỉ tải đúng nhà đó (cache RQ giữ lại khi quay lại chip cũ).
+   * Đồng bộ region đang chọn với danh sách region từ API:
+   * mặc định region đầu (đã sort); giữ lựa chọn cũ nếu vẫn còn trong danh sách.
    */
   useEffect(() => {
-    if (staffHousesSorted.length === 0) {
-      setSelectedHouseId(null);
+    if (regionsSorted.length === 0) {
+      setSelectedRegionId(null);
       return;
     }
-    setSelectedHouseId((prev) => {
-      if (prev && staffHousesSorted.some((h) => h.id === prev)) return prev;
-      return staffHousesSorted[0]!.id;
+    setSelectedRegionId((prev) => {
+      if (prev && regionsSorted.some((r) => r.id === prev)) return prev;
+      return regionsSorted[0]!.id;
     });
-  }, [staffHousesSorted]);
+  }, [regionsSorted]);
+
+  /** Nhà thuộc region đang chọn — dùng để fetch asset và hiển thị danh sách. */
+  const housesInSelectedRegion = useMemo(
+    () => staffHouses.filter((h: HouseFromApi) => h.regionId === selectedRegionId && Boolean(h.id)),
+    [staffHouses, selectedRegionId]
+  );
+
+  const houseIdsInSelectedRegion = useMemo(
+    () => housesInSelectedRegion.map((h) => h.id).filter(Boolean),
+    [housesInSelectedRegion]
+  );
+
+  /**
+   * Nhà thuộc các region KHÁC region đang chọn — prefetch background sau khi region hiện tại tải xong
+   * để khi user chuyển chip thì data đã sẵn trong cache RQ (không chờ network nữa).
+   */
+  const houseIdsForBackground = useMemo(() => {
+    if (!backgroundEnabled) return [];
+    return staffHouses
+      .filter((h: HouseFromApi) => h.regionId && h.regionId !== selectedRegionId)
+      .map((h) => h.id)
+      .filter(Boolean);
+  }, [backgroundEnabled, staffHouses, selectedRegionId]);
 
   /** Mỗi lần vào màn (focus) tăng để DropdownBox luôn mở panel danh sách — kể cả khi tab giữ component mounted. */
   const [itemListDropdownExpandSig, setItemListDropdownExpandSig] = useState(0);
 
-  const housesListReady = !housesPending && staffHouses.length > 0;
-  /** Khoảng khắc sau khi có danh sách nhà nhưng effect chưa gán nhà mặc định — che spinner, không fetch asset/categories. */
-  const selectionHydrating = housesListReady && selectedHouseId == null;
+  const regionsListReady = !regionsPending && regions.length > 0;
+  /** Khoảng khắc sau khi có danh sách region nhưng effect chưa gán region mặc định — che spinner. */
+  const selectionHydrating = regionsListReady && selectedRegionId == null;
 
   const itemsQueryEnabled =
     isLoggedIn &&
     Boolean(token) &&
-    housesListReady &&
-    selectedHouseId != null &&
-    staffHouseIdSet.has(selectedHouseId);
+    !housesPending &&
+    regionsListReady &&
+    selectedRegionId != null &&
+    houseIdsInSelectedRegion.length > 0;
 
+  /**
+   * Load asset của TẤT CẢ nhà trong region đang chọn (song song theo từng nhà).
+   * Đổi chip region → query key thay đổi → RQ trả cache nếu đã prefetch, hoặc fetch mới nếu chưa.
+   */
   const {
     data: itemsData,
     isLoading: itemsLoading,
     isError,
     refetch,
     isRefetching: itemsRefetching,
-  } = useAssetItems({
-    houseId: selectedHouseId ?? "",
-    categoryId: null,
-    requireHouse: true,
-    enabled: itemsQueryEnabled,
-  });
+  } = useAssetItemsAllHouses(
+    itemsQueryEnabled ? houseIdsInSelectedRegion : [],
+    null
+  );
   const rawItems: AssetItemFromApi[] = asAssetItemArray(itemsData?.data);
 
   /**
-   * Theo dõi lần đầu nhà mặc định tải xong — từ đó trở đi, chuyển chip chỉ hiện overlay trên vùng danh sách,
-   * không che toàn màn (user vẫn thấy chips và có thể chuyển lại nhà khác).
+   * Prefetch asset của nhà thuộc các region khác trong background — không block UI,
+   * chỉ bật sau khi region đầu tiên đã tải xong lần đầu.
    */
-  const hasLoadedFirstHouseRef = useRef(false);
+  useAssetItemsAllHouses(houseIdsForBackground, null);
+
+  /**
+   * Theo dõi lần đầu region mặc định tải xong — từ đó trở đi, chuyển chip chỉ hiện overlay
+   * trên vùng danh sách, không che toàn màn (user vẫn thấy chips và có thể chuyển).
+   */
+  const hasLoadedFirstRegionRef = useRef(false);
   useEffect(() => {
-    if (!hasLoadedFirstHouseRef.current && itemsData !== undefined) {
-      hasLoadedFirstHouseRef.current = true;
+    if (!hasLoadedFirstRegionRef.current && itemsData !== undefined) {
+      hasLoadedFirstRegionRef.current = true;
     }
   }, [itemsData]);
 
-  /** Che toàn màn chỉ khi: đang tải nhà, chờ effect gán nhà, hoặc items của nhà đầu chưa về lần nào. */
-  const showFullPageLoading =
-    (isLoggedIn && Boolean(token) && housesPending) ||
-    selectionHydrating ||
-    (!hasLoadedFirstHouseRef.current && itemsQueryEnabled && itemsLoading);
+  /** Bật background prefetch sau khi region đầu tiên tải xong lần đầu. */
+  useEffect(() => {
+    if (!backgroundEnabled && !itemsLoading && itemsData !== undefined) {
+      setBackgroundEnabled(true);
+    }
+  }, [backgroundEnabled, itemsLoading, itemsData]);
 
-  /** Overlay nhỏ trên vùng danh sách khi đổi chip sang nhà chưa có cache — chips vẫn hiển thị. */
-  const showHouseSwitchLoading = hasLoadedFirstHouseRef.current && itemsQueryEnabled && itemsLoading;
+  /** Che toàn màn chỉ khi: đang tải region/nhà, chờ effect gán region, hoặc items của region đầu chưa về lần nào. */
+  const showFullPageLoading =
+    (isLoggedIn && Boolean(token) && (housesPending || regionsPending)) ||
+    selectionHydrating ||
+    (!hasLoadedFirstRegionRef.current && itemsQueryEnabled && itemsLoading);
+
+  /** Overlay nhỏ trên vùng danh sách khi đổi chip sang region chưa có cache — chips vẫn hiển thị. */
+  const showHouseSwitchLoading = hasLoadedFirstRegionRef.current && itemsQueryEnabled && itemsLoading;
 
   const openCreateItem = () => {
     navigation.getParent<NativeStackNavigationProp<RootStackParamList>>()?.navigate("ItemCreate");
@@ -193,8 +253,8 @@ export default function ItemListScreen() {
     }));
   }, [rawItems, sortItemsInHouse, categoryNameById, t]);
 
-  const selectedHouseName = selectedHouseId
-    ? houseById.get(selectedHouseId)?.name ?? selectedHouseId
+  const selectedRegionName = selectedRegionId
+    ? regionById.get(selectedRegionId)?.name ?? selectedRegionId
     : "";
 
   const getHouseName = useCallback(
@@ -273,14 +333,14 @@ export default function ItemListScreen() {
 
   useEffect(() => {
     setListPage(1);
-  }, [selectedHouseId, deviceListSearchQuery, listRows.length]);
+  }, [selectedRegionId, deviceListSearchQuery, listRows.length]);
 
   const listCombinedSections: DropdownBoxSection[] = useMemo(() => {
-    const houseSection: DropdownBoxSection = {
-      id: "house",
-      title: t("staff_item_list.filter_house_label"),
-      items: staffHousesSorted.map((h) => ({ id: h.id, label: h.name ?? h.id })),
-      selectedId: selectedHouseId,
+    const regionSection: DropdownBoxSection = {
+      id: "region",
+      title: t("staff_item_list.filter_region_label"),
+      items: regionsSorted.map((r) => ({ id: r.id, label: r.name ?? r.id })),
+      selectedId: selectedRegionId,
       showAllOption: false,
       itemLayout: "chips",
     };
@@ -292,13 +352,13 @@ export default function ItemListScreen() {
       showAllOption: false,
       itemLayout: "card",
     };
-    return [houseSection, deviceSection];
-  }, [staffHousesSorted, deviceItemsPaged, selectedHouseId, t]);
+    return [regionSection, deviceSection];
+  }, [regionsSorted, deviceItemsPaged, selectedRegionId, t]);
 
   const onListCombinedSelect = useCallback(
     (sectionId: string, itemId: string | null) => {
-      if (sectionId === "house") {
-        if (itemId && staffHouseIdSet.has(itemId)) setSelectedHouseId(itemId);
+      if (sectionId === "region") {
+        if (itemId && regionById.has(itemId)) setSelectedRegionId(itemId);
         return;
       }
       if (sectionId !== "device" || !itemId) return;
@@ -314,7 +374,7 @@ export default function ItemListScreen() {
           ?.navigate("ItemDescription", { item: row.item, hideEdit: true });
       }
     },
-    [listRows, navigation, staffHouseIdSet]
+    [listRows, navigation, regionById, staffHouseIdSet]
   );
 
   const staffTabHeader = (
@@ -325,11 +385,12 @@ export default function ItemListScreen() {
     />
   );
 
-  const listRefreshing = housesRefetching || categoriesRefetching || itemsRefetching || showHouseSwitchLoading;
+  const listRefreshing = housesRefetching || regionsRefetching || categoriesRefetching || itemsRefetching || showHouseSwitchLoading;
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
   const onPullRefresh = useCallback(() => {
-    return Promise.all([refetchHouses(), refetchCategories(), refetch()]);
-  }, [refetchHouses, refetchCategories, refetch]);
+    setBackgroundEnabled(false);
+    return Promise.all([refetchHouses(), refetchRegions(), refetchCategories(), refetch()]);
+  }, [refetchHouses, refetchRegions, refetchCategories, refetch]);
 
   useFocusEffect(
     useCallback(() => {
@@ -346,8 +407,11 @@ export default function ItemListScreen() {
     // eslint-disable-next-line no-console
     console.log("[StaffDevices] ItemListScreen state", {
       housesPending,
-      houseCount: staffHousesSorted.length,
-      selectedHouseId,
+      regionsPending,
+      regionCount: regionsSorted.length,
+      selectedRegionId,
+      houseIdsInRegion: houseIdsInSelectedRegion.length,
+      backgroundEnabled,
       itemsQueryLoading: itemsLoading,
       showFullPageLoading,
       showHouseSwitchLoading,
@@ -356,8 +420,11 @@ export default function ItemListScreen() {
     });
   }, [
     housesPending,
-    staffHousesSorted.length,
-    selectedHouseId,
+    regionsPending,
+    regionsSorted.length,
+    selectedRegionId,
+    houseIdsInSelectedRegion.length,
+    backgroundEnabled,
     itemsLoading,
     showFullPageLoading,
     showHouseSwitchLoading,
@@ -381,7 +448,7 @@ export default function ItemListScreen() {
     );
   }
 
-  if (!housesPending && isLoggedIn && Boolean(token) && staffHouses.length === 0) {
+  if (!housesPending && !regionsPending && isLoggedIn && Boolean(token) && regions.length === 0) {
     return (
       <View style={itemScreenStyles.container}>
         {staffTabHeader}
@@ -407,7 +474,7 @@ export default function ItemListScreen() {
               />
             }
           >
-            <Text style={itemScreenStyles.emptyText}>{t("staff_item_list.no_houses_assigned")}</Text>
+            <Text style={itemScreenStyles.emptyText}>{t("staff_item_list.no_regions_assigned")}</Text>
           </ScrollView>
         </View>
         <StaffScreenActionFab
@@ -487,16 +554,16 @@ export default function ItemListScreen() {
           <View style={itemScreenStyles.filterWrap}>
           <DropdownBox
             sections={listCombinedSections}
-            summary={`${t("staff_item_list.filter_house_label")}: ${selectedHouseName}`}
+            summary={`${t("staff_item_list.filter_region_label")}: ${selectedRegionName}`}
             onSelect={onListCombinedSelect}
             onSearchChange={setDeviceListSearchQuery}
-            sectionsExcludedFromSearch={["device"]}
+            sectionsExcludedFromSearch={["region", "device"]}
             style={itemScreenStyles.filterDropdown}
             searchPlaceholder={t("staff_item_list.search_device_placeholder") as string}
             searchAutoFocus={false}
             defaultExpanded
             expandSignal={itemListDropdownExpandSig}
-            stayExpandedOnSelectForSections={["house"]}
+            stayExpandedOnSelectForSections={["region"]}
             itemLayout="chips"
             resultsMaxHeight={560}
             resultsHeightRatio={0.66}

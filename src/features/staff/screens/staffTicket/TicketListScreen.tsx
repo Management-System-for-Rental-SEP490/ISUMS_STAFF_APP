@@ -2,18 +2,21 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { View, Text, FlatList, ListRenderItem, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import { useIsFocused, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused, useNavigation } from "@react-navigation/native";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { IssueTicketListItemFromApi } from "../../../../shared/types/api";
+import { useQueryClient } from "@tanstack/react-query";
+import type { IssueTicketFromApi, IssueTicketListItemFromApi } from "../../../../shared/types/api";
 import { MainTabParamList, RootStackParamList } from "../../../../shared/types";
 import Header from "../../../../shared/components/header";
 import { ticketListStyles } from "./ticketListStyles";
 import { brandPrimary, brandSecondary, neutral } from "../../../../shared/theme/color";
 import { PaginationBar } from "../../../../shared/components/PaginationBar";
 import { formatStaffTicketListCreatedAt, getTotalPages } from "../../../../shared/utils";
-import { useStaffIssueTicketsPage } from "../../../../shared/hooks/useUserProfile";
+import { ISSUE_TICKET_KEYS, useStaffIssueTicketsPage } from "../../../../shared/hooks/useUserProfile";
+import type { IssueTicketStaffListPageResult } from "../../../../shared/services/issuesApi";
+import { CLIENT_LIST_PAGE_SIZE } from "../../../../shared/utils/pagination";
 import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import { useRefreshControlGate } from "../../../../shared/hooks";
 import Icons from "../../../../shared/theme/icon";
@@ -51,6 +54,7 @@ export default function TicketListScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<TicketListNavProp>();
+  const queryClient = useQueryClient();
   /** Chỉ poll khi tab Ticket hiển thị (ẩn khi RootStack mở TicketDetail). */
   const listScreenVisible = useIsFocused();
   const [listPage, setListPage] = useState(1);
@@ -71,6 +75,43 @@ export default function TicketListScreen() {
     dataUpdatedAt,
     isLoading,
   } = ticketListQuery;
+  /**
+   * Khi màn hình được focus lại (quay về từ TicketDetail hoặc chuyển tab):
+   * Patch status từ byId cache vào list cache — không gọi invalidateQueries ở đây
+   * để tránh refetch BE list trả dữ liệu cũ ghi đè lên cache đã patch (gây nháy status).
+   * TicketDetailScreen đã setQueriesData khi ticket.status thay đổi, nên khi user quay về
+   * list cache thường đã đúng; đây chỉ là safety-net cho các ticket chưa mở detail.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      const pageKey = [
+        ...ISSUE_TICKET_KEYS.byStaff(),
+        Math.max(1, listPage),
+        CLIENT_LIST_PAGE_SIZE,
+      ] as const;
+      const listCache = queryClient.getQueryData<IssueTicketStaffListPageResult>(pageKey);
+      if (!listCache?.items?.length) return;
+      let didPatch = false;
+      const patchedItems = listCache.items.map((item) => {
+        const fresh = queryClient.getQueryData<IssueTicketFromApi | null>(
+          ISSUE_TICKET_KEYS.byId(item.id),
+        );
+        const freshStatus = fresh && typeof fresh === "object" ? String(fresh.status ?? "") : "";
+        if (freshStatus && freshStatus !== item.status) {
+          didPatch = true;
+          return { ...item, status: freshStatus } as IssueTicketListItemFromApi;
+        }
+        return item;
+      });
+      if (didPatch) {
+        queryClient.setQueryData<IssueTicketStaffListPageResult>(pageKey, {
+          ...listCache,
+          items: patchedItems,
+        });
+      }
+    }, [queryClient, listPage]),
+  );
+
   /** Chỉ bật spinner/overlay khi user kéo refresh — refetch theo chu kỳ hoặc khi focus tab là im lặng. */
   const [pullRefreshing, setPullRefreshing] = useState(false);
 

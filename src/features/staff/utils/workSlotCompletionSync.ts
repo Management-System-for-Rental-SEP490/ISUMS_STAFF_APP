@@ -55,52 +55,48 @@ export async function waitForWorkSlotCompletionSync(opts: {
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+  /**
+   * Lấy trạng thái job hiện tại — trả về `true` nếu đã terminal.
+   */
+  const fetchJobOk = async (): Promise<boolean> => {
+    if (opts.kind === "issue") {
+      const r = await getIssueTicketById(opts.jobId);
+      return Boolean(r?.success && r.data && isTerminalJobStatus(r.data.status, "issue"));
+    }
+    if (opts.kind === "inspection") {
+      const r = await getInspectionById(opts.jobId);
+      return Boolean(r?.success && r.data && isTerminalJobStatus(r.data.status, "inspection"));
+    }
+    const r = await getJobById(opts.jobId);
+    return Boolean(r?.success && r.data && isTerminalJobStatus(r.data.status, "maintenance"));
+  };
+
+  /**
+   * Lấy work slot của nhân viên và kiểm tra trạng thái — trả về slot (hoặc null) và flag terminal.
+   */
+  const fetchSlot = async (): Promise<{ apiSlot: WorkSlotFromApi | null; slotOk: boolean }> => {
+    if (!staffId) return { apiSlot: null, slotOk: false };
+    const ws = await getWorkSlotsByStaffId(staffId);
+    const rows = Array.isArray(ws.data) ? ws.data : [];
+    const apiSlot = rows.find((s) => s.id === opts.scheduleSlotId) ?? null;
+    return { apiSlot, slotOk: apiSlot ? isTerminalSlotStatus(apiSlot.status) : false };
+  };
+
   const inspectionSyncSession = opts.kind === "inspection";
   if (inspectionSyncSession) {
     pushInspectionFlowDebugSession();
   }
   try {
     for (let i = 0; i < maxAttempts; i++) {
-      let jobOk = false;
-      try {
-        if (opts.kind === "issue") {
-          const r = await getIssueTicketById(opts.jobId);
-          jobOk = Boolean(
-            r?.success &&
-              r.data &&
-              isTerminalJobStatus(r.data.status, "issue")
-          );
-        } else if (opts.kind === "inspection") {
-          const r = await getInspectionById(opts.jobId);
-          jobOk = Boolean(
-            r?.success &&
-              r.data &&
-              isTerminalJobStatus(r.data.status, "inspection")
-          );
-        } else {
-          const r = await getJobById(opts.jobId);
-          jobOk = Boolean(
-            r?.success &&
-              r.data &&
-              isTerminalJobStatus(r.data.status, "maintenance")
-          );
-        }
-      } catch {
-        jobOk = false;
-      }
+      // Gọi song song API job và work-slots để giảm thời gian chờ mỗi vòng lặp
+      const [jobResult, slotResult] = await Promise.allSettled([
+        fetchJobOk(),
+        fetchSlot(),
+      ]);
 
-      let apiSlot: WorkSlotFromApi | null = null;
-      let slotOk = false;
-      try {
-        if (staffId) {
-          const ws = await getWorkSlotsByStaffId(staffId);
-          const rows = Array.isArray(ws.data) ? ws.data : [];
-          apiSlot = rows.find((s) => s.id === opts.scheduleSlotId) ?? null;
-          slotOk = apiSlot ? isTerminalSlotStatus(apiSlot.status) : false;
-        }
-      } catch {
-        slotOk = false;
-      }
+      const jobOk = jobResult.status === "fulfilled" ? jobResult.value : false;
+      const { apiSlot = null, slotOk = false } =
+        slotResult.status === "fulfilled" ? slotResult.value : {};
 
       if (jobOk && slotOk) {
         return { startTimeIso: apiSlot?.startTime ?? null, apiSlot };

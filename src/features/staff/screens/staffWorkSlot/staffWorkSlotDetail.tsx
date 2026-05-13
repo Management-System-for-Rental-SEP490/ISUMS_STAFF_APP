@@ -329,39 +329,67 @@ export default function WorkSlotDetailScreen() {
 
   /**
    * Với từng phần tử trong `data.events` (đã chuẩn hóa ở API): một `eventId` ứng một `assetId`.
-   * Ảnh local đã gắn theo `assetId` (ref map) — POST lên `POST /assets/events/:eventId/images` tương ứng, tuần tự từng cặp.
-   * Trả về true nếu có lần POST lỗi (cặp lỗi còn trong ref để retry lần sau nếu có).
+   * POST ảnh lên `POST /assets/events/:eventId/images` cho từng cặp **song song** (Promise.allSettled)
+   * để giảm thời gian chờ khi có nhiều thiết bị có ảnh.
+   * Trả về true nếu có ít nhất một lần POST lỗi (cặp lỗi còn trong ref để retry).
    */
   const uploadPendingMaintenanceEventImages = useCallback(async (): Promise<boolean> => {
     const events = pendingMaintenanceBatchEventsRef.current;
     if (!events.length) return false;
     const byAsset = maintenanceEventImagesByAssetRef.current;
-    let failed = false;
-    const remaining: Array<{ assetId: string; eventId: string }> = [];
+
+    // Chuẩn bị task cho từng cặp có ảnh
+    type UploadTask = {
+      assetKey: string;
+      eventId: string;
+      files: AssetItemImageToUpload[];
+    };
+    const tasks: UploadTask[] = [];
     for (const ev of events) {
       const assetKey = normalizeId(ev.assetId);
       const eventId = normalizeId(ev.eventId);
       if (!assetKey || !eventId) continue;
       const rows = byAsset[assetKey];
       if (!rows?.length) continue;
-      const files: AssetItemImageToUpload[] = rows.map((r) => ({
-        uri: r.uri,
-        fileName: r.fileName,
-        mimeType: r.mimeType,
-      }));
-      try {
-        await uploadAssetEventImages(eventId, files);
-        delete byAsset[assetKey];
-        const uploadedUris = new Set(files.map((f) => String(f.uri ?? "").trim()).filter(Boolean));
-        if (uploadedUris.size > 0) {
-          setEditorPendingLocalUris((prev) => prev.filter((u) => !uploadedUris.has(u)));
-        }
-      } catch {
+      tasks.push({
+        assetKey,
+        eventId,
+        files: rows.map((r) => ({ uri: r.uri, fileName: r.fileName, mimeType: r.mimeType })),
+      });
+    }
+    if (!tasks.length) {
+      pendingMaintenanceBatchEventsRef.current = [];
+      return false;
+    }
+
+    // Upload song song — allSettled để không bỏ sót lỗi từng task
+    const results = await Promise.allSettled(
+      tasks.map((task) => uploadAssetEventImages(task.eventId, task.files)),
+    );
+
+    let failed = false;
+    const remaining: Array<{ assetId: string; eventId: string }> = [];
+    const allUploadedUris = new Set<string>();
+
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      const task = tasks[i];
+      if (result.status === "fulfilled") {
+        delete byAsset[task.assetKey];
+        task.files.forEach((f) => {
+          const uri = String(f.uri ?? "").trim();
+          if (uri) allUploadedUris.add(uri);
+        });
+      } else {
         failed = true;
-        remaining.push({ assetId: assetKey, eventId });
+        remaining.push({ assetId: task.assetKey, eventId: task.eventId });
       }
     }
+
     pendingMaintenanceBatchEventsRef.current = remaining;
+    if (allUploadedUris.size > 0) {
+      setEditorPendingLocalUris((prev) => prev.filter((u) => !allUploadedUris.has(u)));
+    }
     return failed;
   }, []);
 
@@ -837,9 +865,25 @@ export default function WorkSlotDetailScreen() {
 
   const navigateToInspectionConfirm = useCallback(async () => {
     if (!job?.id) return;
+    const t0 = Date.now();
+    const pendingAssets = Object.values(maintenanceEventImagesByAssetRef.current);
+    const pendingImageCount = pendingAssets.reduce((s, arr) => s + (arr?.length ?? 0), 0);
+    const pendingEventCount = pendingMaintenanceBatchEventsRef.current.length;
+    console.log(
+      `[InspectNav] ▶ Bắt đầu navigateToInspectionConfirm` +
+      ` | jobId=${job.id}` +
+      ` | pendingEvents=${pendingEventCount}` +
+      ` | pendingImages=${pendingImageCount}` +
+      ` | sessionPhotos=${inspectionSessionPhotoUrls.length}`,
+    );
     setUpdateLoading(true);
     try {
+      console.log(`[InspectNav]   → upload ảnh thiết bị bắt đầu: +${Date.now() - t0}ms`);
       const uploadFailed = await uploadPendingMaintenanceEventImages();
+      console.log(
+        `[InspectNav]   → upload ảnh thiết bị xong: +${Date.now() - t0}ms` +
+        ` | failed=${uploadFailed}`,
+      );
       const typ = (inspectionType ?? "").trim().toUpperCase();
       const inspectionTypeParam: "CHECK_IN" | "CHECK_OUT" = typ === "CHECK_OUT" ? "CHECK_OUT" : "CHECK_IN";
       const params = {
@@ -853,6 +897,7 @@ export default function WorkSlotDetailScreen() {
             ? currentHouseName
             : undefined,
       };
+      console.log(`[InspectNav] ✅ navigate("InspectionConfirm") gọi tại: +${Date.now() - t0}ms`);
       if (uploadFailed) {
         CustomAlert.alert(
           t("common.success"),

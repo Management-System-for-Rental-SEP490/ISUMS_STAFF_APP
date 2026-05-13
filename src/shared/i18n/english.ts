@@ -256,7 +256,9 @@ export default {
         "pick_device_summary": "Search and select a device…",
         "search_device_placeholder": "Search name, serial, category…",
         "device_section_title": "Devices",
-        "outside_region_badge": "Outside your area"
+        "outside_region_badge": "Outside your area",
+        "filter_region_label": "Zone",
+        "no_regions_assigned": "You have no zones assigned."
     },
     "staff_item_create": {
         "title": "Add device",
@@ -888,6 +890,7 @@ export default {
         "house_photos_label": "House overview photos",
         "house_photos_empty_hint": "No house photos yet. Take at least 1 overall photo before confirming.",
         "house_photos_add": "Capture house photo",
+        "house_photos_limit_reached": "{{max}} photos limit reached",
         "house_photo_upload_failed": "Failed to upload house photo.",
         "has_damage": "Any damage?",
         "notes_label": "Inspection notes",

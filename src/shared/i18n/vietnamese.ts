@@ -256,7 +256,9 @@ export default {
         "pick_device_summary": "Tìm và chọn thiết bị…",
         "search_device_placeholder": "Tìm tên, serial, danh mục…",
         "device_section_title": "Thiết bị",
-        "outside_region_badge": "Ngoài khu phụ trách"
+        "outside_region_badge": "Ngoài khu phụ trách",
+        "filter_region_label": "Khu vực",
+        "no_regions_assigned": "Bạn chưa được phân công khu vực nào."
     },
     "staff_item_create": {
         "title": "Thêm thiết bị",
@@ -890,6 +892,7 @@ export default {
         "house_photos_label": "Ảnh tổng thể nhà",
         "house_photos_empty_hint": "Chưa có ảnh nhà. Chụp ít nhất 1 ảnh hiện trạng nhà trước khi xác nhận.",
         "house_photos_add": "Chụp ảnh nhà",
+        "house_photos_limit_reached": "Đã đủ {{max}} ảnh nhà",
         "house_photo_upload_failed": "Không tải lên được ảnh nhà.",
         "has_damage": "Có hư hỏng không?",
         "notes_label": "Ghi chú kiểm định",

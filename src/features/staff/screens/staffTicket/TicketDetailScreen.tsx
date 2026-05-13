@@ -207,6 +207,29 @@ export default function TicketDetailScreen() {
     }, [refetch])
   );
 
+  /**
+   * Khi ticket.status thay đổi (từ poll hoặc sau mutation): patch ngay toàn bộ trang list cache
+   * bằng setQueriesData — không gọi refetch() list vì BE list endpoint có thể trả dữ liệu cũ.
+   * Đây là nguồn cập nhật chính để TicketListScreen hiển thị đúng status mà không cần đợi poll 30s.
+   */
+  useEffect(() => {
+    if (!ticket?.id || !ticket?.status) return;
+    const newStatus = ticket.status;
+    const ticketId = ticket.id;
+    queryClient.setQueriesData<import("../../../../shared/services/issuesApi").IssueTicketStaffListPageResult>(
+      { queryKey: ISSUE_TICKET_KEYS.byStaff() },
+      (old) => {
+        if (!old?.items?.length) return old;
+        const idx = old.items.findIndex((item) => item.id === ticketId);
+        if (idx === -1) return old;
+        if (old.items[idx].status === newStatus) return old;
+        const items = [...old.items];
+        items[idx] = { ...items[idx], status: newStatus };
+        return { ...old, items };
+      },
+    );
+  }, [ticket?.id, ticket?.status, queryClient]);
+
   /** Tuần này + tuần sau (T2 tuần này → T7 tuần sau), khớp GET .../slots/me. */
   const generatedRange = useMemo(() => getThisAndNextWorkWeekMonToSatYmd(new Date()), []);
 

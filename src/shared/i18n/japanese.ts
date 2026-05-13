@@ -257,7 +257,9 @@ export default {
         "pick_device_summary": "検索してデバイスを選択…",
         "search_device_placeholder": "名称・シリアル・カテゴリで検索…",
         "device_section_title": "デバイス",
-        "outside_region_badge": "担当エリア外"
+        "outside_region_badge": "担当エリア外",
+        "filter_region_label": "エリア",
+        "no_regions_assigned": "担当エリアがありません。"
     },
     "staff_item_create": {
         "title": "デバイスを追加",
@@ -889,6 +891,7 @@ export default {
         "house_photos_label": "住宅の全体写真",
         "house_photos_empty_hint": "住宅の写真がありません。確認前に最低1枚撮影してください。",
         "house_photos_add": "住宅の写真を撮影",
+        "house_photos_limit_reached": "{{max}}枚の上限に達しました",
         "house_photo_upload_failed": "住宅の写真をアップロードできませんでした。",
         "has_damage": "破損はありますか？",
         "notes_label": "検査メモ",
