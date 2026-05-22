@@ -259,7 +259,14 @@ export default {
         "device_section_title": "デバイス",
         "outside_region_badge": "担当エリア外",
         "filter_region_label": "エリア",
-        "no_regions_assigned": "担当エリアがありません。"
+        "no_regions_assigned": "担当エリアがありません。",
+        "step_region_title": "エリアを選択",
+        "step_house_title": "建物を選択",
+        "step_asset_title": "設備一覧",
+        "no_houses_in_region": "このエリアに建物はありません。",
+        "house_count": "{{count}} 棟",
+        "asset_in_house": "設備: {{name}}",
+        "asset_count": "設備 {{count}} 件"
     },
     "staff_item_create": {
         "title": "デバイスを追加",

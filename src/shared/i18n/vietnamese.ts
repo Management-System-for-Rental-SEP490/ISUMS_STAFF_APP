@@ -258,7 +258,14 @@ export default {
         "device_section_title": "Thiết bị",
         "outside_region_badge": "Ngoài khu phụ trách",
         "filter_region_label": "Khu vực",
-        "no_regions_assigned": "Bạn chưa được phân công khu vực nào."
+        "no_regions_assigned": "Bạn chưa được phân công khu vực nào.",
+        "step_region_title": "Chọn khu vực",
+        "step_house_title": "Chọn căn nhà",
+        "step_asset_title": "Danh sách thiết bị",
+        "no_houses_in_region": "Khu vực này chưa có căn nhà nào.",
+        "house_count": "{{count}} căn nhà",
+        "asset_in_house": "Thiết bị trong: {{name}}",
+        "asset_count": "{{count}} thiết bị"
     },
     "staff_item_create": {
         "title": "Thêm thiết bị",

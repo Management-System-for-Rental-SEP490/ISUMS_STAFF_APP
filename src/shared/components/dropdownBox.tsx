@@ -160,8 +160,8 @@ type SectionBlock = {
   filteredItems: DropdownBoxItem[];
 };
 
-function norm(s: string) {
-  return s
+function norm(s: string | null | undefined) {
+  return String(s ?? "")
     .trim()
     .toLowerCase()
     .normalize("NFD")

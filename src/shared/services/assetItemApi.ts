@@ -71,7 +71,7 @@ async function fetchWithTimeout(
   }
 }
 
-const normalizeTagValueForApi = (raw: string) => raw.trim();
+const normalizeTagValueForApi = (raw: string | null | undefined) => String(raw ?? "").trim();
 
 export function normalizeTagValueForCompare(raw: string): string {
   return String(raw ?? "").replace(/\s+/g, "").toUpperCase();
@@ -185,6 +185,21 @@ function resolveAssetItemDisplayNameForUi(
 
   const displayForResolve = pickDisplayStringForResolve(raw);
   return resolveLocalizedJsonStringFromI18n(displayForResolve);
+}
+
+/** Chuẩn hoá một dòng asset từ GET/list trước khi đưa vào cache hoặc UI (nfcTag/qrTag null-safe, displayName locale). */
+export function normalizeAssetItemRow(
+  raw: AssetItemFromApi & {
+    nfc_tag?: string | null;
+    nfcId?: string | null;
+    nfc_id?: string | null;
+    qr_tag?: string | null;
+    function_area_id?: string | null;
+    functionalAreaId?: string | null;
+    functional_area_id?: string | null;
+  }
+): AssetItemFromApi {
+  return normalizeAssetItemFromResponse(raw);
 }
 
 function normalizeAssetItemFromResponse(
@@ -338,6 +353,10 @@ export const getIotDevicesByHouseId = async (
 };
 
 export const getAssetItemById = async (id: string): Promise<AssetItemFromApi | undefined> => {
+  const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
+  if (__DEV__) {
+    console.log(`[TICKET_DETAIL_API] --> GET assets/items/:id              assetId=${String(id).slice(0, 8)}… [FIRE @ ${new Date().toISOString().slice(11, 23)}]`);
+  }
   try {
     const response = await axiosClient.get<UpdateAssetItemApiResponse | AssetItemFromApi>(
       `${BACKEND_API_BASE}/assets/items/${id}`
@@ -364,17 +383,26 @@ export const getAssetItemById = async (id: string): Promise<AssetItemFromApi | u
       functionalAreaId?: string | null;
       functional_area_id?: string | null;
     };
-    return normalizeAssetItemFromResponse(raw);
+    const result = normalizeAssetItemFromResponse(raw);
+    if (__DEV__) {
+      const elapsed = ((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0).toFixed(0);
+      console.log(`[TICKET_DETAIL_API] <-- GET assets/items/:id              ${elapsed}ms  name="${result.displayName?.slice(0, 20) ?? "?"}"`);
+    }
+    return result;
   } catch {
+    if (__DEV__) {
+      const elapsed = ((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0).toFixed(0);
+      console.warn(`[TICKET_DETAIL_API] <-- GET assets/items/:id              FAIL/empty ${elapsed}ms`);
+    }
     return undefined;
   }
 };
 
 
 export const getAssetItemByTag = async (
-  tagValue: string
+  tagValue: string | null | undefined
 ): Promise<AssetItemFromApi | undefined> => {
-  const normalized = tagValue.trim();
+  const normalized = normalizeTagValueForApi(tagValue);
   if (!normalized) return undefined;
   const apiTagValue = normalizeTagValueForApi(normalized);
 
@@ -758,14 +786,48 @@ export const attachAssetTag = async (
   return response.data;
 };
 
+/**
+ * Gỡ gán tag NFC/QR khỏi thiết bị (PUT /api/assets/tags/detach/{tagValue}).
+ * Log thời gian phản hồi trong __DEV__ để đối chiếu khi UI báo thành công chậm hơn API.
+ */
 export const detachAssetTag = async (
-  tagValue: string
+  tagValue: string | null | undefined
 ): Promise<DetachAssetTagApiResponse> => {
-  const normalized = normalizeTagValueForApi(tagValue.trim());
-  const response = await axiosClient.put<DetachAssetTagApiResponse>(
-    `${BACKEND_API_BASE}/assets/tags/detach/${encodeURIComponent(normalized)}`
-  );
-  return response.data;
+  const normalized = normalizeTagValueForApi(tagValue);
+  if (!normalized) {
+    throw new Error("detachAssetTag: tagValue is empty");
+  }
+  const t0 = globalThis.performance?.now?.() ?? Date.now();
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    // eslint-disable-next-line no-console
+    console.log("[DetachAssetTag] HTTP start", { tagValue: normalized });
+  }
+  try {
+    const response = await axiosClient.put<DetachAssetTagApiResponse>(
+      `${BACKEND_API_BASE}/assets/tags/detach/${encodeURIComponent(normalized)}`
+    );
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      const ms = (globalThis.performance?.now?.() ?? Date.now()) - t0;
+      // eslint-disable-next-line no-console
+      console.log("[DetachAssetTag] HTTP OK", {
+        tagValue: normalized,
+        ms: Math.round(ms),
+        success: response.data?.success,
+      });
+    }
+    return response.data;
+  } catch (err) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      const ms = (globalThis.performance?.now?.() ?? Date.now()) - t0;
+      // eslint-disable-next-line no-console
+      console.log("[DetachAssetTag] HTTP FAIL", {
+        tagValue: normalized,
+        ms: Math.round(ms),
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+    throw err;
+  }
 };
 
 export const deprovisionIotControllerByHouseId = async (

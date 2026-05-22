@@ -258,7 +258,14 @@ export default {
         "device_section_title": "Devices",
         "outside_region_badge": "Outside your area",
         "filter_region_label": "Zone",
-        "no_regions_assigned": "You have no zones assigned."
+        "no_regions_assigned": "You have no zones assigned.",
+        "step_region_title": "Select Zone",
+        "step_house_title": "Select House",
+        "step_asset_title": "Device List",
+        "no_houses_in_region": "No houses in this zone.",
+        "house_count": "{{count}} house(s)",
+        "asset_in_house": "Devices in: {{name}}",
+        "asset_count": "{{count}} device(s)"
     },
     "staff_item_create": {
         "title": "Add device",

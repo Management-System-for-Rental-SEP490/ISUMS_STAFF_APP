@@ -251,7 +251,7 @@ export const AssignNfcModal: React.FC<AssignNfcModalProps> = ({
       const serial = (device.serialNumber ?? "").trim();
       return {
         id: device.id,
-        label: device.displayName,
+        label: device.displayName ?? device.serialNumber ?? device.id,
         cardMeta: [serial, houseName].filter(Boolean).join(" · ") || undefined,
       };
     });

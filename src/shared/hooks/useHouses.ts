@@ -4,6 +4,7 @@ import {
   fetchHousesScopedToStaff,
   getFunctionalAreasByHouseId,
   getHouseById,
+  getHousesByRegionId,
   getRegionsForStaff,
 } from "../services/houseApi";
 import { useAuthStore } from "../../store/useAuthStore";
@@ -25,6 +26,8 @@ export const HOUSES_KEYS = {
   /** Chi tiết một căn (GET /api/houses/{id}). */
   byId: (houseId: string) => ["houses", "byId", houseId] as const,
   functionalAreas: (houseId: string) => ["houses", "functionalAreas", houseId] as const,
+  /** Danh sách nhà theo region (GET /api/houses/region/{regionId}). */
+  byRegion: (regionId: string) => ["houses", "byRegion", regionId] as const,
 };
 
 export const REGION_STAFF_KEYS = {
@@ -81,6 +84,25 @@ export const useHouseById = (houseId: string | undefined | null) => {
     queryKey: [...HOUSES_KEYS.byId(id), i18n.language],
     queryFn: () => getHouseById(id),
     enabled: isLoggedIn && Boolean(token) && Boolean(id),
+  });
+};
+
+/**
+ * Hook lấy danh sách nhà theo regionId (GET /api/houses/region/{regionId}).
+ * Lazy — chỉ fetch khi regionId có giá trị (người dùng đã chọn một khu vực).
+ * Dùng trong luồng drill-down: region → house → asset của ItemListScreen.
+ */
+export const useHousesByRegionId = (regionId: string | null | undefined) => {
+  const { i18n } = useTranslation();
+  const token = useAuthStore((s) => s.token);
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const id = String(regionId ?? "").trim();
+
+  return useQuery({
+    queryKey: [...HOUSES_KEYS.byRegion(id), i18n.language],
+    queryFn: () => getHousesByRegionId(id),
+    enabled: isLoggedIn && Boolean(token) && Boolean(id),
+    staleTime: 60_000,
   });
 };
 

@@ -16,7 +16,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { CustomAlert as Alert } from "../../../../shared/components/alert";
-import { RefreshLogoInline, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
+import { RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
@@ -26,9 +26,7 @@ import { RootStackParamList } from "../../../../shared/types";
 import Icons from "../../../../shared/theme/icon";
 import {
   useHouses,
-  useAssetCategories,
   useDetachAssetTag,
-  useFunctionalAreasByHouseId,
   applyFreshAssetItemToQueryCache,
 } from "../../../../shared/hooks";
 import { itemScreenStyles } from "./itemScreenStyles";
@@ -36,7 +34,6 @@ import type { AssetItemFromApi } from "../../../../shared/types/api";
 import { normalizeAssetItemStatusFromApi } from "../../../../shared/types/api";
 import {
   getAssetItemById,
-  getAssetItemImages,
   type AssetItemImageFromApi,
 } from "../../../../shared/services/assetItemApi";
 import { formatDdMmYyyyHms24 } from "../../../../shared/utils";
@@ -83,7 +80,6 @@ export default function ItemDescriptionScreen() {
   // State lưu item mới nhất (được cập nhật khi focus lại màn hình)
   const [item, setItem] = useState<AssetItemFromApi>(initialItem);
   const [loading, setLoading] = useState(false);
-  const [imagesLoading, setImagesLoading] = useState(false);
   const [itemImages, setItemImages] = useState<AssetItemImageFromApi[]>(() =>
     normalizeEmbeddedImages(initialItem.images)
   );
@@ -99,60 +95,36 @@ export default function ItemDescriptionScreen() {
 
   const { data: housesData } = useHouses();
   const houses = housesData?.data ?? [];
-  const { data: categoriesData } = useAssetCategories();
-  const categories = categoriesData?.data ?? [];
-  const { data: functionalAreasResp } = useFunctionalAreasByHouseId(item.houseId);
   const selectedHouse = useMemo(
     () => houses.find((h) => h.id === item.houseId),
     [houses, item.houseId]
   );
+  // Khu vực chức năng lấy từ house object đã cache (không cần gọi thêm API).
   const functionalAreas = useMemo(
-    () => mergeFunctionalAreasForHouse(selectedHouse, functionalAreasResp?.data),
-    [selectedHouse, functionalAreasResp?.data]
+    () => mergeFunctionalAreasForHouse(selectedHouse, undefined),
+    [selectedHouse]
   );
 
   const detachNfcMutation = useDetachAssetTag();
 
-  // Refetch data mỗi khi màn hình được focus — ưu tiên `images` trong GET item, fallback GET .../images
+  // Refetch data mỗi khi màn hình được focus — API trả đầy đủ images embedded, không cần fallback.
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
       void (async () => {
         try {
           setLoading(true);
-          setImagesLoading(true);
           const latest = await getAssetItemById(initialItem.id);
           if (!isActive) return;
           if (latest) {
-            // Luôn tin kết quả GET — không gộp tag từ params khi API trả null (sau gỡ NFC/QR).
             setItem(latest);
             applyFreshAssetItemToQueryCache(queryClient, latest, i18n.language);
-            const embedded = normalizeEmbeddedImages(latest.images);
-            if (embedded.length > 0) {
-              setItemImages(embedded);
-            } else {
-              try {
-                const imgs = await getAssetItemImages(initialItem.id);
-                if (isActive) setItemImages(imgs);
-              } catch {
-                if (isActive) setItemImages([]);
-              }
-            }
-          } else {
-            try {
-              const imgs = await getAssetItemImages(initialItem.id);
-              if (isActive) setItemImages(imgs);
-            } catch {
-              if (isActive) setItemImages([]);
-            }
+            setItemImages(normalizeEmbeddedImages(latest.images));
           }
         } catch {
           /* giữ dữ liệu initialItem */
         } finally {
-          if (isActive) {
-            setLoading(false);
-            setImagesLoading(false);
-          }
+          if (isActive) setLoading(false);
         }
       })();
 
@@ -208,8 +180,8 @@ export default function ItemDescriptionScreen() {
   };
 
   const houseName = houses.find((h) => h.id === item.houseId)?.name ?? item.houseId;
-  const categoryName =
-    categories.find((c) => c.id === item.categoryId)?.name ?? item.categoryId;
+  // API trả về `category` object embedded — dùng trực tiếp, không cần hook categories.
+  const categoryName = item.category?.name ?? item.categoryId;
 
   const placementDisplay = useMemo(() => {
     const fid = item.functionAreaId;
@@ -361,11 +333,7 @@ export default function ItemDescriptionScreen() {
 
             <View style={{ marginTop: 14 }}>
               <Text style={itemScreenStyles.label}>{t("staff_item_create.images_label")}</Text>
-              {imagesLoading ? (
-                <View style={{ alignItems: "flex-start", paddingVertical: 8 }}>
-                  <RefreshLogoInline logoPx={18} showLabel />
-                </View>
-              ) : itemImages.length > 0 ? (
+              {itemImages.length > 0 ? (
                 <>
                   <ScrollView
                     horizontal

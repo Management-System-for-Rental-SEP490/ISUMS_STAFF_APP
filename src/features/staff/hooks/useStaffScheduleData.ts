@@ -125,19 +125,35 @@ const NOTIFICATION_STAFF_PREFIX = ["notifications", "app", "staff"] as const;
 /**
  * Sau đăng nhập: invalidate theo domain Staff thay vì `queryClient.invalidateQueries()` không filter
  * (tránh refetch mọi query không liên quan).
+ *
+ * Kiểm tra cache trước khi invalidate — nếu domain chưa có data (vừa clear sau logout) thì bỏ qua.
+ * Tránh kích trigger refetch hàng loạt vô ích khi cache đang hoàn toàn rỗng sau cold login đầu tiên.
  */
 export async function invalidatePostLoginStaffDomainCaches(
   queryClient: QueryClient
 ): Promise<void> {
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: HOUSES_KEYS.all }),
-    queryClient.invalidateQueries({ queryKey: ASSET_ITEM_KEYS.base }),
-    queryClient.invalidateQueries({ queryKey: ISSUE_TICKET_KEYS.all }),
-    queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.all }),
-    queryClient.invalidateQueries({ queryKey: STAFF_LEAVE_KEYS.all }),
-    queryClient.invalidateQueries({ queryKey: USER_KEYS.all }),
-    queryClient.invalidateQueries({ queryKey: [...NOTIFICATION_STAFF_PREFIX] }),
-  ]);
+  const domainKeys = [
+    HOUSES_KEYS.all,
+    ASSET_ITEM_KEYS.base,
+    ISSUE_TICKET_KEYS.all,
+    SCHEDULE_DATA_KEYS.all,
+    STAFF_LEAVE_KEYS.all,
+    USER_KEYS.all,
+    [...NOTIFICATION_STAFF_PREFIX] as readonly string[],
+  ] as const;
+
+  // Chỉ invalidate domain thực sự có entry trong cache — domain rỗng không cần đánh dấu stale.
+  const keysWithData = domainKeys.filter(
+    (key) => queryClient.getQueriesData({ queryKey: key as readonly unknown[] }).length > 0
+  );
+
+  if (keysWithData.length === 0) return;
+
+  await Promise.all(
+    keysWithData.map((key) =>
+      queryClient.invalidateQueries({ queryKey: key as readonly unknown[] })
+    )
+  );
 }
 
 /**

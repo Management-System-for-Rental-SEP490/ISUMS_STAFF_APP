@@ -497,13 +497,22 @@ export const useAttachAssetTag = () => {
 
 /**
  * Hook gỡ tag NFC hoặc QR (PUT /api/assets/tags/detach/{tagValue}).
+ * Invalidate cache nền (setTimeout 0) — caller không nên await refetch toàn bộ asset items.
  */
 export const useDetachAssetTag = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ tagValue }: { tagValue: string }) =>
-      detachAssetTag(tagValue.trim()),
-    onSuccess: () => scheduleInvalidateAllAssetItems(queryClient),
+    mutationFn: ({ tagValue }: { tagValue: string | null | undefined }) =>
+      detachAssetTag(tagValue),
+    onSuccess: (_data, variables) => {
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        // eslint-disable-next-line no-console
+        console.log("[DetachAssetTag] mutation onSuccess → schedule invalidate", {
+          tagValue: variables.tagValue,
+        });
+      }
+      scheduleInvalidateAllAssetItems(queryClient);
+    },
   });
 };
 

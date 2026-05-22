@@ -33,8 +33,19 @@ export const getIssueTicketImages = async (
 ): Promise<IssueTicketImageFromApi[]> => {
   if (!ticketId?.trim()) return [];
 
+  const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
+  if (__DEV__) {
+    console.log(`[TICKET_DETAIL_API] --> GET issues/tickets/:id/images  ticketId=${String(ticketId).slice(0, 8)}… [FIRE @ ${new Date().toISOString().slice(11, 23)}]`);
+  }
+
   const url = `${BACKEND_API_BASE}/issues/tickets/${encodeURIComponent(ticketId)}/images`;
   const response = await axiosClient.get<ApiResponse<IssueTicketImageFromApi[]>>(url);
+
+  if (__DEV__) {
+    const elapsed = ((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0).toFixed(0);
+    const count = Array.isArray(response.data?.data) ? response.data.data.length : 0;
+    console.log(`[TICKET_DETAIL_API] <-- GET issues/tickets/:id/images  ${elapsed}ms  count=${count}`);
+  }
 
   if (response.data?.success && Array.isArray(response.data.data)) {
     return response.data.data;
@@ -77,6 +88,9 @@ export const getIssueTicketDataById = async (
   ticketId: string
 ): Promise<IssueTicketFromApi | null> => {
   const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
+  if (__DEV__) {
+    console.log(`[TICKET_DETAIL_API] --> GET issues/tickets/:id            ticketId=${String(ticketId).slice(0, 8)}… [FIRE @ ${new Date().toISOString().slice(11, 23)}]`);
+  }
   try {
     const res = await getIssueTicketById(ticketId);
     if (__DEV__) {
@@ -84,7 +98,7 @@ export const getIssueTicketDataById = async (
         (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
       const ok = Boolean(res?.success && res.data);
       console.log(
-        `[STAFF_TICKET_DETAIL_TIMING] GET issues/tickets/:id ${ok ? "OK" : "empty"} ${elapsed.toFixed(0)}ms ticketId=${String(ticketId).slice(0, 8)}…`
+        `[TICKET_DETAIL_API] <-- GET issues/tickets/:id            ${elapsed.toFixed(0)}ms  ${ok ? "OK" : "empty/null"}`
       );
     }
     if (res?.success && res.data) return res.data;
@@ -94,7 +108,7 @@ export const getIssueTicketDataById = async (
       const elapsed =
         (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
       console.warn(
-        `[STAFF_TICKET_DETAIL_TIMING] GET issues/tickets/:id FAIL sau ${elapsed.toFixed(0)}ms ticketId=${String(ticketId).slice(0, 8)}…`,
+        `[TICKET_DETAIL_API] <-- GET issues/tickets/:id            FAIL ${elapsed.toFixed(0)}ms`,
         e
       );
     }

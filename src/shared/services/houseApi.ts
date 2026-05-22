@@ -216,8 +216,17 @@ export const fetchHousesScopedToStaff = async (): Promise<HousesApiResponse> => 
  * và cần hiển thị đầy đủ tên/địa chỉ căn nhà.
  */
 export const getHouseById = async (id: string): Promise<HouseDetailApiResponse> => {
+  const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
+  if (__DEV__) {
+    console.log(`[TICKET_DETAIL_API] --> GET houses/:id                    houseId=${String(id).slice(0, 8)}… [FIRE @ ${new Date().toISOString().slice(11, 23)}]`);
+  }
   const url = `${BACKEND_API_BASE}/houses/${encodeURIComponent(id)}`;
   const response = await axiosClient.get<HouseDetailApiResponse>(url);
+  if (__DEV__) {
+    const elapsed = ((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0).toFixed(0);
+    const ok = Boolean(response.data?.data);
+    console.log(`[TICKET_DETAIL_API] <-- GET houses/:id                    ${elapsed}ms  ${ok ? "OK" : "no data"}`);
+  }
   const body = response.data;
   if (!body?.data) return body;
   return {

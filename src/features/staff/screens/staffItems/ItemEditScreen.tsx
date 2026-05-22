@@ -43,7 +43,6 @@ import {
 import {
   useUpdateAssetItem,
   useHouses,
-  useAssetCategories,
   ASSET_ITEM_KEYS,
   applyFreshAssetItemToQueryCache,
   useTransferAssetItemHouse,
@@ -55,9 +54,11 @@ import {
   getAssetItemByNfcId,
   getAssetItemById,
   getAssetItemImages,
+  getImagesFromAssetItem,
   uploadAssetItemImages,
   deleteAssetItemImage,
   isDuplicateTagConflictError,
+  normalizeAssetItemRow,
   type AssetItemImageFromApi,
   type AssetItemImageToUpload,
 } from "../../../../shared/services/assetItemApi";
@@ -69,7 +70,6 @@ import {
   type DropdownBoxSection,
 } from "../../../../shared/components/dropdownBox";
 import type {
-  AssetCategoryFromApi,
   AssetItemFromApi,
   FunctionalAreaFromApi,
 } from "../../../../shared/types/api";
@@ -158,8 +158,6 @@ export default function ItemEditScreen() {
   const [itemImages, setItemImages] = useState<AssetItemImageFromApi[]>([]);
   /** Ảnh local vừa chọn/chụp để preview ngay (optimistic UI). */
   const [pendingImagePreviews, setPendingImagePreviews] = useState<AssetItemImageToUpload[]>([]);
-  /** Tăng version để bust cache (nếu BE overwrite URL cũ). */
-  const [imagesVersion, setImagesVersion] = useState(0);
   const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
   const imageModalListRef = useRef<FlatList<{ key: string; uri: string }>>(null);
   const { width: windowWidth } = useWindowDimensions();
@@ -191,35 +189,10 @@ export default function ItemEditScreen() {
     }, [item.id])
   );
 
-  // Đồng bộ danh sách ảnh: ưu tiên images trên bản GET item; không thì gọi GET .../images
+  // Đồng bộ danh sách ảnh từ embedded images trong GET item (API trả về đầy đủ).
   useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      if (!latestItem?.id) return;
-      const embedded =
-        latestItem.images?.map((img) => ({
-          id: String(img.id ?? "").trim(),
-          url: String(img.url ?? ""),
-          createdAt: img.createdAt ?? null,
-        })).filter((x) => x.id.length > 0 && x.url.length > 0) ?? [];
-      try {
-        if (embedded.length > 0) {
-          if (!cancelled) setItemImages(embedded);
-          return;
-        }
-        setImagesLoading(true);
-        const imgs = await getAssetItemImages(latestItem.id);
-        if (!cancelled) setItemImages(imgs);
-      } catch {
-        if (!cancelled) setItemImages([]);
-      } finally {
-        if (!cancelled) setImagesLoading(false);
-      }
-    };
-    run();
-    return () => {
-      cancelled = true;
-    };
+    setItemImages(getImagesFromAssetItem(latestItem));
+    setImagesLoading(false);
   }, [latestItem.id, latestItem.images]);
 
   const [houseId, setHouseId] = useState(latestItem.houseId);
@@ -292,8 +265,6 @@ export default function ItemEditScreen() {
 
   const { data: housesData } = useHouses();
   const houses = housesData?.data ?? [];
-  const { data: categoriesData } = useAssetCategories();
-  const categories = categoriesData?.data ?? [];
   const { data: functionalAreasResp } = useFunctionalAreasByHouseId(houseId.trim());
   const selectedHouse = useMemo(
     () => houses.find((h: HouseFromApi) => h.id === houseId),
@@ -423,8 +394,8 @@ export default function ItemEditScreen() {
   }, [functionAreaId, functionalAreas, formatAreaDropdownLabel, t]);
 
   const categoryReadonlyValue = useMemo(
-    () => categories.find((x: AssetCategoryFromApi) => x.id === categoryId)?.name ?? categoryId,
-    [categories, categoryId]
+    () => latestItem.category?.name ?? latestItem.categoryId,
+    [latestItem.category, latestItem.categoryId]
   );
 
   const statusDropdownSummary = useMemo(
@@ -470,7 +441,7 @@ export default function ItemEditScreen() {
     if (formLocked) return;
     const nameForRequired =
       typeof displayName === "string" ? displayName.trim() : String(displayName ?? "").trim();
-    if (!houseId.trim() || !categoryId.trim() || !nameForRequired || !serialNumber.trim()) {
+    if (!houseId.trim() || !categoryId.trim() || !nameForRequired || !(serialNumber ?? "").trim()) {
       updateMutation.reset();
       return;
     }
@@ -479,8 +450,8 @@ export default function ItemEditScreen() {
       updateMutation.reset();
       return;
     }
-    const trimmedNfcId = nfcId.trim();
-    const trimmedQrId = qrId.trim();
+    const trimmedNfcId = (nfcId ?? "").trim();
+    const trimmedQrId = (qrId ?? "").trim();
 
     // Kiểm tra trùng NFC tag (nếu có nhập)
     if (trimmedNfcId.length > 0) {
@@ -522,7 +493,7 @@ export default function ItemEditScreen() {
     const displayNameMapKey = nameLang === "en" ? "en" : nameLang === "ja" ? "ja" : "vi";
     const payload: UpdateAssetItemRequest = {
       displayName: { [displayNameMapKey]: trimmedName },
-      serialNumber: serialNumber.trim(),
+      serialNumber: (serialNumber ?? "").trim(),
       nfcId: trimmedNfcId.length > 0 ? trimmedNfcId : null,
       conditionPercent: percent,
       note: note.trim(),
@@ -652,8 +623,8 @@ export default function ItemEditScreen() {
             const delMapKey = delNameLang === "en" ? "en" : delNameLang === "ja" ? "ja" : "vi";
             const payload: UpdateAssetItemRequest = {
               displayName: { [delMapKey]: dnTrim },
-              serialNumber: serialNumber.trim(),
-              nfcId: nfcId.trim() ? nfcId.trim() : null,
+              serialNumber: (serialNumber ?? "").trim(),
+              nfcId: (nfcId ?? "").trim() ? (nfcId ?? "").trim() : null,
               conditionPercent: Number.isNaN(percent) ? item.conditionPercent : percent,
               note: note.trim(),
               status: "DISPOSED",
@@ -679,16 +650,118 @@ export default function ItemEditScreen() {
     houseId.trim().length > 0 &&
     categoryId.trim().length > 0 &&
     (typeof displayName === "string" ? displayName : String(displayName ?? "")).trim().length > 0 &&
-    serialNumber.trim().length > 0 &&
+    (serialNumber ?? "").trim().length > 0 &&
     conditionPercent.length > 0 &&
     !Number.isNaN(parseInt(conditionPercent, 10));
 
   // Chỉ cho phép "xóa" khi thiết bị chưa ở trạng thái DISPOSED và không chờ duyệt.
   const canDelete = !formLocked && status !== "DISPOSED";
 
+  /**
+   * Hoàn tất gỡ tag trên form chỉnh sửa: gọi API → cập nhật state/cache ngay → hiện alert thành công.
+   * Không `await refetchQueries` toàn bộ asset items (mọi nhà) — thao tác đó có thể kéo dài 1–2 phút
+   * và chặn popup dù server đã trả 200. Invalidate nền do `useDetachAssetTag.onSuccess` xử lý.
+   */
+  const runDetachTagFlow = useCallback(
+    async (tagValue: string, tagField: "nfcTag" | "qrTag", clearLocalField: () => void) => {
+      const logPrefix = "[DetachAssetTag][ItemEdit]";
+      const t0 = globalThis.performance?.now?.() ?? Date.now();
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        // eslint-disable-next-line no-console
+        console.log(logPrefix, "flow start", {
+          itemId: latestItem.id,
+          tagField,
+          tagValue,
+        });
+      }
+
+      await detachNfcMutation.mutateAsync({ tagValue });
+      const tAfterApi = globalThis.performance?.now?.() ?? Date.now();
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        // eslint-disable-next-line no-console
+        console.log(logPrefix, "mutateAsync done", {
+          msFromStart: Math.round(tAfterApi - t0),
+        });
+      }
+
+      clearLocalField();
+      const tagTypeToClear = tagField === "nfcTag" ? ("NFC" as const) : ("QR_CODE" as const);
+      const patchedRaw = {
+        ...latestItem,
+        [tagField]: null,
+        tags: Array.isArray(latestItem.tags)
+          ? latestItem.tags.map((entry) =>
+              entry.tagType === tagTypeToClear ? { ...entry, isActive: false } : entry
+            )
+          : latestItem.tags,
+      };
+      const updatedItem = normalizeAssetItemRow(patchedRaw);
+      setLatestItem(updatedItem);
+      applyFreshAssetItemToQueryCache(queryClient, updatedItem, i18n.language);
+
+      const tAfterCache = globalThis.performance?.now?.() ?? Date.now();
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        // eslint-disable-next-line no-console
+        console.log(logPrefix, "local cache patched", {
+          msFromApi: Math.round(tAfterCache - tAfterApi),
+        });
+      }
+
+      Alert.alert(
+        t("common.success"),
+        t("staff_item_edit.remove_nfc_success"),
+        [
+          {
+            text: t("common.close"),
+            onPress: () => {
+              (navigation as any).navigate("Main", { screen: "Dashboard" });
+            },
+          },
+        ]
+      );
+
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        const tAfterAlert = globalThis.performance?.now?.() ?? Date.now();
+        // eslint-disable-next-line no-console
+        console.log(logPrefix, "success alert shown", {
+          msFromCache: Math.round(tAfterAlert - tAfterCache),
+          totalMs: Math.round(tAfterAlert - t0),
+        });
+      }
+
+      void getAssetItemById(latestItem.id)
+        .then((fresh) => {
+          if (!fresh) return;
+          setLatestItem(fresh);
+          applyFreshAssetItemToQueryCache(queryClient, fresh, i18n.language);
+          if (typeof __DEV__ !== "undefined" && __DEV__) {
+            const tBg = globalThis.performance?.now?.() ?? Date.now();
+            // eslint-disable-next-line no-console
+            console.log(logPrefix, "background GET item OK", {
+              msFromStart: Math.round(tBg - t0),
+            });
+          }
+        })
+        .catch((e) => {
+          if (typeof __DEV__ !== "undefined" && __DEV__) {
+            // eslint-disable-next-line no-console
+            console.log(logPrefix, "background GET item FAIL", e);
+          }
+        });
+    },
+    [
+      detachNfcMutation,
+      i18n.language,
+      latestItem,
+      navigation,
+      queryClient,
+      t,
+    ]
+  );
+
   const handleDetachNfc = () => {
     if (formLocked) return;
-    const trimmed = nfcId.trim();
+    const trimmed = (nfcId ?? "").trim();
     if (!trimmed) return;
     Alert.alert(
       t("staff_item_edit.remove_nfc_confirm_title"),
@@ -699,21 +772,7 @@ export default function ItemEditScreen() {
           text: t("staff_item_edit.remove_nfc_btn"),
           onPress: async () => {
             try {
-              await detachNfcMutation.mutateAsync({ tagValue: trimmed });
-              setNfcId("");
-              await queryClient.refetchQueries({ queryKey: ASSET_ITEM_KEYS.base });
-              Alert.alert(
-                t("common.success"),
-                t("staff_item_edit.remove_nfc_success"),
-                [
-                  {
-                    text: t("common.close"),
-                    onPress: () => {
-                      (navigation as any).navigate("Main", { screen: "Dashboard" });
-                    },
-                  },
-                ]
-              );
+              await runDetachTagFlow(trimmed, "nfcTag", () => setNfcId(""));
             } catch {
               Alert.alert(
                 t("camera.error_title"),
@@ -728,7 +787,7 @@ export default function ItemEditScreen() {
 
   const handleDetachQr = () => {
     if (formLocked) return;
-    const trimmed = qrId.trim();
+    const trimmed = (qrId ?? "").trim();
     if (!trimmed) return;
     Alert.alert(
       t("staff_item_edit.remove_nfc_confirm_title"),
@@ -739,21 +798,7 @@ export default function ItemEditScreen() {
           text: t("staff_item_edit.remove_qr_btn"),
           onPress: async () => {
             try {
-              await detachNfcMutation.mutateAsync({ tagValue: trimmed });
-              setQrId("");
-              await queryClient.refetchQueries({ queryKey: ASSET_ITEM_KEYS.base });
-              Alert.alert(
-                t("common.success"),
-                t("staff_item_edit.remove_nfc_success"),
-                [
-                  {
-                    text: t("common.close"),
-                    onPress: () => {
-                      (navigation as any).navigate("Main", { screen: "Dashboard" });
-                    },
-                  },
-                ]
-              );
+              await runDetachTagFlow(trimmed, "qrTag", () => setQrId(""));
             } catch {
               Alert.alert(
                 t("camera.error_title"),
@@ -782,7 +827,6 @@ export default function ItemEditScreen() {
       setImagesLoading(true);
       const imgs = await getAssetItemImages(latestItem.id, Date.now());
       setItemImages(imgs);
-      setImagesVersion((v) => v + 1);
     } catch {
       setItemImages([]);
     } finally {
@@ -838,12 +882,13 @@ export default function ItemEditScreen() {
       })),
       ...itemImages.map((img) => ({
         key: img.id,
-        uri: `${img.url}${img.url.includes("?") ? "&" : "?"}t=${imagesVersion}`,
+        // URL S3 presigned đã ký query string — không thêm tham số client (sẽ 403, ảnh trắng).
+        uri: img.url,
         kind: "server" as const,
         serverImageId: img.id,
       })),
     ],
-    [pendingImagePreviews, itemImages, imagesVersion]
+    [pendingImagePreviews, itemImages]
   );
 
   useEffect(() => {
@@ -1044,7 +1089,7 @@ export default function ItemEditScreen() {
                     placeholderTextColor={neutral.textMuted}
                     editable={false}
                   />
-                  {!nfcId.trim() ? (
+                  {!(nfcId ?? "").trim() ? (
                     !formLocked ? (
                       <TouchableOpacity
                         style={[
@@ -1097,7 +1142,7 @@ export default function ItemEditScreen() {
                     placeholderTextColor={neutral.textMuted}
                     editable={false}
                   />
-                  {!qrId.trim() ? (
+                  {!(qrId ?? "").trim() ? (
                     !formLocked ? (
                       <TouchableOpacity
                         style={[

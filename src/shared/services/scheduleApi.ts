@@ -120,10 +120,19 @@ export const getMyWorkSlots = async (
   startDate: string,
   endDate: string
 ): Promise<GenerateWorkSlotsApiResponse> => {
+  const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
+  if (__DEV__) {
+    console.log(`[TICKET_DETAIL_API] --> GET schedules/work_slots/slots/me  ${startDate}→${endDate} [FIRE @ ${new Date().toISOString().slice(11, 23)}]`);
+  }
   const response = await axiosClient.get<GenerateWorkSlotsApiResponse>(
     `${BACKEND_API_BASE}/schedules/work_slots/slots/me`,
     { params: { startDate, endDate } }
   );
+  if (__DEV__) {
+    const elapsed = ((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0).toFixed(0);
+    const days = Array.isArray((response.data as any)?.data) ? (response.data as any).data.length : "?";
+    console.log(`[TICKET_DETAIL_API] <-- GET schedules/work_slots/slots/me  ${elapsed}ms  days=${days}`);
+  }
   return response.data;
 };
 

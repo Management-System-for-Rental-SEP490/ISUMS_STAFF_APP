@@ -440,7 +440,7 @@ export default function StaffHomeScreen() {
     const slotsWithJob = workSlots.filter(
       (slot) =>
         slot.ticketId &&
-        slot.ticketId.trim() !== "" &&
+        slot.ticketId?.trim() !== "" &&
         allowedDays.has(slot.date)
     );
 
