@@ -144,7 +144,7 @@ export default {
         "notification": "Notification"
     },
     "nav": {
-        "Dashboard": "Scan",
+        "Dashboard": "Home",
         "ElectricUsage": "Electric",
         "WaterUsage": "Water",
         "Billing": "Billing",

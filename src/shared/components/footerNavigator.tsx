@@ -158,17 +158,6 @@ const createScreenOptions = (bottomInset: number) => ({
 // - Thông thường, khi bạn nhấn vào tab "Dashboard" (🏠), app sẽ về màn Dashboard.
 // - Với `DashboardListener` trên, khi nhấn vào tab "Dashboard", thay vào đó app sẽ mở camera (giống như một button đặc biệt ở chính giữa tab bar để mở nhanh camera quét QR chẳng hạn).
 
-const DashboardListener = ({ // DashboardListener là một hàm để lắng nghe sự kiện (event) khi người dùng nhấn vào tab "Dashboard".
-  navigation, // navigation là một biến state để lưu trữ trạng thái navigation. 
-}: {
-  navigation: NavigationProp<MainTabParamList>; // navigation là một biến state để lưu trữ trạng thái navigation.
-}) => ({ // () => ({}) là một arrow function, nó dùng để trả về một object.
-  tabPress: (e: { preventDefault: () => void }) => { // tabPress là một sự kiện (event) khi người dùng nhấn vào tab "Dashboard".
-    e.preventDefault(); // preventDefault là một phương thức của event, nó dùng để ngăn chặn hành động mặc định của event.
-    navigation.getParent<NavigationProp<RootStackParamList>>()?.navigate("Camera"); // getParent là một phương thức của navigation, nó dùng để lấy navigation prop từ parent navigator.
-  }, 
-});
-
 /** Đang ở tab Lịch + bấm lại icon Lịch → CalendarScreen nhận param và về tuần hiện tại nếu đang xem tuần khác. */
 const CalendarTabListener = ({
   navigation,
@@ -241,12 +230,7 @@ export const StaffTabs = ({ route }: { route: MainStackRouteProp }) => {
           component={CalendarScreen}
           listeners={CalendarTabListener}
         />
-        {/* Khi nhấn tab Dashboard: mở Camera (quét QR/NFC) thay vì chuyển về Dashboard, giống Tenant */}
-        <Tab.Screen
-          name="Dashboard"
-          component={StaffHomeScreen}
-          listeners={DashboardListener}
-        />
+        <Tab.Screen name="Dashboard" component={StaffHomeScreen} />
         <Tab.Screen name="Devices" component={ItemListScreen} />
         <Tab.Screen name="Profile" component={UserProfileScreen} />
       </Tab.Navigator>

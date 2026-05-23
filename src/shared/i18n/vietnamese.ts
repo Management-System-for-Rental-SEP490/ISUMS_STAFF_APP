@@ -144,7 +144,7 @@ export default {
         "notification": "Thông báo"
     },
     "nav": {
-        "Dashboard": "Quét",
+        "Dashboard": "Trang chủ",
         "ElectricUsage": "Điện",
         "WaterUsage": "Nước",
         "Billing": "Hóa đơn",

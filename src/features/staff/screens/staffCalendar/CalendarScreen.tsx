@@ -28,11 +28,8 @@ import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { MainTabParamList, RootStackParamList } from "../../../../shared/types";
 import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
 import Header from "../../../../shared/components/header";
-import { StaffScreenActionFab } from "../../../../shared/components/StaffScreenActionFab";
-import { getWorkingDaysFromTemplate } from "../../data/mockStaffData";
 import type { WorkSlot } from "../../data/mockStaffData";
 import { useStaffSchedule } from "../../context/StaffScheduleContext";
-import DayOffActionModal from "./modals/DayOffActionModal";
 import { StaffWorkCalendarMonthModal } from "./modals/StaffWorkCalendarMonthModal";
 import {
   staffCalendarStyles,
@@ -109,17 +106,9 @@ export default function CalendarScreen() {
   const route = useRoute<CalendarRouteProp>();
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList, "Calendar">>();
   const calendarTabVisible = useIsFocused();
-  const {
-    dayOffList,
-    scheduleTemplate,
-    workSlots,
-    refetchTemplate,
-    refetchWorkSlots,
-    refetchLeaveRequests,
-  } = useStaffSchedule();
+  const { workSlots, refetchTemplate, refetchWorkSlots } = useStaffSchedule();
   const queryClient = useQueryClient();
   const invalidateScheduleRelated = useInvalidateScheduleRelatedQueries();
-  const [dayOffActionVisible, setDayOffActionVisible] = useState(false);
   const [monthModalVisible, setMonthModalVisible] = useState(false);
   const [timetableRefreshing, setTimetableRefreshing] = useState(false);
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
@@ -165,16 +154,6 @@ export default function CalendarScreen() {
     }
     return map;
   }, [workSlots, weekDays]);
-
-  const workingDaysSet = useMemo(
-    () => getWorkingDaysFromTemplate(scheduleTemplate),
-    [scheduleTemplate]
-  );
-
-  const isDayOff = useMemo(() => {
-    const set = new Set(dayOffList);
-    return (date: string) => set.has(date);
-  }, [dayOffList]);
 
   /** Ngày hôm nay (YYYY-MM-DD) — so khớp với từng ô trong strip tuần */
   const todayYMD = useMemo(() => {
@@ -263,7 +242,7 @@ export default function CalendarScreen() {
   const onTimetableRefresh = useCallback(async () => {
     setTimetableRefreshing(true);
     try {
-      const tasks: Promise<unknown>[] = [refetchWorkSlots(), refetchLeaveRequests()];
+      const tasks: Promise<unknown>[] = [refetchWorkSlots()];
       if (weekStart) {
         const ymd = `${weekStart.getFullYear()}-${(weekStart.getMonth() + 1)
           .toString()
@@ -274,7 +253,7 @@ export default function CalendarScreen() {
     } finally {
       setTimetableRefreshing(false);
     }
-  }, [weekStart, queryClient, refetchWorkSlots, refetchLeaveRequests]);
+  }, [weekStart, queryClient, refetchWorkSlots]);
 
   return (
     <View style={staffCalendarStyles.container}>
@@ -445,30 +424,11 @@ export default function CalendarScreen() {
         </ScrollView>
       </View>
 
-      <StaffScreenActionFab
-        insetAboveTabBar
-        onPress={() => setDayOffActionVisible(true)}
-        accessibilityLabel={t("staff_calendar.add_menu_open")}
-      />
-
       <StaffWorkCalendarMonthModal
         visible={monthModalVisible}
         onClose={() => setMonthModalVisible(false)}
         initialMonth={weekStart ?? new Date()}
         onSelectDay={onMonthModalSelectDay}
-      />
-
-      <DayOffActionModal
-        visible={dayOffActionVisible}
-        onClose={() => setDayOffActionVisible(false)}
-        onViewLeaveRequests={() => {
-          setDayOffActionVisible(false);
-          navigation.getParent<NavigationProp<RootStackParamList>>()?.navigate("LeaveRequestList");
-        }}
-        onSendLeaveRequest={() => {
-          setDayOffActionVisible(false);
-          navigation.getParent<NavigationProp<RootStackParamList>>()?.navigate("RequestDayOff");
-        }}
       />
     </View>
   );

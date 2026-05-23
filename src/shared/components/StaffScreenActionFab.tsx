@@ -5,9 +5,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import { brandGradient, neutral } from "../theme/color";
 import Icons from "../theme/icon";
 
+type StaffScreenActionFabIcon = "plus" | "calendar";
+
 type StaffScreenActionFabProps = {
   onPress: () => void;
   accessibilityLabel?: string;
+  /** Icon trong nút tròn; mặc định `plus` (tạo mới). Màn Lịch dùng `calendar` cho menu lịch nghỉ. */
+  icon?: StaffScreenActionFabIcon;
   /**
    * Màn nằm trong `StaffTabs`: vùng nội dung đã kết thúc ngay trên tab bar —
    * chỉ cần lề nhỏ, không cộng thêm chiều cao tab (tránh đẩy FAB lên cao).
@@ -16,11 +20,12 @@ type StaffScreenActionFabProps = {
 };
 
 /**
- * Nút tròn dấu + góc phải dưới — dùng cho tạo mới / mở menu thao tác thay vì đặt trên header.
+ * Nút tròn góc phải dưới — dùng cho tạo mới / mở menu thao tác thay vì đặt trên header.
  */
 export function StaffScreenActionFab({
   onPress,
   accessibilityLabel,
+  icon = "plus",
   insetAboveTabBar = false,
 }: StaffScreenActionFabProps) {
   const insets = useSafeAreaInsets();
@@ -43,7 +48,11 @@ export function StaffScreenActionFab({
           end={{ x: 1, y: 1 }}
           style={styles.gradient}
         >
-          <Icons.plus size={26} color={neutral.surface} />
+          {icon === "calendar" ? (
+            <Icons.calendar size={26} color={neutral.surface} />
+          ) : (
+            <Icons.plus size={26} color={neutral.surface} />
+          )}
         </LinearGradient>
       </TouchableOpacity>
     </View>

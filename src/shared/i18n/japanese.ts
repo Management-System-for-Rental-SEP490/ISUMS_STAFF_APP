@@ -144,7 +144,7 @@ export default {
         "notification": "通知"
     },
     "nav": {
-        "Dashboard": "スキャン",
+        "Dashboard": "ホーム",
         "ElectricUsage": "電気",
         "WaterUsage": "水",
         "Billing": "請求書",
