@@ -209,7 +209,7 @@ export function useGeneratedWorkSlotsQuery(
 }
 
 /**
- * Khi vào tab Lịch (focus): làm mới work slots + leave — không invalidate template/generatedSlots
+ * Khi vào tab Lịch (focus): làm mới work slots — không invalidate template/generatedSlots
  * để tránh bão refetch không cần cho thẻ slot trên lịch.
  */
 export function useInvalidateScheduleRelatedQueries() {
@@ -219,6 +219,5 @@ export function useInvalidateScheduleRelatedQueries() {
     if (staffId) {
       void queryClient.invalidateQueries({ queryKey: SCHEDULE_DATA_KEYS.workSlots(staffId) });
     }
-    void queryClient.invalidateQueries({ queryKey: STAFF_LEAVE_KEYS.all });
   }, [queryClient]);
 }

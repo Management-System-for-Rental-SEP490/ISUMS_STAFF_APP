@@ -201,8 +201,10 @@ export const useAssetItems = (params: UseAssetItemsParams = {}) => {
 
   return useQuery<AssetItemsApiResponse, unknown, AssetItemsApiResponse, readonly unknown[]>({
     queryKey,
-    /** Luôn coi dữ liệu thiết bị là stale: cập nhật ngoài app (Swagger/BE) vẫn thấy sau khi refetch — không giữ cache 5 phút từ QueryClient global. */
-    staleTime: 0,
+    // staleTime 60s: cân bằng giữa freshness và performance.
+    // Trước đây staleTime:0 khiến mỗi render đều refetch toàn bộ danh sách thiết bị.
+    // Mutation (add/edit/delete thiết bị) vẫn tự invalidate cache nên data vẫn fresh sau thay đổi.
+    staleTime: 1000 * 60,
     enabled,
     queryFn: async () => {
       if (requireHouse && !hasHouse) {
