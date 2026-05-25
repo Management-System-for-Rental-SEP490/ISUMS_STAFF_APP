@@ -744,6 +744,7 @@ export default function WorkSlotDetailScreen() {
         CustomAlert.alert(t("staff_work_slot_detail.cannot_update_status"), "", [{ text: t("common.close") }]);
         return;
       }
+     
       setUpdateLoading(true);
       try {
         await updateIssueTicketStatus(ticket.id, newStatus);
@@ -796,9 +797,9 @@ export default function WorkSlotDetailScreen() {
 
     setUpdateLoading(true);
     try {
-      let maintenanceEventUploadFailed = false;
       if (!isInspectionSlot && maintenanceNext === "COMPLETED") {
-        maintenanceEventUploadFailed = await uploadPendingMaintenanceEventImages();
+        // Upload ảnh event chạy nền — không block nút Hoàn thành chờ upload xong
+        void uploadPendingMaintenanceEventImages();
       }
       if (isInspectionSlot) {
         const res = await updateInspectionStatus(job.id, inspectionNext!);
@@ -828,13 +829,6 @@ export default function WorkSlotDetailScreen() {
 
       if (finishedNow) {
         navigateCalendarAfterCompletion(null);
-        if (maintenanceEventUploadFailed) {
-          CustomAlert.alert(
-            t("common.success"),
-            t("staff_work_slot_detail.maintenance_event_images_partial"),
-            [{ text: t("common.close") }]
-          );
-        }
         void waitForWorkSlotCompletionSync({
           scheduleSlotId: slot.id,
           jobId: job.id,
@@ -863,53 +857,24 @@ export default function WorkSlotDetailScreen() {
     }
   };
 
-  const navigateToInspectionConfirm = useCallback(async () => {
+  const navigateToInspectionConfirm = useCallback(() => {
     if (!job?.id) return;
-    const t0 = Date.now();
-    const pendingAssets = Object.values(maintenanceEventImagesByAssetRef.current);
-    const pendingImageCount = pendingAssets.reduce((s, arr) => s + (arr?.length ?? 0), 0);
-    const pendingEventCount = pendingMaintenanceBatchEventsRef.current.length;
-    console.log(
-      `[InspectNav] ▶ Bắt đầu navigateToInspectionConfirm` +
-      ` | jobId=${job.id}` +
-      ` | pendingEvents=${pendingEventCount}` +
-      ` | pendingImages=${pendingImageCount}` +
-      ` | sessionPhotos=${inspectionSessionPhotoUrls.length}`,
-    );
-    setUpdateLoading(true);
-    try {
-      console.log(`[InspectNav]   → upload ảnh thiết bị bắt đầu: +${Date.now() - t0}ms`);
-      const uploadFailed = await uploadPendingMaintenanceEventImages();
-      console.log(
-        `[InspectNav]   → upload ảnh thiết bị xong: +${Date.now() - t0}ms` +
-        ` | failed=${uploadFailed}`,
-      );
-      const typ = (inspectionType ?? "").trim().toUpperCase();
-      const inspectionTypeParam: "CHECK_IN" | "CHECK_OUT" = typ === "CHECK_OUT" ? "CHECK_OUT" : "CHECK_IN";
-      const params = {
-        inspectionId: job.id,
-        inspectionType: inspectionTypeParam,
-        photoUrls: inspectionSessionPhotoUrls,
-        scheduleSlotId: slot.id,
-        slotDate: slot.date,
-        houseName:
-          !houseNameRowLoading && currentHouseName && currentHouseName !== "—"
-            ? currentHouseName
-            : undefined,
-      };
-      console.log(`[InspectNav] ✅ navigate("InspectionConfirm") gọi tại: +${Date.now() - t0}ms`);
-      if (uploadFailed) {
-        CustomAlert.alert(
-          t("common.success"),
-          t("staff_work_slot_detail.maintenance_event_images_partial"),
-          [{ text: t("common.close"), onPress: () => navigation.navigate("InspectionConfirm", params) }]
-        );
-      } else {
-        navigation.navigate("InspectionConfirm", params);
-      }
-    } finally {
-      setUpdateLoading(false);
-    }
+    const typ = (inspectionType ?? "").trim().toUpperCase();
+    const inspectionTypeParam: "CHECK_IN" | "CHECK_OUT" = typ === "CHECK_OUT" ? "CHECK_OUT" : "CHECK_IN";
+    // Navigate ngay lập tức — không block chờ upload ảnh event thiết bị
+    navigation.navigate("InspectionConfirm", {
+      inspectionId: job.id,
+      inspectionType: inspectionTypeParam,
+      photoUrls: inspectionSessionPhotoUrls,
+      scheduleSlotId: slot.id,
+      slotDate: slot.date,
+      houseName:
+        !houseNameRowLoading && currentHouseName && currentHouseName !== "—"
+          ? currentHouseName
+          : undefined,
+    });
+    // Upload ảnh event chạy nền sau khi màn hình xác nhận đã mở
+    void uploadPendingMaintenanceEventImages();
   }, [
     currentHouseName,
     houseNameRowLoading,
@@ -919,7 +884,6 @@ export default function WorkSlotDetailScreen() {
     navigation,
     slot.date,
     slot.id,
-    t,
     uploadPendingMaintenanceEventImages,
   ]);
 
@@ -1587,14 +1551,10 @@ export default function WorkSlotDetailScreen() {
       }
       const focusAt = Date.now();
       console.log(`[WorkSlotDetail]   → useFocusEffect kích hoạt: +${focusAt - mountAtRef.current}ms`);
-      void (async () => {
-        const t0 = Date.now();
-        await refetchItem();
-        console.log(`[WorkSlotDetail]   → refetchItem xong: +${Date.now() - mountAtRef.current}ms, took=${Date.now() - t0}ms`);
-        const t1 = Date.now();
-        await refreshDisplaySlotFromScheduleCache();
-        console.log(`[WorkSlotDetail] ✅ Focus sequence hoàn tất: tổng focus=${Date.now() - focusAt}ms, elapsed=+${Date.now() - mountAtRef.current}ms`);
-      })();
+      // Chạy song song: refetchItem và refreshScheduleCache độc lập nhau
+      void Promise.all([refetchItem(), refreshDisplaySlotFromScheduleCache()]).then(() => {
+        console.log(`[WorkSlotDetail] ✅ Focus sequence hoàn tất: tổng focus=${Date.now() - focusAt}ms`);
+      });
       const pollId = setInterval(() => {
         void refetchItem();
         pullSlotStatusFromCache();

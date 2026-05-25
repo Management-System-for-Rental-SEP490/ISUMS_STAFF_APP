@@ -190,6 +190,7 @@ export default {
         "add_menu_open": "追加メニューを開く",
         "add_menu_create_category": "カテゴリを作成",
         "add_menu_create_device": "デバイスを作成",
+        "add_menu_scan": "スキャン",
         "add_menu_assign_nfc": "NFCを割り当て",
         "add_menu_assign_qr": "QRコードを割り当て",
         "house_picker_collapsed": "担当建物 · {{count}}件",
@@ -198,7 +199,8 @@ export default {
         "house_picker_device_prefix": "デバイス数:",
         "region_section_title": "エリア",
         "all_regions": "すべて",
-        "no_houses_in_region": "このエリアに建物はありません"
+        "no_houses_in_region": "このエリアに建物はありません",
+        "select_region_first": "エリアを選択して建物を表示"
     },
     "staff_category": {
         "title": "資産カテゴリを作成",
@@ -266,7 +268,8 @@ export default {
         "no_houses_in_region": "このエリアに建物はありません。",
         "house_count": "{{count}} 棟",
         "asset_in_house": "設備: {{name}}",
-        "asset_count": "設備 {{count}} 件"
+        "asset_count": "設備 {{count}} 件",
+        "search_house_placeholder": "名前または住所で検索…"
     },
     "staff_item_create": {
         "title": "デバイスを追加",

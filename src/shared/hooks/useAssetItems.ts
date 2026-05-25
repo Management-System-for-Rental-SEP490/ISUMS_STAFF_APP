@@ -239,7 +239,7 @@ export const useAssetItemById = (assetId: string | null | undefined) => {
     /** `getAssetItemById` có thể trả `undefined` khi không parse được body — RQ v5 cấm `undefined`; dùng `null` = không có item. */
     queryFn: async () => (await getAssetItemById(id)) ?? null,
     enabled: Boolean(id),
-    staleTime: 0,
+    staleTime: 60_000,
   });
 };
 

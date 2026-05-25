@@ -14,24 +14,19 @@ import {
   TextInput,
   ScrollView,
   Pressable,
-  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useQueries } from "@tanstack/react-query";
 import { MainTabParamList, RootStackParamList } from "../../../../shared/types";
 import {
-  useAssetCategories,
   useAssetItems,
   useRegionsForStaff,
   useHousesByRegionId,
   useRefreshControlGate,
-  ASSET_ITEM_KEYS,
 } from "../../../../shared/hooks";
-import { getAssetItemsByHouseId } from "../../../../shared/services/assetItemApi";
 import { useAuthStore } from "../../../../store/useAuthStore";
 import { itemScreenStyles } from "./itemScreenStyles";
 import { PullToRefreshControl, RefreshLogoOverlay, RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
@@ -53,20 +48,19 @@ type DrillStep = "region" | "house" | "asset";
 function filterAssetItems(
   items: AssetItemFromApi[],
   query: string,
-  categoryNameById: Map<string, string>
 ): AssetItemFromApi[] {
   const q = query.trim().toLowerCase();
   if (!q) return items;
   return items.filter((item) => {
     const name = (item.displayName ?? "").toLowerCase();
     const serial = (item.serialNumber ?? "").toLowerCase();
-    const cat = (item.category?.name ?? categoryNameById.get(item.categoryId) ?? "").toLowerCase();
+    const cat = (item.category?.name ?? "").toLowerCase();
     return name.includes(q) || serial.includes(q) || cat.includes(q);
   });
 }
 
 export default function ItemListScreen() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavProp>();
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
@@ -77,7 +71,8 @@ export default function ItemListScreen() {
   const [selectedRegion, setSelectedRegion] = useState<HouseRegionFromApi | null>(null);
   const [selectedHouse, setSelectedHouse] = useState<HouseFromApi | null>(null);
 
-  // ---- Search & Pagination (step asset) ----
+  // ---- Search & Pagination ----
+  const [houseSearchQuery, setHouseSearchQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [listPage, setListPage] = useState(1);
 
@@ -99,38 +94,15 @@ export default function ItemListScreen() {
   } = useHousesByRegionId(selectedRegion?.id ?? null);
   const housesInRegion: HouseFromApi[] = housesData?.data ?? [];
 
-  // ---- Bước 2 (phụ): Đếm asset của từng nhà để hiển thị trên thẻ nhà ----
-  // Gửi song song N request (N = số nhà trong region) chỉ khi đang ở bước "house".
-  // Dữ liệu được cache → khi user chọn nhà chuyển sang bước "asset" thì hiển thị tức thì.
-  const houseIdsForCount = useMemo(
-    () =>
-      step === "house"
-        ? housesInRegion.map((h) => h.id).filter(Boolean)
-        : [],
-    [step, housesInRegion]
-  );
-
-  const houseCountQueries = useQueries({
-    queries: houseIdsForCount.map((houseId) => ({
-      queryKey: [...ASSET_ITEM_KEYS.byHouse(houseId, null), i18n.language],
-      queryFn: () => getAssetItemsByHouseId(houseId),
-      staleTime: 60_000,
-      retry: 1,
-    })),
-  });
-
-  /** Map houseId → { count, isLoading } — dùng để hiển thị badge số thiết bị trên thẻ nhà. */
-  const assetCountByHouseId = useMemo(() => {
-    const map = new Map<string, { count: number; isLoading: boolean }>();
-    houseIdsForCount.forEach((id, idx) => {
-      const q = houseCountQueries[idx];
-      map.set(id, {
-        count: Array.isArray(q?.data?.data) ? q.data.data.length : 0,
-        isLoading: q?.isLoading ?? false,
-      });
+  const filteredHouses = useMemo(() => {
+    const q = houseSearchQuery.trim().toLowerCase();
+    if (!q) return housesInRegion;
+    return housesInRegion.filter((h) => {
+      const name = (h.name ?? "").toLowerCase();
+      const addr = [h.address, h.ward, h.commune, h.city].filter(Boolean).join(" ").toLowerCase();
+      return name.includes(q) || addr.includes(q);
     });
-    return map;
-  }, [houseIdsForCount, houseCountQueries]);
+  }, [housesInRegion, houseSearchQuery]);
 
   // ---- Bước 3: Lấy asset của nhà đang chọn (chỉ gọi khi đã có house) ----
   const {
@@ -149,23 +121,6 @@ export default function ItemListScreen() {
     return Array.isArray(arr) ? arr : [];
   }, [itemsData]);
 
-  // ---- Danh mục (lazy, chỉ sau khi chọn nhà) ----
-  const {
-    data: categoriesData,
-    refetch: refetchCategories,
-  } = useAssetCategories({
-    enabled: isLoggedIn && Boolean(token) && step === "asset",
-  });
-  const categories = categoriesData?.data ?? [];
-
-  const categoryNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const c of categories) {
-      map.set(c.id, c.name);
-    }
-    return map;
-  }, [categories]);
-
   // ---- Sắp xếp region theo tên ----
   const regionsSorted = useMemo(
     () =>
@@ -179,8 +134,8 @@ export default function ItemListScreen() {
 
   // ---- Lọc + phân trang asset ----
   const filteredItems = useMemo(
-    () => filterAssetItems(rawItems, searchQuery, categoryNameById),
-    [rawItems, searchQuery, categoryNameById]
+    () => filterAssetItems(rawItems, searchQuery),
+    [rawItems, searchQuery]
   );
   const totalPages = useMemo(() => getTotalPages(filteredItems.length), [filteredItems.length]);
   const pagedItems = useMemo(() => slicePage(filteredItems, listPage), [filteredItems, listPage]);
@@ -197,6 +152,7 @@ export default function ItemListScreen() {
   const handleSelectRegion = useCallback((region: HouseRegionFromApi) => {
     setSelectedRegion(region);
     setSelectedHouse(null);
+    setHouseSearchQuery("");
     setSearchQuery("");
     setListPage(1);
     setStep("house");
@@ -212,6 +168,7 @@ export default function ItemListScreen() {
   const handleBackToRegion = useCallback(() => {
     setSelectedRegion(null);
     setSelectedHouse(null);
+    setHouseSearchQuery("");
     setSearchQuery("");
     setListPage(1);
     setStep("region");
@@ -258,8 +215,8 @@ export default function ItemListScreen() {
   const onPullRefresh = useCallback(async () => {
     await refetchRegions();
     if (step === "house" || step === "asset") await refetchHouses();
-    if (step === "asset") await Promise.all([refetchItems(), refetchCategories()]);
-  }, [step, refetchRegions, refetchHouses, refetchItems, refetchCategories]);
+    if (step === "asset") await refetchItems();
+  }, [step, refetchRegions, refetchHouses, refetchItems]);
 
   const staffTabHeader = (
     <Header
@@ -388,10 +345,23 @@ export default function ItemListScreen() {
       ) : housesInRegion.length === 0 ? (
         <Text style={itemScreenStyles.emptyText}>{t("staff_item_list.no_houses_in_region")}</Text>
       ) : (
+        <>
+          <TextInput
+            style={itemScreenStyles.assetSearchWrap}
+            value={houseSearchQuery}
+            onChangeText={setHouseSearchQuery}
+            placeholder={t("staff_item_list.search_house_placeholder") as string}
+            placeholderTextColor={neutral.textMuted}
+            clearButtonMode="while-editing"
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        {filteredHouses.length === 0 ? (
+          <Text style={itemScreenStyles.emptyText}>{t("staff_item_list.no_houses_in_region")}</Text>
+        ) : (
         <View style={itemScreenStyles.houseListGap}>
-          {housesInRegion.map((house) => {
-            const countInfo = assetCountByHouseId.get(house.id);
-            return (
+          {filteredHouses.map((house) => (
               <Pressable
                 key={house.id}
                 style={({ pressed }) => [
@@ -402,30 +372,19 @@ export default function ItemListScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={house.name ?? house.id}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <Text style={[itemScreenStyles.houseListCardTitle, { flex: 1 }]} numberOfLines={2}>
-                    {house.name ?? house.id}
-                  </Text>
-                  {/* Badge số thiết bị */}
-                  {countInfo?.isLoading ? (
-                    <ActivityIndicator size={14} color={brandPrimary} />
-                  ) : countInfo != null ? (
-                    <View style={itemScreenStyles.houseAssetCountBadge}>
-                      <Text style={itemScreenStyles.houseAssetCountText}>
-                        {t("staff_item_list.asset_count", { count: countInfo.count })}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
+                <Text style={itemScreenStyles.houseListCardTitle} numberOfLines={2}>
+                  {house.name ?? house.id}
+                </Text>
                 {house.address ? (
                   <Text style={itemScreenStyles.houseListCardMeta} numberOfLines={2}>
                     {house.address}
                   </Text>
                 ) : null}
               </Pressable>
-            );
-          })}
+          ))}
         </View>
+        )}
+        </>
       )}
     </>
   );
@@ -493,9 +452,7 @@ export default function ItemListScreen() {
           <View style={itemScreenStyles.assetListGap}>
             {pagedItems.map((item) => {
               const categoryName =
-                item.category?.name ??
-                categoryNameById.get(item.categoryId) ??
-                t("staff_item_list.category_other");
+                item.category?.name ?? t("staff_item_list.category_other");
               const normalizedStatus = normalizeAssetItemStatusFromApi(item.status);
               const isPendingManager = normalizedStatus === "WAITING_MANAGER_CONFIRM";
               return (

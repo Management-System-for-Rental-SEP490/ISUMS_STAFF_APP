@@ -1,5 +1,8 @@
 import { StyleSheet } from "react-native";
 import { brandPrimary, brandSecondary, brandTintBg, neutral } from "../../../../shared/theme/color";
+
+const BRAND_GREEN_TINT = "rgba(55,181,132,0.12)" as const;
+const BRAND_ACCENT_BORDER = "rgba(55,181,132,0.28)" as const;
 import { appTypography } from "../../../../shared/utils";
 
 const brandPrimaryDark = "#2A9A6E";
@@ -572,5 +575,154 @@ export const staffHomeStyles = StyleSheet.create({
     fontSize: 14,
     color: "#94a3b8",
     textAlign: "center",
+  },
+
+  // ─── Custom house picker (StaffHomeScreen) ───────────────────────────────
+  /** Collapsed trigger — nút mở panel nhà */
+  housePickerTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    borderColor: BRAND_ACCENT_BORDER,
+    borderLeftColor: brandPrimary,
+    backgroundColor: neutral.backgroundSubtle,
+  },
+  housePickerTriggerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
+    color: neutral.textSecondary,
+  },
+  /** Panel mở — bao toàn bộ nội dung expanded */
+  housePickerPanel: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    borderColor: BRAND_ACCENT_BORDER,
+    borderLeftColor: brandPrimary,
+    backgroundColor: neutral.surface,
+    overflow: "hidden",
+  },
+  /** Hàng chips khu vực (horizontal scroll) */
+  housePickerRegionTabsRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  housePickerRegionTab: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: neutral.background,
+    borderWidth: 1,
+    borderColor: neutral.border,
+    flexShrink: 0,
+  },
+  housePickerRegionTabActive: {
+    backgroundColor: brandPrimary,
+    borderColor: brandPrimary,
+  },
+  housePickerRegionTabText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: neutral.textBody,
+  },
+  housePickerRegionTabTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  /** Divider mảnh giữa các vùng */
+  housePickerDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: neutral.border,
+  },
+  /** Hàng tìm kiếm nhà */
+  housePickerSearchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: neutral.backgroundSubtle,
+  },
+  housePickerSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: neutral.text,
+    padding: 0,
+    margin: 0,
+    minHeight: 22,
+  },
+  /** Hint khi chưa chọn khu vực hoặc không có kết quả */
+  housePickerHintWrap: {
+    paddingVertical: 28,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  housePickerHintText: {
+    fontSize: 13,
+    color: neutral.textSecondary,
+    textAlign: "center",
+    lineHeight: 19,
+  },
+  /** Container danh sách nhà */
+  housePickerList: {},
+  /** Một thẻ nhà */
+  housePickerCard: {
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    backgroundColor: neutral.surface,
+  },
+  housePickerCardBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: neutral.border,
+  },
+  housePickerCardMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  housePickerCardName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: neutral.heading,
+  },
+  /** Badge số thiết bị — nền xanh mint nhạt + viền brand */
+  housePickerCardBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: BRAND_GREEN_TINT,
+    borderWidth: 1,
+    borderColor: brandPrimary,
+    flexShrink: 0,
+  },
+  housePickerCardBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: brandPrimary,
+  },
+  housePickerCardAddr: {
+    marginTop: 3,
+    fontSize: 12,
+    color: neutral.textSecondary,
+    lineHeight: 17,
+  },
+  /** Nút thu gọn panel — dải mỏng dưới cùng */
+  housePickerCollapseRow: {
+    alignItems: "center",
+    paddingVertical: 9,
+    backgroundColor: neutral.backgroundSubtle,
   },
 });

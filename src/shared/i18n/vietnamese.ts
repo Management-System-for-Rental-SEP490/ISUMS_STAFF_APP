@@ -189,6 +189,7 @@ export default {
         "add_menu_open": "Mở menu thêm",
         "add_menu_create_category": "Tạo danh mục",
         "add_menu_create_device": "Tạo thiết bị",
+        "add_menu_scan": "Quét",
         "add_menu_assign_nfc": "Gán NFC",
         "add_menu_assign_qr": "Gán QR Code",
         "house_picker_collapsed": "Nhà thuộc thẩm quyền · {{count}} căn",
@@ -197,7 +198,8 @@ export default {
         "house_picker_device_prefix": "Số thiết bị:",
         "region_section_title": "Khu vực",
         "all_regions": "Tất cả",
-        "no_houses_in_region": "Không có nhà trong khu vực này"
+        "no_houses_in_region": "Không có nhà trong khu vực này",
+        "select_region_first": "Chọn khu vực để xem danh sách nhà"
     },
     "staff_category": {
         "title": "Tạo danh mục thiết bị",
@@ -265,7 +267,8 @@ export default {
         "no_houses_in_region": "Khu vực này chưa có căn nhà nào.",
         "house_count": "{{count}} căn nhà",
         "asset_in_house": "Thiết bị trong: {{name}}",
-        "asset_count": "{{count}} thiết bị"
+        "asset_count": "{{count}} thiết bị",
+        "search_house_placeholder": "Tìm theo tên hoặc địa chỉ nhà…"
     },
     "staff_item_create": {
         "title": "Thêm thiết bị",

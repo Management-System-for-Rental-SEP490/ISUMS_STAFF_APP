@@ -19,7 +19,6 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../../../shared/types";
 import type {
   AssetItemFromApi,
-  AssetCategoryFromApi,
   FunctionalAreaFromApi,
   HouseFromApi,
 } from "../../../../shared/types/api";
@@ -30,7 +29,6 @@ import { FloorPlanView } from "../../houseStructure";
 import {
   useAssetItems,
   asAssetItemArray,
-  useAssetCategories,
   useFunctionalAreasByHouseId,
   useRefreshControlGate,
 } from "../../../../shared/hooks";
@@ -96,6 +94,8 @@ export default function BuildingDetailScreen() {
   const [selectedFloor, setSelectedFloor] = useState<string | null>(null);
   /** null = mọi thiết bị; id = chỉ thiết bị gắn khu vực đó. */
   const [selectedDeviceAreaId, setSelectedDeviceAreaId] = useState<string | null>(null);
+  /** Lazy load: chỉ gọi API lấy thiết bị khi user mở dropdown lần đầu. */
+  const [itemsEnabled, setItemsEnabled] = useState(false);
 
   /** Danh sách tầng (floorNo rỗng → gộp "1"). */
   const uniqueFloors = useMemo(() => {
@@ -198,6 +198,7 @@ export default function BuildingDetailScreen() {
   }, [selectedFloor, buildingId]);
 
   // Lấy thiết bị thuộc căn nhà này từ API GET /api/asset/items?houseId=...
+  // enabled = false cho đến khi user mở dropdown lần đầu.
   const {
     data: itemsData,
     isLoading,
@@ -206,6 +207,7 @@ export default function BuildingDetailScreen() {
     isRefetching: itemsRefetching,
   } = useAssetItems({
     houseId: buildingId,
+    enabled: itemsEnabled,
   });
   /** Thiết bị đúng nhà (trước lọc khu vực). */
   const rawItemsAll: AssetItemFromApi[] = useMemo(
@@ -219,50 +221,39 @@ export default function BuildingDetailScreen() {
     return rawItemsAll.filter((item) => item.functionAreaId === selectedDeviceAreaId);
   }, [rawItemsAll, selectedDeviceAreaId]);
 
-  // Danh mục từ API để hiển thị tên và nhóm thiết bị theo category
-  const {
-    data: categoriesData,
-    refetch: refetchCategories,
-    isRefetching: categoriesRefetching,
-  } = useAssetCategories();
-  const categories: AssetCategoryFromApi[] = categoriesData?.data ?? [];
-
-  const listRefreshing = itemsRefetching || categoriesRefetching;
+  const listRefreshing = itemsRefetching || (itemsEnabled && isLoading);
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
-  const onPullRefresh = () => Promise.all([refetchItems(), refetchCategories()]);
+  const onPullRefresh = () => refetchItems();
+
+  /** Mở dropdown lần đầu → kích hoạt request lấy thiết bị. */
+  const handleDropdownExpandedChange = useCallback((expanded: boolean) => {
+    if (expanded) setItemsEnabled(true);
+  }, []);
 
   const groupItemsByCategory = useCallback(
     (items: AssetItemFromApi[]) => {
-      const map = new Map<string, AssetItemFromApi[]>();
+      const map = new Map<string, { name: string; items: AssetItemFromApi[] }>();
       for (const item of items) {
-        const list = map.get(item.categoryId) ?? [];
-        list.push(item);
-        map.set(item.categoryId, list);
+        const entry = map.get(item.categoryId) ?? {
+          name: item.category?.name ?? t("staff_building_detail.category_other"),
+          items: [],
+        };
+        entry.items.push(item);
+        map.set(item.categoryId, entry);
       }
-      const result: { categoryId: string; categoryName: string; items: AssetItemFromApi[] }[] = [];
-      for (const cat of categories) {
-        const groupItems = map.get(cat.id);
-        if (groupItems?.length) {
-          const sorted = [...groupItems].sort((a, b) =>
-            (a.displayName ?? "").localeCompare(b.displayName ?? "", undefined, { sensitivity: "base" })
-          );
-          result.push({ categoryId: cat.id, categoryName: cat.name, items: sorted });
-          map.delete(cat.id);
-        }
-      }
-      for (const [categoryId, groupItems] of map) {
-        const sorted = [...groupItems].sort((a, b) =>
-          (a.displayName ?? "").localeCompare(b.displayName ?? "", undefined, { sensitivity: "base" })
-        );
-        result.push({
+      return [...map.entries()]
+        .map(([categoryId, { name, items: groupItems }]) => ({
           categoryId,
-          categoryName: t("staff_building_detail.category_other"),
-          items: sorted,
-        });
-      }
-      return result;
+          categoryName: name,
+          items: [...groupItems].sort((a, b) =>
+            (a.displayName ?? "").localeCompare(b.displayName ?? "", undefined, { sensitivity: "base" })
+          ),
+        }))
+        .sort((a, b) =>
+          a.categoryName.localeCompare(b.categoryName, undefined, { sensitivity: "base" })
+        );
     },
-    [categories, t]
+    [t]
   );
 
   /** Nhóm toàn bộ thiết bị nhà — dùng cho dropdown danh mục (không mất khi lọc khu vực). */
@@ -276,8 +267,6 @@ export default function BuildingDetailScreen() {
     () => groupItemsByCategory(rawItems),
     [groupItemsByCategory, rawItems]
   );
-
-  const loading = isLoading;
 
   /** Category đang chọn: lấy từ store theo buildingId, null = Tất cả. */
   const buildingSelectedCategoryId = useCategoryFilterStore(
@@ -321,20 +310,19 @@ export default function BuildingDetailScreen() {
     navigation.navigate("StaffIotList", { houseId: buildingId, houseName: buildingName });
   };
 
-  const categoryFilterSection = useMemo((): DropdownBoxSection | null => {
-    if (rawItemsAll.length === 0 || devicesByCategoryAll.length === 0) return null;
-    return {
-      id: "category",
-      title: t("dropdown_box.section_category"),
-      itemLayout: "chips",
-      items: devicesByCategoryAll.map(({ categoryId, categoryName }) => ({
-        id: categoryId,
-        label: categoryName,
-      })),
-      selectedId: selectedCategoryId,
-      showAllOption: true,
-    };
-  }, [rawItemsAll.length, devicesByCategoryAll, selectedCategoryId, t]);
+  const categoryFilterSection = useMemo((): DropdownBoxSection => ({
+    id: "category",
+    title: t("dropdown_box.section_category"),
+    itemLayout: "chips",
+    items: devicesByCategoryAll.map(({ categoryId, categoryName }) => ({
+      id: categoryId,
+      label: categoryName,
+    })),
+    selectedId: selectedCategoryId,
+    showAllOption: devicesByCategoryAll.length > 0,
+    keepEmpty: true,
+    emptyHint: itemsEnabled && isLoading ? t("home.loading_data") : undefined,
+  }), [devicesByCategoryAll, selectedCategoryId, itemsEnabled, isLoading, t]);
 
   const deviceFilterSection = useMemo((): DropdownBoxSection | null => {
     if (filteredDeviceRows.length === 0) return null;
@@ -404,22 +392,6 @@ export default function BuildingDetailScreen() {
       </View>
     </StackScreenTitleHeaderStrip>
   );
-
-  if (loading) {
-    return (
-      <View
-        style={[
-          staffBuildingDetailStyles.container,
-          staffBuildingDetailStyles.loadingContainer,
-        ]}
-      >
-        {headerRow}
-        <View style={{ flex: 1, position: "relative", padding: 40 }}>
-          <RefreshLogoOverlay visible mode="page" labelKey="home.loading_data" />
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={staffBuildingDetailStyles.container}>
@@ -603,36 +575,35 @@ export default function BuildingDetailScreen() {
                 />
               )}
 
-              {categoryFilterSection ? (
-                <View
-                  style={{ marginHorizontal: 16, marginBottom: 8 }}
-                  collapsable={false}
-                  onLayout={(e) => {
-                    categoryFilterInnerYRef.current = e.nativeEvent.layout.y;
-                    updateCategoryFilterScrollY();
-                  }}
-                >
-                  <DropdownBox
-                    sections={
-                      deviceFilterSection
-                        ? [categoryFilterSection, deviceFilterSection]
-                        : [categoryFilterSection]
-                    }
-                    summary={categoryFilterSummary}
-                    onSelect={handleHouseDropdownSelect}
-                    keyboardVerticalOffset={insets.top + 52}
-                    onSearchInputFocus={scrollFiltersIntoView}
-                    onSearchChange={setDeviceSearchQuery}
-                    searchAutoFocus={false}
-                    defaultExpanded
-                  />
-                </View>
-              ) : null}
+              <View
+                style={{ marginHorizontal: 16, marginBottom: 8 }}
+                collapsable={false}
+                onLayout={(e) => {
+                  categoryFilterInnerYRef.current = e.nativeEvent.layout.y;
+                  updateCategoryFilterScrollY();
+                }}
+              >
+                <DropdownBox
+                  sections={
+                    deviceFilterSection
+                      ? [categoryFilterSection, deviceFilterSection]
+                      : [categoryFilterSection]
+                  }
+                  summary={categoryFilterSummary}
+                  onSelect={handleHouseDropdownSelect}
+                  keyboardVerticalOffset={insets.top + 52}
+                  onSearchInputFocus={scrollFiltersIntoView}
+                  onSearchChange={setDeviceSearchQuery}
+                  searchAutoFocus={false}
+                  onExpandedChange={handleDropdownExpandedChange}
+                  stayExpandedOnSelectForSections={["category"]}
+                />
+              </View>
             </>
           )}
         </View>
 
-        {functionalAreas.length === 0 && categoryFilterSection ? (
+        {functionalAreas.length === 0 ? (
           <View
             style={{ marginHorizontal: 16, marginBottom: 8 }}
             collapsable={false}
@@ -652,11 +623,12 @@ export default function BuildingDetailScreen() {
               onSearchInputFocus={scrollFiltersIntoView}
               onSearchChange={setDeviceSearchQuery}
               searchAutoFocus={false}
-              defaultExpanded
+              onExpandedChange={handleDropdownExpandedChange}
+              stayExpandedOnSelectForSections={["category"]}
             />
           </View>
         ) : null}
-        {rawItems.length === 0 && !loading ? (
+        {itemsEnabled && !isLoading && rawItems.length === 0 ? (
           <View style={staffBuildingDetailStyles.emptyDevices}>
             <Text style={staffBuildingDetailStyles.emptyDevicesText}>
               {isError

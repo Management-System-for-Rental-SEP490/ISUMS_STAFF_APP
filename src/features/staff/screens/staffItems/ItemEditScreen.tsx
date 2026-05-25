@@ -633,8 +633,8 @@ export default function ItemEditScreen() {
             updateMutation.mutate(
               { id: item.id, payload },
               {
-                onSuccess: async () => {
-                  await queryClient.refetchQueries({ queryKey: ASSET_ITEM_KEYS.base });
+                onSuccess: () => {
+                  void queryClient.invalidateQueries({ queryKey: ASSET_ITEM_KEYS.base });
                   navigation.goBack();
                 },
               }

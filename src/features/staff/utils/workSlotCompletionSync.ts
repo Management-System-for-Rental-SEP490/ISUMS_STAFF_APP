@@ -51,7 +51,7 @@ export async function waitForWorkSlotCompletionSync(opts: {
 }): Promise<{ startTimeIso: string | null; apiSlot: WorkSlotFromApi | null }> {
   const staffId = getStaffIdForSchedule();
   const maxAttempts = opts.maxAttempts ?? 30;
-  const delayMs = opts.delayMs ?? 500;
+  const delayMs = opts.delayMs ?? 300;
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

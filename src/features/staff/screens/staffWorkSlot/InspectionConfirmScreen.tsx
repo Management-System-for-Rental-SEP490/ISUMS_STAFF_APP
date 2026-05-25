@@ -107,17 +107,17 @@ export default function InspectionConfirmScreen() {
   } | null>(null);
   const keyboardInset = useKeyboardBottomInset();
 
+  /** Ảnh nhà đã có trên server (load từ GET inspectionById lúc mount). */
   const [housePhotos, setHousePhotos] = useState<string[]>([]);
-  const [housePhotoUploading, setHousePhotoUploading] = useState(false);
-  const [housePhotoCaptureVisible, setHousePhotoCaptureVisible] = useState(false);
   /**
-   * Ảnh chụp bằng camera trong phiên modal — tích lũy tạm, chưa upload.
-   * Upload batch khi user đóng modal hoặc khi chụp đủ 5 tấm.
+   * Ảnh nhà mới chụp/chọn trong phiên này — lưu local URI, chưa lên S3.
+   * Upload batch lên S3 ngầm SAU KHI updateInspectionStatus thành công.
    */
+  const [localHousePhotos, setLocalHousePhotos] = useState<string[]>([]);
+  const [housePhotoCaptureVisible, setHousePhotoCaptureVisible] = useState(false);
+  /** Ảnh đang chụp trong phiên modal camera (tích lũy, chưa commit vào localHousePhotos). */
   const [pendingCameraUris, setPendingCameraUris] = useState<string[]>([]);
   const pendingCameraUrisRef = useRef<string[]>([]);
-  /** Queue upload tuần tự tránh race condition giữa camera và library. */
-  const housePhotoUploadQueueRef = useRef(Promise.resolve());
 
   const scrollRef = useRef<ScrollView>(null);
   const scrollYRef = useRef(0);
@@ -241,44 +241,33 @@ export default function InspectionConfirmScreen() {
   }, [inspectionId]);
 
   /**
-   * Upload batch ảnh nhà lên server và cập nhật danh sách từ response.
-   * Dùng chung cho cả camera (sau khi đóng modal) và library (ngay sau khi chọn).
-   * Nhận array file thô (uri + tên + type) thay vì ImagePickerAsset để linh hoạt hơn.
+   * Upload ảnh nhà lên S3 sau khi inspection đã DONE — chạy hoàn toàn ngầm,
+   * không block UI, không hiện loading, lỗi silent (inspection đã xác nhận rồi).
    */
-  const doUploadHousePhotos = useCallback(
-    async (
-      files: Array<{ uri: string; fileName: string; mimeType: string }>,
-    ) => {
-      if (!files.length) return;
-      setHousePhotoUploading(true);
+  const uploadHousePhotosInBackground = useCallback(
+    async (uris: string[]) => {
+      if (!uris.length) return;
+      const files = uris.map((uri, idx) => ({
+        uri,
+        fileName:
+          uri.split("/").filter(Boolean).pop() ||
+          `house-${Date.now()}-${idx}.jpg`,
+        mimeType: "image/jpeg",
+      }));
       try {
-        const res = await uploadInspectionHousePhotos(inspectionId, files);
-        const urls = Array.isArray(res.data?.housePhotoUrls)
-          ? res.data.housePhotoUrls.filter(
-              (u): u is string => typeof u === "string" && u.trim().length > 0,
-            )
-          : [];
-        setHousePhotos(urls);
-      } catch (e: unknown) {
-        CustomAlert.alert(
-          t("common.error"),
-          e instanceof Error
-            ? e.message
-            : t("staff_inspection_confirm.house_photo_upload_failed"),
-          [{ text: t("common.close") }],
-        );
-      } finally {
-        setHousePhotoUploading(false);
+        await uploadInspectionHousePhotos(inspectionId, files);
+      } catch {
+        // silent — inspection đã DONE, ảnh nhà là dữ liệu phụ trợ
       }
     },
-    [inspectionId, t],
+    [inspectionId],
   );
 
   /**
    * Callback từ ImageCaptureModal.
-   * - Camera: tích lũy ảnh tạm vào ref/state, giữ modal mở để chụp tiếp.
-   *   Upload batch khi user bấm đóng modal (handleHousePhotoCaptureClose).
-   * - Library: modal đã tự đóng trước khi gọi onPicked; upload ngay qua queue.
+   * - Camera: tích lũy URI tạm vào ref/state, giữ modal mở để chụp tiếp.
+   *   Commit vào localHousePhotos khi user bấm đóng modal.
+   * - Library: thêm URI vào localHousePhotos ngay (hiện ảnh tức thì, không upload).
    */
   const handleHousePhotosPicked = useCallback(
     (assets: ImagePicker.ImagePickerAsset[], source: "camera" | "library") => {
@@ -293,20 +282,11 @@ export default function InspectionConfirmScreen() {
         return;
       }
 
-      // Library: modal đã đóng (onClose được gọi trước); upload qua queue tuần tự
-      const files = assets.map((asset, idx) => ({
-        uri: asset.uri,
-        fileName:
-          asset.fileName ||
-          asset.uri.split("/").filter(Boolean).pop() ||
-          `house-lib-${Date.now()}-${idx}.jpg`,
-        mimeType: asset.mimeType || "image/jpeg",
-      }));
-      housePhotoUploadQueueRef.current = housePhotoUploadQueueRef.current.then(
-        () => doUploadHousePhotos(files),
-      );
+      // Library: lưu local URI ngay, upload sẽ chạy ngầm sau khi submit
+      const newUris = assets.map((a) => a.uri);
+      setLocalHousePhotos((prev) => [...prev, ...newUris]);
     },
-    [doUploadHousePhotos],
+    [],
   );
 
   /**
@@ -319,17 +299,9 @@ export default function InspectionConfirmScreen() {
     pendingCameraUrisRef.current = [];
     setPendingCameraUris([]);
     if (!pending.length) return;
-    const files = pending.map((uri, idx) => ({
-      uri,
-      fileName:
-        uri.split("/").filter(Boolean).pop() ||
-        `house-cam-${Date.now()}-${idx}.jpg`,
-      mimeType: "image/jpeg",
-    }));
-    housePhotoUploadQueueRef.current = housePhotoUploadQueueRef.current.then(
-      () => doUploadHousePhotos(files),
-    );
-  }, [doUploadHousePhotos]);
+    // Commit ảnh camera vào localHousePhotos — hiện ngay, upload ngầm sau submit
+    setLocalHousePhotos((prev) => [...prev, ...pending]);
+  }, []);
 
   useEffect(() => {
     if (isCheckIn) return;
@@ -448,7 +420,7 @@ export default function InspectionConfirmScreen() {
       );
       return;
     }
-    if (housePhotos.length === 0) {
+    if (housePhotos.length + localHousePhotos.length === 0) {
       CustomAlert.alert(
         t("common.error"),
         t("staff_inspection_confirm.error_no_house_photo"),
@@ -458,11 +430,6 @@ export default function InspectionConfirmScreen() {
     }
 
     setSubmitting(true);
-    logInspectionDebug("[InspectionConfirm]", "submit DONE", {
-      inspectionId,
-      deductionAmount,
-      photoCount: photoUrls.length,
-    });
     try {
       const res = await updateInspectionStatus(inspectionId, "DONE", {
         inspectionNotes: notes.trim(),
@@ -472,6 +439,8 @@ export default function InspectionConfirmScreen() {
       if (!res?.success) {
         throw new Error(res?.message || t("staff_work_slot_detail.update_error"));
       }
+      // Upload ảnh nhà lên S3 ngầm sau khi đã xác nhận thành công — không block popup
+      void uploadHousePhotosInBackground(localHousePhotos);
       const runAfterDoneSuccess = () => {
         navigateCalendarAfterCompletion(null);
         void waitForWorkSlotCompletionSync({
@@ -595,67 +564,64 @@ export default function InspectionConfirmScreen() {
             <Text style={styles.cardFieldLabel}>
               {t("staff_inspection_confirm.house_photos_label")}
             </Text>
-            {housePhotos.length === 0 && pendingCameraUris.length === 0 ? (
-              <Text style={styles.muted}>
-                {t("staff_inspection_confirm.house_photos_empty_hint")}
-              </Text>
-            ) : (
-              <ScrollView
-                horizontal
-                nestedScrollEnabled
-                showsHorizontalScrollIndicator={false}
-                style={styles.photoRow}
-                contentContainerStyle={styles.photoRowContent}
-              >
-                {housePhotos.map((uri, index) => (
-                  <TouchableOpacity
-                    key={uri}
-                    activeOpacity={0.85}
-                    onPress={() => setPhotoGallery({ uris: housePhotos, initialIndex: index })}
-                    style={styles.thumbWrap}
-                  >
-                    <Image source={{ uri }} style={styles.thumb} />
-                  </TouchableOpacity>
-                ))}
-                {/* Ảnh camera tạm chưa upload — hiện thumbnail mờ chờ xử lý */}
-                {pendingCameraUris.map((uri) => (
-                  <View key={uri} style={[styles.thumbWrap, { opacity: 0.5 }]}>
-                    <Image source={{ uri }} style={styles.thumb} />
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-            <TouchableOpacity
-              style={[
-                styles.housePhotoBtn,
-                (housePhotoUploading ||
-                  submitting ||
-                  housePhotos.length + pendingCameraUris.length >= MAX_HOUSE_PHOTOS) &&
-                  styles.submitBtnDisabled,
-              ]}
-              onPress={() => setHousePhotoCaptureVisible(true)}
-              disabled={
-                housePhotoUploading ||
-                submitting ||
-                housePhotos.length + pendingCameraUris.length >= MAX_HOUSE_PHOTOS
-              }
-              activeOpacity={0.85}
-            >
-              {housePhotoUploading ? (
-                <RefreshLogoInline logoPx={20} />
-              ) : (
+            {(() => {
+              // Tổng ảnh hiển thị: server + local phiên này + đang chụp trong modal
+              const allUris = [...housePhotos, ...localHousePhotos];
+              const totalCount = allUris.length + pendingCameraUris.length;
+              return (
                 <>
-                  <Icons.camera size={20} color={brandPrimary} />
-                  <Text style={styles.housePhotoBtnText}>
-                    {housePhotos.length + pendingCameraUris.length >= MAX_HOUSE_PHOTOS
-                      ? t("staff_inspection_confirm.house_photos_limit_reached", {
-                          max: MAX_HOUSE_PHOTOS,
-                        })
-                      : t("staff_inspection_confirm.house_photos_add")}
-                  </Text>
+                  {totalCount === 0 ? (
+                    <Text style={styles.muted}>
+                      {t("staff_inspection_confirm.house_photos_empty_hint")}
+                    </Text>
+                  ) : (
+                    <ScrollView
+                      horizontal
+                      nestedScrollEnabled
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.photoRow}
+                      contentContainerStyle={styles.photoRowContent}
+                    >
+                      {allUris.map((uri, index) => (
+                        <TouchableOpacity
+                          key={uri}
+                          activeOpacity={0.85}
+                          onPress={() => setPhotoGallery({ uris: allUris, initialIndex: index })}
+                          style={styles.thumbWrap}
+                        >
+                          <Image source={{ uri }} style={styles.thumb} />
+                        </TouchableOpacity>
+                      ))}
+                      {/* Ảnh đang chụp trong modal camera — mờ chờ đóng modal */}
+                      {pendingCameraUris.map((uri) => (
+                        <View key={uri} style={[styles.thumbWrap, { opacity: 0.5 }]}>
+                          <Image source={{ uri }} style={styles.thumb} />
+                        </View>
+                      ))}
+                    </ScrollView>
+                  )}
+                  <TouchableOpacity
+                    style={[
+                      styles.housePhotoBtn,
+                      (submitting || totalCount >= MAX_HOUSE_PHOTOS) &&
+                        styles.submitBtnDisabled,
+                    ]}
+                    onPress={() => setHousePhotoCaptureVisible(true)}
+                    disabled={submitting || totalCount >= MAX_HOUSE_PHOTOS}
+                    activeOpacity={0.85}
+                  >
+                    <Icons.camera size={20} color={brandPrimary} />
+                    <Text style={styles.housePhotoBtnText}>
+                      {totalCount >= MAX_HOUSE_PHOTOS
+                        ? t("staff_inspection_confirm.house_photos_limit_reached", {
+                            max: MAX_HOUSE_PHOTOS,
+                          })
+                        : t("staff_inspection_confirm.house_photos_add")}
+                    </Text>
+                  </TouchableOpacity>
                 </>
-              )}
-            </TouchableOpacity>
+              );
+            })()}
           </View>
 
           {!isCheckIn ? (

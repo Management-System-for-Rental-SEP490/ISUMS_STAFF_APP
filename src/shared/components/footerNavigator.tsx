@@ -88,6 +88,7 @@ const createScreenOptions = (bottomInset: number) => ({
   headerShown: false,
   /** Chỉ mount màn tab khi user vào tab lần đầu — giảm GET ban đầu (Ticket, Devices…). */
   lazy: true,
+  tabBarHideOnKeyboard: true,
   tabBarActiveTintColor: brandPrimary,
   tabBarInactiveTintColor: "#9ca3af",
   tabBarStyle: [

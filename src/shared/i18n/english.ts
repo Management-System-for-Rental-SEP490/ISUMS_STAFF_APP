@@ -189,6 +189,7 @@ export default {
         "add_menu_open": "Open add menu",
         "add_menu_create_category": "Create category",
         "add_menu_create_device": "Create device",
+        "add_menu_scan": "Scan",
         "add_menu_assign_nfc": "Assign NFC",
         "add_menu_assign_qr": "Assign QR Code",
         "house_picker_collapsed": "Buildings in your area · {{count}}",
@@ -197,7 +198,8 @@ export default {
         "house_picker_device_prefix": "Devices:",
         "region_section_title": "Zone",
         "all_regions": "All",
-        "no_houses_in_region": "No buildings in this zone"
+        "no_houses_in_region": "No buildings in this zone",
+        "select_region_first": "Select a zone to view buildings"
     },
     "staff_category": {
         "title": "Create asset category",
@@ -265,7 +267,8 @@ export default {
         "no_houses_in_region": "No houses in this zone.",
         "house_count": "{{count}} house(s)",
         "asset_in_house": "Devices in: {{name}}",
-        "asset_count": "{{count}} device(s)"
+        "asset_count": "{{count}} device(s)",
+        "search_house_placeholder": "Search by house name or address…"
     },
     "staff_item_create": {
         "title": "Add device",

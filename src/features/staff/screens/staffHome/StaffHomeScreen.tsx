@@ -6,6 +6,7 @@ import React, { useMemo, useCallback, useRef, useEffect, useState } from "react"
 import {
   View,
   Text,
+  TextInput,
   FlatList,
   ScrollView,
   TouchableOpacity,
@@ -28,19 +29,16 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MainTabParamList } from "../../../../shared/types";
 import { RootStackParamList } from "../../../../shared/types";
 import { staffFooterLinks } from "../../../../shared/constants/staffFooterLinks";
-import type { HouseFromApi, AssetItemFromApi } from "../../../../shared/types/api";
-import { PullToRefreshControl, RefreshLogoOverlay } from "@shared/components/RefreshLogoOverlay";
+import type { HouseFromApi } from "../../../../shared/types/api";
+import { PullToRefreshControl, RefreshLogoOverlay, RefreshLogoInline } from "@shared/components/RefreshLogoOverlay";
 import Header from "../../../../shared/components/header";
-import { DropdownBox, type DropdownBoxSection } from "../../../../shared/components/dropdownBox";
 import { WorkSlot } from "../../data/mockStaffData"; // kiểu WorkSlot dùng chung cho lịch
 import { getWorkSlotVisual } from "../../data/workSlotTheme";
 import { useStaffSchedule } from "../../context/StaffScheduleContext"; // context lịch đã lấy dữ liệu thật từ BE
 import {
-  useHouses,
+  useHousesByRegionId,
   useRegionsForStaff,
-  useAssetItemsAllHouses,
   useRefreshControlGate,
-  asAssetItemArray,
 } from "../../../../shared/hooks";
 import { useInvalidateScheduleRelatedQueries } from "../../hooks/useStaffScheduleData";
 import Icons from "../../../../shared/theme/icon";
@@ -112,6 +110,11 @@ export default function StaffHomeScreen() {
     () => Math.min(380, Math.round(windowHeight * 0.42)),
     [windowHeight]
   );
+  /** Danh sách nhà trong panel: tối đa ~40% màn hình để panel không quá dài. */
+  const houseListMaxHeight = useMemo(
+    () => Math.min(300, Math.round(windowHeight * 0.40)),
+    [windowHeight]
+  );
   const navigation = useNavigation<StaffHomeNavProp>();
   // Lấy danh sách workSlots từ BE (đã map về WorkSlot trong StaffScheduleContext; Home chỉ hiện hôm nay/ngày mai).
   // - workSlots: mảng các ca làm việc, mỗi ca có thông tin buildingName, task, ticketId, ...
@@ -124,20 +127,46 @@ export default function StaffHomeScreen() {
    * khi dropdown đóng (dữ liệu vẫn được cache và dùng cho lần mở tiếp theo).
    */
   const [houseDropdownActivated, setHouseDropdownActivated] = useState(false);
+  const [housePickerExpanded, setHousePickerExpanded] = useState(false);
   /** Chip khu vực đang chọn để lọc danh sách nhà trong dropdown. `null` = tất cả. */
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
+  const [houseSearchQuery, setHouseSearchQuery] = useState("");
 
-  // Lazy: chỉ fetch nhà và khu vực khi dropdown được mở lần đầu.
-  const { data, isLoading: housesLoading, isError, refetch, isRefetching: housesRefetching, isStale } = useHouses({ enabled: houseDropdownActivated });
+  // Lazy: chỉ fetch khu vực khi dropdown mở lần đầu; nhà chỉ fetch sau khi người dùng chọn khu vực.
   const { data: regionsData } = useRegionsForStaff({ enabled: houseDropdownActivated });
+  const {
+    data: housesByRegionData,
+    isLoading: housesLoading,
+    isError,
+    refetch: refetchHouses,
+    isRefetching: housesRefetching,
+    isStale: housesIsStale,
+  } = useHousesByRegionId(selectedRegionId);
+
+  // Nếu staff chỉ có 1 khu vực, tự động chọn để không cần thêm thao tác.
+  useEffect(() => {
+    if (regionsData && regionsData.length === 1 && selectedRegionId === null) {
+      setSelectedRegionId(regionsData[0].id);
+    }
+  }, [regionsData, selectedRegionId]);
 
   useFocusEffect(
     useCallback(() => {
       invalidateScheduleRelated();
-      if (houseDropdownActivated && isStale) void refetch();
-    }, [invalidateScheduleRelated, isStale, refetch, houseDropdownActivated])
+      if (houseDropdownActivated && Boolean(selectedRegionId) && housesIsStale) void refetchHouses();
+    }, [invalidateScheduleRelated, housesIsStale, refetchHouses, houseDropdownActivated, selectedRegionId])
   );
-  const buildings: HouseFromApi[] = data?.data ?? [];
+  const buildings: HouseFromApi[] = housesByRegionData?.data ?? [];
+
+  const filteredHouses = useMemo(() => {
+    const q = houseSearchQuery.trim().toLowerCase();
+    if (!q) return buildings;
+    return buildings.filter((b) => {
+      const name = (b.name ?? "").toLowerCase();
+      const addr = [b.address, b.ward, b.commune, b.city].filter(Boolean).join(" ").toLowerCase();
+      return name.includes(q) || addr.includes(q);
+    });
+  }, [buildings, houseSearchQuery]);
 
   const openBuildingDetail = useCallback(
     (house: HouseFromApi) => {
@@ -276,15 +305,7 @@ export default function StaffHomeScreen() {
     }, SCROLL_SHELL_AFTER_OPEN_MS);
   }, [insets.top]);
 
-  const onHousePickerExpandedChange = useCallback(
-    (expanded: boolean) => {
-      if (!expanded) return;
-      // Kích hoạt lazy load lần đầu khi dropdown được mở.
-      setHouseDropdownActivated(true);
-      scrollHousePickerShellIntoView();
-    },
-    [scrollHousePickerShellIntoView]
-  );
+
 
   useEffect(() => {
     return () => {
@@ -328,101 +349,27 @@ export default function StaffHomeScreen() {
   }, []);
 
   // Danh sách thiết bị: lấy từ TẤT CẢ các nhà (mỗi nhà một request rồi gộp) để hiển thị hết, không bị giới hạn một nhà.
-  const houseIds = useMemo(() => buildings.map((b) => b.id), [buildings]);
-  const {
-    data: itemsData,
-    refetch: refetchAllItems,
-    isRefetching: itemsRefetching,
-  } = useAssetItemsAllHouses(houseIds, null);
-  const rawItems: AssetItemFromApi[] = asAssetItemArray(itemsData?.data);
+  const openHousePicker = useCallback(() => {
+    setHousePickerExpanded(true);
+    setHouseDropdownActivated(true);
+    scrollHousePickerShellIntoView();
+  }, [scrollHousePickerShellIntoView]);
 
-  const itemCountByHouseId = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const it of rawItems) {
-      const hid = it.houseId;
-      if (!hid) continue;
-      m.set(hid, (m.get(hid) ?? 0) + 1);
-    }
-    return m;
-  }, [rawItems]);
+  const closeHousePicker = useCallback(() => {
+    setHousePickerExpanded(false);
+    setHouseSearchQuery("");
+  }, []);
 
-  const housePickerSections = useMemo((): DropdownBoxSection[] => {
-    // Section chips khu vực — chỉ render nếu có ít nhất 2 khu vực (1 khu vực thì chip lọc vô nghĩa).
-    const regionSection: DropdownBoxSection | null =
-      regionsData && regionsData.length >= 2
-        ? {
-            id: "region",
-            title: t("staff_home.region_section_title"),
-            itemLayout: "chips",
-            items: regionsData.map((r) => ({ id: r.id, label: r.name })),
-            selectedId: selectedRegionId,
-            showAllOption: true,
-            allLabel: t("staff_home.all_regions"),
-          }
-        : null;
-
-    // Lọc nhà theo chip đang chọn; nếu chưa chọn chip nào thì hiện tất cả.
-    const filteredBuildings = selectedRegionId
-      ? buildings.filter((b) => b.regionId === selectedRegionId)
-      : buildings;
-
-    const houseSection: DropdownBoxSection = {
-      id: "house",
-      title: t("dropdown_box.section_house"),
-      itemLayout: "card",
-      items: filteredBuildings.map((b) => {
-        const addrLine = [b.address, b.ward, b.commune, b.city].filter(Boolean).join(" · ");
-        const count = itemCountByHouseId.get(b.id) ?? 0;
-        return {
-          id: b.id,
-          label: b.name,
-          detail: [b.name, addrLine].filter(Boolean).join(" · "),
-          cardMeta: addrLine || undefined,
-          cardFooter: `${t("staff_home.house_picker_device_prefix")} ${count}`,
-        };
-      }),
-      selectedId: null,
-      showAllOption: false,
-      keepEmpty: true,
-      emptyHint: housesLoading
-        ? t("common.loading")
-        : t("staff_home.no_houses_in_region"),
-    };
-
-    return regionSection ? [regionSection, houseSection] : [houseSection];
-  }, [buildings, regionsData, selectedRegionId, housesLoading, itemCountByHouseId, t]);
-
-  const housePickerCollapsedSummary = useMemo(() => {
-    if (!houseDropdownActivated || housesLoading) {
-      return t("staff_home.house_picker_not_loaded");
-    }
-    return t("staff_home.house_picker_collapsed", { count: buildings.length });
-  }, [houseDropdownActivated, housesLoading, buildings.length, t]);
-
-  const onHousePickerSelect = useCallback(
-    (sectionId: string, itemId: string | null) => {
-      if (sectionId === "region") {
-        // Chip khu vực: cập nhật bộ lọc, không đóng dropdown.
-        setSelectedRegionId(itemId);
-        return;
-      }
-      if (sectionId === "house" && itemId != null) {
-        const house = buildings.find((b) => b.id === itemId);
-        if (house) openBuildingDetail(house);
-      }
-    },
-    [buildings, openBuildingDetail]
-  );
-
-  const listRefreshing = (houseDropdownActivated && housesRefetching) || itemsRefetching;
+  const listRefreshing =
+    houseDropdownActivated && Boolean(selectedRegionId) && housesRefetching;
   const { scrollAtTop, onScrollForRefreshGate } = useRefreshControlGate();
 
   const onPullRefresh = useCallback(async () => {
     invalidateScheduleRelated();
-    if (houseDropdownActivated) {
-      await Promise.all([refetch(), refetchAllItems()]);
+    if (houseDropdownActivated && selectedRegionId) {
+      await refetchHouses();
     }
-  }, [invalidateScheduleRelated, refetch, refetchAllItems, houseDropdownActivated]);
+  }, [invalidateScheduleRelated, refetchHouses, houseDropdownActivated, selectedRegionId]);
 
   // Tóm tắt lịch trên Home: chỉ **hôm nay và ngày mai** (so khóa DD/MM trùng workSlotUtils).
   // Chỉ ca đã có ticketId; sắp xếp theo thứ rồi khung giờ.
@@ -504,8 +451,17 @@ export default function StaffHomeScreen() {
     }
   }, [navigation]);
 
-  const openCreateDevice = useCallback(() => {
-    (navigation as BottomTabNavigationProp<MainTabParamList>).navigate("Devices");
+  /**
+   * Mở màn Camera tra cứu tag (QR/NFC) đã gán → xem thông tin thiết bị (ItemDescription).
+   * Cùng luồng lookup từng gắn với tab logo footer trước đây.
+   */
+  const openScanLookup = useCallback(() => {
+    const root = navigation.getParent?.();
+    if (root && "navigate" in root) {
+      (root as { navigate: (name: string, params: object) => void }).navigate("Camera", {
+        mode: "lookup",
+      });
+    }
   }, [navigation]);
 
   const openAssignTag = useCallback(() => {
@@ -577,35 +533,165 @@ export default function StaffHomeScreen() {
         }}
       >
         <Text style={staffHomeStyles.sectionTitle}>{t("staff_home.buildings_title")}</Text>
-        {housePickerSections.length > 0 ? (
-          <View
-            ref={housePickerMeasureRef}
-            collapsable={false}
-            onLayout={(e) => {
-              const innerY = e.nativeEvent.layout.y;
-              requestAnimationFrame(() => {
-                housePickerBlockYRef.current =
-                  housePickerShellTopInHeaderRef.current + innerY;
-              });
-            }}
-          >
-            <DropdownBox
-              sections={housePickerSections}
-              summary={housePickerCollapsedSummary}
-              onSelect={onHousePickerSelect}
-              style={{ marginBottom: 0 }}
-              itemLayout="card"
-              searchAutoFocus={false}
-              searchPlaceholder={t("staff_home.house_picker_search_placeholder")}
-              onSearchInputFocus={scrollHousePickerIntoView}
-              onExpandedChange={onHousePickerExpandedChange}
-              stayExpandedOnSelectForSections={["region"]}
-              sectionsExcludedFromSearch={["region"]}
-              triggerAccent
-              keyboardAvoiding={false}
-            />
-          </View>
-        ) : null}
+        <View
+          ref={housePickerMeasureRef}
+          collapsable={false}
+          onLayout={(e) => {
+            const innerY = e.nativeEvent.layout.y;
+            requestAnimationFrame(() => {
+              housePickerBlockYRef.current =
+                housePickerShellTopInHeaderRef.current + innerY;
+            });
+          }}
+        >
+          {!housePickerExpanded ? (
+            /* ---- Collapsed trigger ---- */
+            <Pressable
+              style={staffHomeStyles.housePickerTrigger}
+              onPress={openHousePicker}
+              accessibilityRole="button"
+              android_ripple={{ color: "rgba(55,181,132,0.08)" }}
+            >
+              <Text style={staffHomeStyles.housePickerTriggerText}>
+                {t("staff_home.house_picker_not_loaded")}
+              </Text>
+              <Icons.chevronDown size={20} color={neutral.textSecondary} />
+            </Pressable>
+          ) : (
+            /* ---- Expanded panel ---- */
+            <View style={staffHomeStyles.housePickerPanel}>
+
+              {/* Region tabs — chỉ hiện khi có ≥ 2 khu vực */}
+              {regionsData && regionsData.length >= 2 ? (
+                <>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={staffHomeStyles.housePickerRegionTabsRow}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {regionsData.map((r) => (
+                      <Pressable
+                        key={r.id}
+                        style={[
+                          staffHomeStyles.housePickerRegionTab,
+                          selectedRegionId === r.id && staffHomeStyles.housePickerRegionTabActive,
+                        ]}
+                        onPress={() => { setSelectedRegionId(r.id); setHouseSearchQuery(""); }}
+                        android_ripple={{ color: "rgba(55,181,132,0.15)", radius: 18 }}
+                      >
+                        <Text
+                          style={[
+                            staffHomeStyles.housePickerRegionTabText,
+                            selectedRegionId === r.id && staffHomeStyles.housePickerRegionTabTextActive,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {r.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                  <View style={staffHomeStyles.housePickerDivider} />
+                </>
+              ) : null}
+
+              {/* Nội dung: hint khi chưa chọn khu vực, hoặc search + danh sách */}
+              {!selectedRegionId ? (
+                <View style={staffHomeStyles.housePickerHintWrap}>
+                  <Text style={staffHomeStyles.housePickerHintText}>
+                    {t("staff_home.select_region_first")}
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {/* Search bar */}
+                  <View style={staffHomeStyles.housePickerSearchRow}>
+                    <Icons.search size={16} color={neutral.iconMuted} />
+                    <TextInput
+                      style={staffHomeStyles.housePickerSearchInput}
+                      value={houseSearchQuery}
+                      onChangeText={setHouseSearchQuery}
+                      placeholder={t("staff_home.house_picker_search_placeholder")}
+                      placeholderTextColor={neutral.textMuted}
+                      clearButtonMode="while-editing"
+                      returnKeyType="search"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      onFocus={scrollHousePickerIntoView}
+                    />
+                  </View>
+                  <View style={staffHomeStyles.housePickerDivider} />
+
+                  {/* Danh sách nhà / loading / trống */}
+                  {housesLoading ? (
+                    <View style={staffHomeStyles.housePickerHintWrap}>
+                      <RefreshLogoInline logoPx={28} />
+                    </View>
+                  ) : filteredHouses.length === 0 ? (
+                    <View style={staffHomeStyles.housePickerHintWrap}>
+                      <Text style={staffHomeStyles.housePickerHintText}>
+                        {t("staff_home.no_houses_in_region")}
+                      </Text>
+                    </View>
+                  ) : (
+                    <ScrollView
+                      style={{ maxHeight: houseListMaxHeight }}
+                      contentContainerStyle={staffHomeStyles.housePickerList}
+                      keyboardShouldPersistTaps="handled"
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator
+                      {...(Platform.OS === "android" ? { overScrollMode: "never" as const } : { bounces: false })}
+                    >
+                      {filteredHouses.map((house, idx) => {
+                        const addrLine = [house.address, house.ward, house.commune, house.city]
+                          .filter(Boolean).join(" · ");
+                        const isLast = idx === filteredHouses.length - 1;
+                        return (
+                          <Pressable
+                            key={house.id}
+                            style={({ pressed }) => [
+                              staffHomeStyles.housePickerCard,
+                              !isLast && staffHomeStyles.housePickerCardBorder,
+                              pressed && { opacity: 0.80 },
+                            ]}
+                            onPress={() => openBuildingDetail(house)}
+                            android_ripple={{ color: "rgba(0,0,0,0.06)" }}
+                            accessibilityRole="button"
+                            accessibilityLabel={house.name ?? house.id}
+                          >
+                            <View style={staffHomeStyles.housePickerCardMain}>
+                              <Text style={staffHomeStyles.housePickerCardName} numberOfLines={2}>
+                                {house.name}
+                              </Text>
+                            </View>
+                            {addrLine ? (
+                              <Text style={staffHomeStyles.housePickerCardAddr} numberOfLines={1}>
+                                {addrLine}
+                              </Text>
+                            ) : null}
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  )}
+                </>
+              )}
+
+              {/* Collapse */}
+              <View style={staffHomeStyles.housePickerDivider} />
+              <Pressable
+                style={staffHomeStyles.housePickerCollapseRow}
+                onPress={closeHousePicker}
+                android_ripple={{ color: "rgba(0,0,0,0.06)" }}
+                accessibilityRole="button"
+                accessibilityLabel={t("common.close")}
+              >
+                <Icons.expandLess size={20} color={neutral.textSecondary} />
+              </Pressable>
+            </View>
+          )}
+        </View>
       </View>
 
       <View style={staffHomeStyles.quickActionsSection}>
@@ -638,16 +724,16 @@ export default function StaffHomeScreen() {
                 { backgroundColor: "#D1FAE5" },
                 pressed && Platform.OS === "ios" ? { opacity: 0.92 } : null,
               ]}
-              onPress={openCreateDevice}
+              onPress={openScanLookup}
               android_ripple={{ color: "rgba(0,0,0,0.06)" }}
               accessibilityRole="button"
-              accessibilityLabel={t("staff_home.add_menu_create_device")}
+              accessibilityLabel={t("staff_home.add_menu_scan")}
             >
               <View style={staffHomeStyles.quickActionIconSlot}>
-                <Icons.electric color="#047857" size={quickActionIconSize} />
+                <Icons.scanLookup color="#047857" size={quickActionIconSize} />
               </View>
               <Text style={[staffHomeStyles.quickActionLabel, quickActionLabelStyle]}>
-                {t("staff_home.add_menu_create_device")}
+                {t("staff_home.add_menu_scan")}
               </Text>
             </Pressable>
           </View>
@@ -742,7 +828,7 @@ export default function StaffHomeScreen() {
             {t("staff_home.buildings_error")}
           </Text>
           <TouchableOpacity
-            onPress={() => refetch()}
+            onPress={() => refetchHouses()}
             style={{ marginTop: 12, paddingVertical: 10, paddingHorizontal: 16, backgroundColor: brandPrimary, borderRadius: 8 }}
           >
             <Text style={[appTypography.chip, { color: neutral.surface }]}>{t("common.try_again")}</Text>
