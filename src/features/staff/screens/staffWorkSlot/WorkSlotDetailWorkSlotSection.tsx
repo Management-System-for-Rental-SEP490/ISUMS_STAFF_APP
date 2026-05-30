@@ -21,9 +21,8 @@ type SlotLike = {
 export const WorkSlotDetailWorkSlotSection = React.memo(function WorkSlotDetailWorkSlotSection(props: {
   t: TFunction;
   slot: SlotLike;
-  slotStatusLabel: string;
 }) {
-  const { t, slot, slotStatusLabel } = props;
+  const { t, slot } = props;
   return (
     <View style={staffWorkSlotStyles.section}>
       <View style={staffWorkSlotStyles.sectionHeader}>
@@ -47,13 +46,6 @@ export const WorkSlotDetailWorkSlotSection = React.memo(function WorkSlotDetailW
           icon={<Icons.workOutline size={18} color={neutral.slate500} />}
           label={t("staff_work_slot_detail.job_type")}
           value={slot.taskKey ? t(slot.taskKey) : String(slot.task ?? "")}
-        />
-        <WorkSlotDetailInfoRow
-          icon={<Icons.flag size={18} color={neutral.slate500} />}
-          label={t("staff_work_slot_detail.status")}
-          value={slotStatusLabel}
-          isStatus
-          statusRaw={slot.status}
         />
       </View>
     </View>

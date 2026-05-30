@@ -410,7 +410,6 @@ export default function CalendarScreen() {
                             >
                               {slot.taskKey ? t(slot.taskKey) : slot.task}
                             </Text>
-                            <Text style={staffCalendarStyles.slotCardStatus}>{t(statusKey)}</Text>
                           </TouchableOpacity>
                         );
                       })}
