@@ -326,6 +326,11 @@ export default function WorkSlotDetailScreen() {
   const maintenanceEventImagesByAssetRef = useRef<Record<string, AssetItemImageToUpload[]>>({});
   /** Cặp assetId/eventId từ response batch (N asset cập nhật → thường N phần tử) — POST ảnh khi Hoàn thành / Xác nhận kiểm định. */
   const pendingMaintenanceBatchEventsRef = useRef<Array<{ assetId: string; eventId: string }>>([]);
+  /**
+   * Promise upload ảnh kick off ngay sau batch submit (khi đã có eventId) — tái sử dụng trong
+   * navigateToInspectionConfirm thay vì upload lại từ đầu, giảm latency khi navigate.
+   */
+  const pendingEagerUploadRef = useRef<Promise<boolean> | null>(null);
 
   /**
    * Với từng phần tử trong `data.events` (đã chuẩn hóa ở API): một `eventId` ứng một `assetId`.
@@ -799,7 +804,11 @@ export default function WorkSlotDetailScreen() {
     try {
       let maintenanceEventUploadFailed = false;
       if (!isInspectionSlot && maintenanceNext === "COMPLETED") {
-        maintenanceEventUploadFailed = await uploadPendingMaintenanceEventImages();
+        // Tái dùng eager upload đã kick off sau batch submit (nếu có) — tránh upload lại từ đầu.
+        maintenanceEventUploadFailed = pendingEagerUploadRef.current != null
+          ? await pendingEagerUploadRef.current
+          : await uploadPendingMaintenanceEventImages();
+        pendingEagerUploadRef.current = null;
       }
       if (isInspectionSlot) {
         const res = await updateInspectionStatus(job.id, inspectionNext!);
@@ -828,14 +837,7 @@ export default function WorkSlotDetailScreen() {
       }
 
       if (finishedNow) {
-        navigateCalendarAfterCompletion(null);
-        if (maintenanceEventUploadFailed) {
-          CustomAlert.alert(
-            t("common.success"),
-            t("staff_work_slot_detail.maintenance_event_images_partial"),
-            [{ text: t("common.close") }]
-          );
-        }
+        // Chạy completion sync ngầm ngay — không phụ thuộc vào khi nào user dismiss alert.
         void waitForWorkSlotCompletionSync({
           scheduleSlotId: slot.id,
           jobId: job.id,
@@ -853,6 +855,15 @@ export default function WorkSlotDetailScreen() {
           }
           void refetchItem();
         });
+        // Hiện popup trước khi navigate — tránh ra ngoài mà không thông báo gì.
+        // Nếu upload ảnh có lỗi một phần → hiện thêm note về ảnh.
+        CustomAlert.alert(
+          t("common.success"),
+          maintenanceEventUploadFailed
+            ? t("staff_work_slot_detail.maintenance_event_images_partial")
+            : t("staff_work_slot_detail.update_success"),
+          [{ text: t("common.close"), onPress: () => navigateCalendarAfterCompletion(null) }]
+        );
       } else {
         CustomAlert.alert(t("staff_work_slot_detail.update_success"), "", [{ text: t("common.close") }]);
         void refetchItem();
@@ -880,7 +891,12 @@ export default function WorkSlotDetailScreen() {
     setUpdateLoading(true);
     try {
       console.log(`[InspectNav]   → upload ảnh thiết bị bắt đầu: +${Date.now() - t0}ms`);
-      const uploadFailed = await uploadPendingMaintenanceEventImages();
+      // Tái dùng eager upload đã kick off sau batch submit (nếu có) — tránh upload lại từ đầu.
+      // Nếu chưa có (ví dụ không có ảnh nào), gọi trực tiếp (trả về false ngay).
+      const uploadFailed = pendingEagerUploadRef.current != null
+        ? await pendingEagerUploadRef.current
+        : await uploadPendingMaintenanceEventImages();
+      pendingEagerUploadRef.current = null;
       console.log(
         `[InspectNav]   → upload ảnh thiết bị xong: +${Date.now() - t0}ms` +
         ` | failed=${uploadFailed}`,
@@ -949,7 +965,9 @@ export default function WorkSlotDetailScreen() {
   useEffect(() => {
     let cancelled = false;
     const jobInProgress = String(job?.status ?? "").toUpperCase() === "IN_PROGRESS";
-    const shouldLoad = Boolean(currentHouseId) && (maintenanceModalVisible || jobInProgress);
+    // Thêm guard !maintenanceAssetsLoaded: tránh re-fetch mỗi khi modal đóng/mở trong khi
+    // job vẫn IN_PROGRESS — gây disable button "Hoàn thành" không cần thiết 5-6s.
+    const shouldLoad = Boolean(currentHouseId) && (maintenanceModalVisible || jobInProgress) && !maintenanceAssetsLoaded;
     if (!shouldLoad) return;
     const run = async () => {
       setMaintenanceAssetsLoading(true);
@@ -1110,14 +1128,18 @@ export default function WorkSlotDetailScreen() {
                 assetId: normalizeId(row.assetId),
                 eventId: normalizeId(row.eventId),
               })).filter((row) => row.assetId.length > 0 && row.eventId.length > 0);
+              // Kick off upload ảnh ngầm ngay khi đã có eventId — không await, chạy background.
+              // navigateToInspectionConfirm sẽ tái dùng promise này thay vì upload lại từ đầu.
+              pendingEagerUploadRef.current = uploadPendingMaintenanceEventImages();
               // Ghi nhớ trong phiên để quay lại màn vẫn hiện nút "Hoàn thành".
               submittedMaintenanceJobIdsInSession.add(job.id);
               setMaintenanceSubmitted(true);
-              setMaintenanceModalVisible(false);
+              // KHÔNG đóng modal trước khi hiện alert — gọi 2 Modal cùng lúc gây conflict
+              // animation trên React Native → alert bị nuốt mất. Đóng modal khi user dismiss alert.
               CustomAlert.alert(
                 t("common.success"),
                 t("staff_work_slot_detail.maintenance_batch_success"),
-                [{ text: t("common.close") }]
+                [{ text: t("common.close"), onPress: () => setMaintenanceModalVisible(false) }]
               );
             } catch (err) {
               CustomAlert.alert(
